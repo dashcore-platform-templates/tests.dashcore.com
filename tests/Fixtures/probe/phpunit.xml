@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The suite ProbeTest runs with the probe attached. SQLite in memory, forced,
+     so it can never touch the database the outer test run is using. -->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="../../../vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="../../../vendor/autoload.php"
+         cacheResult="false"
+         colors="false">
+    <testsuites>
+        <testsuite name="Probe">
+            <file>ProbeTargetTest.php</file>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="sqlite" force="true"/>
+        <server name="DB_CONNECTION" value="sqlite" force="true"/>
+        <env name="DB_DATABASE" value=":memory:" force="true"/>
+        <server name="DB_DATABASE" value=":memory:" force="true"/>
+        <env name="DB_URL" value="" force="true"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

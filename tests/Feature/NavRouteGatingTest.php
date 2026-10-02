@@ -93,7 +93,8 @@ class NavRouteGatingTest extends TestCase
 
     public function test_has_items_for_respects_permissions(): void
     {
-        $registry = app(NavigationRegistry::class);
+        // A fresh registry: the app's own items include ones members can see.
+        $registry = new NavigationRegistry;
         $registry->register('Test', 'Billing Link', 'billing', null, 0, 'billing');
 
         $this->assertTrue($registry->hasItemsFor(UserRole::Owner));

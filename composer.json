@@ -7,15 +7,18 @@
     "license": "MIT",
     "require": {
         "php": "^8.4",
+        "dashcore/bridge": "^0.11.19",
         "laravel/framework": "^13.0",
         "laravel/nightwatch": "^1.23",
         "laravel/tinker": "^3.0",
         "livewire/livewire": "^4.3",
         "livewire/volt": "^1.7.0",
+        "nikic/php-parser": "^5.0",
         "phpunit/phpunit": "^13.3",
         "resend/resend-laravel": "^1.2"
     },
     "require-dev": {
+        "dashcore/testkit": "^0.1",
         "fakerphp/faker": "^1.23",
         "laravel/breeze": "^2.4",
         "laravel/pail": "^1.2.5",
@@ -90,5 +93,20 @@
         }
     },
     "minimum-stability": "stable",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "dashcore-testkit",
+        "type": "path",
+        "url": "packages/dashcore/testkit",
+        "options": {
+            "symlink": false
+        }
+    },{
+        "name": "dashcore-bridge",
+        "type": "path",
+        "url": "packages/dashcore/bridge",
+        "options": {
+            "symlink": false
+        }
+    }]
 }

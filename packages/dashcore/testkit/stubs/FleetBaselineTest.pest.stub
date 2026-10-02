@@ -1,0 +1,21 @@
+<?php
+
+/*
+ * The DashCore fleet baseline (dashcore/testkit). Each check is a ratchet:
+ * exceptions that existed when it was installed are listed in
+ * config/testkit.php; anything new fails here.
+ */
+
+use Dashcore\Testkit\Testkit;
+
+test('every app route has an authentication guard or is declared public', fn () => Testkit::assertRoutesAreGuarded());
+
+test('the suite runs on the production database engine', fn () => Testkit::assertTestsRunOn());
+
+test('every migration rolls back and runs again cleanly', fn () => Testkit::assertMigrationsRoundTrip());
+
+test('no debugging calls are left in the app', fn () => Testkit::assertNoDebugCalls());
+
+test('env() is only read in config', fn () => Testkit::assertNoEnvOutsideConfig());
+
+test('every Livewire action gives loading feedback', fn () => Testkit::assertLivewireActionsGiveFeedback());

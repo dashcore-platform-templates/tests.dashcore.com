@@ -1,0 +1,43 @@
+{
+    "name": "dashcore/testkit",
+    "version": "0.1.3",
+    "description": "The DashCore fleet's baseline tests: route guards, the test database, migration round trips, debug and env() calls, and Livewire loading feedback \u2014 each a ratchet that fails only on what is new.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.3",
+        "laravel/framework": "^12.0|^13.0",
+        "nikic/php-parser": "^5.0"
+    },
+    "require-dev": {
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0|^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dashcore\\Testkit\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dashcore\\Testkit\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Dashcore\\Testkit\\TestkitServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "scripts": {
+        "test": "pest"
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

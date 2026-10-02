@@ -10,7 +10,7 @@ composer run dev                    # Runs server + queue + pail logs + vite con
 npm run dev                         # Vite dev server only
 npm run build                       # Production build
 
-# Testing (uses SQLite in-memory, BCRYPT_ROUNDS=4 — see phpunit.xml)
+# Testing (Postgres database tests_dashcore_testing, forced in phpunit.xml; BCRYPT_ROUNDS=4)
 php artisan test --compact                          # Run all tests
 php artisan test --compact tests/Feature/           # Run a directory
 php artisan test --compact --filter=ExampleTest     # Run by name
@@ -78,6 +78,51 @@ Theme preference is stored in `localStorage('app-theme')` and applied before fir
 - **Invokable actions** — `app/Livewire/Actions/Logout.php` implements `__invoke()`, can be injected into any Volt component
 - **Events** — Components dispatch events like `profile-updated` for Alpine.js listeners (e.g., `action-message` component shows success toasts)
 - **SPA navigation** — Links use `wire:navigate` for instant page transitions
+
+## What this app is: the fleet's test coverage plane
+
+tests.dashcore.com scans every app in its fleet and records which of each app's
+surfaces (routes, Livewire components/actions, and every public method under
+`app/`) a passing, asserting test actually exercises.
+
+- **Roster** — `App\Scanning\FleetSync` reads the `install` block of the control
+  plane's signed manifest via `dashcore/bridge` (vendored in `packages/`). No app
+  list is kept here. `php artisan tests:sync-fleet`.
+- **Checkouts** — `SCANNER_ROOT` (e.g. `~/Herd`) holds one checkout per app,
+  named by production host. `CheckoutLocator` refuses anything outside it.
+- **Workspace** — each scan runs in a throwaway `git worktree` of the app's
+  default branch (origin first), with a fresh `.env` from `.env.example` and
+  phpunit.xml rewritten to force a scratch Postgres DB `tests_scan_{key}`. The
+  app's working copy and dev database are never touched.
+- **Probe** — `probe/` is loaded into the app's test process via
+  `-d auto_prepend_file` + `--extension DashcoreTestsProbe\Extension`, with
+  Xdebug loaded only for that process. It writes one JSON line per test: routes
+  matched, Livewire mounts/calls, executed `app/` lines, outcome, assertions.
+  It must never break a suite — keep every hook wrapped.
+- **Verdicts** — `Inventory` lists surfaces statically (php-parser +
+  `route:list --json --except-vendor`); `Analyzer` marks each Tested (passing
+  test with ≥1 assertion reached it), Weak (only failing/risky/assertion-free
+  tests did) or Missing.
+- **Mutation** — after the suite, tested methods (incl. Volt class actions) get
+  their body swapped for a trivial default (`Mutation\Mutator`) and their proving
+  tests re-run; survivors become Weak (`VerdictReason::MutantSurvived`). Budgeted
+  per scan; verdicts are reused while the method's body hash is unchanged.
+- **Ratchet** — each scan diffs against the previous one (`SurfaceChange`):
+  lost coverage and new-untested surfaces are regressions.
+- **Builds** — `app/Building`: `BuildPlanner` picks a batch of open surfaces,
+  `AgentRunner` runs Claude Code headless in a worktree branch (tests/ and
+  database/factories/ only), `BuildVerifier` re-checks everything itself
+  (reach, mutation, full suite), `Publisher` commits, pushes and opens a PR.
+  `tests:build [keys] [--surface=] [--now]`; `tests:sync-builds` follows PRs.
+- **Fleet baseline** — `dashcore/testkit` (repo `dashcoretech/testkit`, checkout
+  `~/Herd/testkit`, vendored in `packages/`): route guards, Postgres, migration
+  round trip, debug/env calls, Livewire loading feedback — ratchets recorded in
+  `config/testkit.php`. `TestkitInstaller` rolls it out, one verified PR per app:
+  `tests:install-testkit [keys] [--now]`. Scans record each app's version.
+- **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
+  connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
+  `routes/console.php` syncs, scans nightly, starts the `scans` worker on demand,
+  and prunes old per-test detail.
 
 ## NavigationRegistry Contract
 

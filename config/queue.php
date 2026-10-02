@@ -44,6 +44,18 @@ return [
             'after_commit' => false,
         ],
 
+        // Scans and builds run for hours; retry_after must outlast the longest
+        // of them (a build runs the agent, then the suite up to twice) or a
+        // running job is handed to a second worker mid-run.
+        'scans' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'scans',
+            'retry_after' => (int) env('SCANNER_TIMEOUT', 7200) * 3 + (int) env('SCANNER_BUILD_TIMEOUT', 3600) + 3600,
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

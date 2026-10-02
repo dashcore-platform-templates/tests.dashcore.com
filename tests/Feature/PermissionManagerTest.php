@@ -166,4 +166,66 @@ class PermissionManagerTest extends TestCase
             ->call('resetOverrides')
             ->assertSet('overrides.billing', 'view');
     }
+
+    public function test_effective_level_is_null_when_no_user_selected(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+        $component = Livewire::actingAs($owner)->test(PermissionManager::class);
+
+        $this->assertNull($component->instance()->effectiveLevel('billing'));
+    }
+
+    public function test_effective_level_falls_back_to_role_default_when_inheriting(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($owner)
+            ->test(PermissionManager::class)
+            ->set('selectedUserId', $admin->id)
+            ->assertSet('overrides.billing', 'inherit');
+
+        $this->assertSame('view', $component->instance()->effectiveLevel('billing'));
+        $this->assertSame('full', $component->instance()->effectiveLevel('permissions'));
+    }
+
+    public function test_effective_level_uses_override_when_set(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+        $member = User::factory()->create(['role' => UserRole::Member]);
+
+        $component = Livewire::actingAs($owner)
+            ->test(PermissionManager::class)
+            ->set('selectedUserId', $member->id)
+            ->set('overrides.billing', 'full')
+            ->set('overrides.reports', 'deny');
+
+        $this->assertSame('full', $component->instance()->effectiveLevel('billing'));
+        $this->assertNull($component->instance()->effectiveLevel('reports'));
+    }
+
+    public function test_role_default_returns_role_level_ignoring_overrides(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+        $admin = User::factory()->create(['role' => UserRole::Admin]);
+
+        $component = Livewire::actingAs($owner)
+            ->test(PermissionManager::class)
+            ->set('selectedUserId', $admin->id)
+            ->set('overrides.billing', 'deny');
+
+        $this->assertSame('view', $component->instance()->roleDefault('billing'));
+        $this->assertSame('full', $component->instance()->roleDefault('permissions'));
+        $this->assertNull($component->instance()->roleDefault('finance'));
+    }
+
+    public function test_role_default_is_null_when_no_user_selected(): void
+    {
+        $owner = User::factory()->create(['role' => UserRole::Owner]);
+
+        $component = Livewire::actingAs($owner)->test(PermissionManager::class);
+
+        $this->assertNull($component->instance()->roleDefault('billing'));
+    }
 }
