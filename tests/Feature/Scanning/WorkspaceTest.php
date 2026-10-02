@@ -7,6 +7,7 @@ use App\Models\Scan;
 use App\Scanning\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 use Tests\Concerns\UsesFleetFixtures;
@@ -181,6 +182,26 @@ class WorkspaceTest extends TestCase
         } finally {
             $workspace->cleanup();
             $this->assertDirectoryDoesNotExist($workspace->path);
+        }
+    }
+
+    public function test_assets_that_cannot_be_built_stop_the_scan_rather_than_fail_every_page_test(): void
+    {
+        file_put_contents($this->repo.'/package.json', '{"scripts": {"build": "vite build"}}');
+        $this->git('add', 'package.json');
+        $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--quiet', '-m', 'Add assets');
+        File::ensureDirectoryExists($this->repo.'/node_modules');
+        config(['scanner.npm' => 'npm-that-is-not-on-path']);
+
+        $workspace = new Workspace($this->fleetApp, $this->scan);
+
+        try {
+            $this->expectException(RuntimeException::class);
+            $this->expectExceptionMessage('npm run build failed');
+
+            $workspace->prepare($workspace->resolveRevision()['sha']);
+        } finally {
+            $workspace->cleanup();
         }
     }
 
