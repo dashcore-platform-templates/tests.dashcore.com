@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
+use App\Enums\VerdictReason;
 use Database\Factories\SurfaceFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -28,7 +29,9 @@ class Surface extends Model
         return [
             'kind' => SurfaceKind::class,
             'status' => SurfaceStatus::class,
+            'reason' => VerdictReason::class,
             'meta' => 'array',
+            'mutation_checked_at' => 'datetime',
             'removed_at' => 'datetime',
         ];
     }

@@ -113,6 +113,12 @@
                             </td>
                             <td class="px-4 py-3 text-right font-mono text-sm {{ ($done?->surfaces_missing ?? 0) > 0 ? 'text-red-400' : 'text-surface-400' }}">
                                 {{ $done ? number_format($done->surfaces_missing) : '—' }}
+                                @if ($done && $done->regressions() > 0)
+                                    <div class="text-xs text-red-400" title="Lost coverage or new and untested since the previous scan">+{{ $done->regressions() }} since last scan</div>
+                                @endif
+                                @if ($done && $done->mutants_survived > 0)
+                                    <div class="text-xs text-warning-500" title="Tested methods whose tests still pass when the method is broken">{{ $done->mutants_survived }} unguarded</div>
+                                @endif
                             </td>
                             <td class="px-4 py-3 text-right whitespace-nowrap">
                                 @if ($done)

@@ -3,6 +3,7 @@
 namespace App\Scanning;
 
 use App\Enums\SurfaceStatus;
+use App\Enums\VerdictReason;
 use App\Scanning\Evidence\TestRecord;
 use App\Scanning\Inventory\DiscoveredSurface;
 
@@ -81,7 +82,9 @@ class Analyzer
             $results[$surface->key()] = [
                 'surface' => $surface,
                 'status' => $status,
+                'reason' => $status === SurfaceStatus::Weak ? VerdictReason::NoProvingTest : null,
                 'tests' => array_slice($proving !== [] ? $proving : $other, 0, self::EVIDENCE),
+                'proving' => $proving,
                 'count' => count($reached),
             ];
         }

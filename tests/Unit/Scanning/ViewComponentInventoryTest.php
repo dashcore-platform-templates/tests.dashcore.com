@@ -33,6 +33,19 @@ class ViewComponentInventoryTest extends TestCase
         $this->assertContains('pages.auth.login@login', $login->match);
 
         $this->assertArrayNotHasKey('resources/views/livewire/pages/auth/login.blade.php@mount', $this->surfaces);
+        $this->assertArrayNotHasKey('resources/views/livewire/pages/auth/login.blade.php@normalise', $this->surfaces, 'a closure inside a method is not an action');
+    }
+
+    public function test_class_component_actions_carry_their_body_lines_for_mutation(): void
+    {
+        $login = $this->surfaces['resources/views/livewire/pages/auth/login.blade.php@login'];
+
+        $this->assertSame(13, $login->startLine, 'the file\'s own line numbers, template and all');
+        $this->assertSame(16, $login->endLine);
+        $this->assertNotNull($login->hash);
+
+        $increment = $this->surfaces['resources/views/pages/counter.blade.php@increment'];
+        $this->assertFalse($increment->hasLines(), 'a functional closure has no method body to swap');
     }
 
     public function test_functional_volt_closures_are_actions_and_the_pages_namespace_is_a_name(): void

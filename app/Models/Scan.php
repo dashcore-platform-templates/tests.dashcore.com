@@ -32,6 +32,16 @@ class Scan extends Model
         return $this->belongsTo(FleetApp::class);
     }
 
+    public function previousScan(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'previous_scan_id');
+    }
+
+    public function regressions(): int
+    {
+        return $this->surfaces_new_untested + $this->surfaces_lost;
+    }
+
     public function requestedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');

@@ -2,7 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\MutationResult;
+use App\Enums\SurfaceChange;
 use App\Enums\SurfaceStatus;
+use App\Enums\VerdictReason;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -16,6 +19,9 @@ class ScanSurface extends Model
     {
         return [
             'status' => SurfaceStatus::class,
+            'reason' => VerdictReason::class,
+            'change' => SurfaceChange::class,
+            'mutation' => MutationResult::class,
             'evidence' => 'array',
         ];
     }

@@ -3,9 +3,11 @@
 namespace Tests\Feature\Fleet;
 
 use App\Enums\ScanStatus;
+use App\Enums\SurfaceChange;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
 use App\Enums\TestOutcome;
+use App\Enums\VerdictReason;
 use App\Jobs\RunScan;
 use App\Livewire\Fleet\Index;
 use App\Livewire\Fleet\Show;
@@ -23,10 +25,14 @@ class FleetPagesTest extends TestCase
 {
     use RefreshDatabase, UsesFleetFixtures;
 
-    private function scannedApp(): FleetApp
+    private function scannedApp(bool $withBaseline = false): FleetApp
     {
         $root = $this->scannerRootWith(['finance.dashcore.com']);
         $app = FleetApp::factory()->create(['key' => 'finance', 'name' => 'Finance', 'host' => 'finance.dashcore.com', 'local_path' => $root.'/finance.dashcore.com']);
+
+        if ($withBaseline) {
+            Scan::factory()->completed()->for($app)->create();
+        }
 
         $scan = Scan::factory()->completed(50)->for($app)->create(['surfaces_total' => 4, 'surfaces_tested' => 2, 'surfaces_weak' => 1, 'surfaces_missing' => 1, 'tests_failed' => 1]);
 
@@ -200,5 +206,41 @@ class FleetPagesTest extends TestCase
             ->test(ScanShow::class, ['scanId' => $scan->id])
             ->assertSee('The scan failed')
             ->assertSee('composer install failed: boom');
+    }
+
+    public function test_regressions_and_mutation_verdicts_are_shown_and_filterable(): void
+    {
+        $app = $this->scannedApp(withBaseline: true);
+        [$baseline, $scan] = $app->scans()->orderBy('id')->get()->all();
+        $scan->update(['previous_scan_id' => $baseline->id, 'surfaces_lost' => 1, 'surfaces_new_untested' => 0, 'mutants_survived' => 1, 'mutants_killed' => 4]);
+
+        $post = $app->surfaces()->where('identifier', 'POST reports')->sole();
+        $scan->surfaceResults()->where('surface_id', $post->id)->update(['change' => SurfaceChange::Lost]);
+        $app->surfaces()->where('identifier', 'App\Jobs\SendReport::handle')->update(['reason' => VerdictReason::MutantSurvived, 'mutation' => 'survived']);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Index::class)
+            ->assertSee('+1 since last scan')
+            ->assertSee('1 unguarded');
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertSee('1 lost coverage')
+            ->assertSee('Tests still pass when it is broken')
+            ->assertSee('4 caught')
+            ->call('showRegressions')
+            ->assertSet('change', 'regressions')
+            ->assertSee('POST reports')
+            ->assertSee('Lost coverage')
+            ->assertDontSee('App\Jobs\SendReport::handle');
+    }
+
+    public function test_a_first_scan_is_called_the_baseline(): void
+    {
+        $this->scannedApp();
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertSee('This is the first scan');
     }
 }

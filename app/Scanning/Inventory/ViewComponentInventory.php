@@ -70,13 +70,16 @@ class ViewComponentInventory
                 match: $names,
             );
 
-            foreach ($this->actions($contents, $path) as $action) {
+            foreach ($this->actions($contents, $path) as $action => $lines) {
                 $surfaces[] = new DiscoveredSurface(
                     kind: SurfaceKind::Action,
                     identifier: $path.'@'.$action,
                     label: $label.'@'.$action,
                     file: $path,
+                    startLine: $lines['start'] ?? null,
+                    endLine: $lines['end'] ?? null,
                     match: array_map(fn (string $name) => $name.'@'.$action, $names),
+                    hash: $lines['hash'] ?? null,
                 );
             }
         }
@@ -121,20 +124,33 @@ class ViewComponentInventory
      * Public methods of the anonymous class, or closures assigned to variables
      * in Volt's functional API — the things wire:click can call.
      *
-     * @return list<string>
+     * A class component's methods carry their body's lines and a hash, so they
+     * can be mutation-checked like any other method. The whole file is parsed
+     * (the template is inline HTML to the parser) so the lines are the file's
+     * own; functional closures have no method body to swap and carry none.
+     *
+     * @return array<string, array{start: int, end: int, hash: string}|array{}>
      */
     private function actions(string $contents, string $path): array
     {
-        if (! preg_match('/<\?php(.*?)(\?>|$)/s', $contents, $m)) {
-            return [];
-        }
+        $parser = (new ParserFactory)->createForNewestSupportedVersion();
 
         try {
-            $ast = (new ParserFactory)->createForNewestSupportedVersion()->parse('<?php'.$m[1]) ?? [];
-        } catch (Throwable $e) {
-            $this->errors[] = $path.': '.$e->getMessage();
+            $ast = $parser->parse($contents) ?? [];
+            $positioned = true;
+        } catch (Throwable) {
+            if (! preg_match('/<\?php(.*?)(\?>|$)/s', $contents, $m)) {
+                return [];
+            }
 
-            return [];
+            try {
+                $ast = $parser->parse('<?php'.$m[1]) ?? [];
+                $positioned = false;
+            } catch (Throwable $e) {
+                $this->errors[] = $path.': '.$e->getMessage();
+
+                return [];
+            }
         }
 
         $finder = new NodeFinder;
@@ -144,23 +160,32 @@ class ViewComponentInventory
             foreach ($class->getMethods() as $method) {
                 $name = $method->name->toString();
 
-                if ($method->isPublic() && ! $method->isStatic() && ! str_starts_with($name, '__') && ! $this->isLifecycle($name)) {
-                    $actions[] = $name;
+                if (! $method->isPublic() || $method->isStatic() || str_starts_with($name, '__') || $this->isLifecycle($name)) {
+                    continue;
                 }
+
+                $stmts = $method->stmts ?? [];
+
+                $actions[$name] = $positioned && $stmts !== [] ? [
+                    'start' => $stmts[0]->getStartLine(),
+                    'end' => $method->getEndLine(),
+                    'hash' => sha1(substr($contents, $method->getStartFilePos(), $method->getEndFilePos() - $method->getStartFilePos() + 1)),
+                ] : [];
             }
         }
 
+        // Only top-level assignments: a closure inside a method is not an action.
         foreach ($ast as $stmt) {
             if ($stmt instanceof Node\Stmt\Expression
                 && $stmt->expr instanceof Node\Expr\Assign
                 && $stmt->expr->var instanceof Node\Expr\Variable
                 && is_string($stmt->expr->var->name)
                 && ($stmt->expr->expr instanceof Node\Expr\Closure || $stmt->expr->expr instanceof Node\Expr\ArrowFunction)) {
-                $actions[] = $stmt->expr->var->name;
+                $actions[$stmt->expr->var->name] ??= [];
             }
         }
 
-        return array_values(array_unique($actions));
+        return $actions;
     }
 
     private function isLifecycle(string $method): bool

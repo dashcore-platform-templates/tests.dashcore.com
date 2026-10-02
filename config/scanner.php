@@ -79,6 +79,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Mutation checks
+    |--------------------------------------------------------------------------
+    |
+    | After the suite runs, up to `budget` tested methods per scan have their
+    | body replaced with a trivial default and their proving tests re-run. A
+    | method whose tests still pass is downgraded to Weak. Verdicts are kept
+    | while the method's code is unchanged; survivors are re-checked first,
+    | then methods never checked, then the oldest kills after `recheck_days`.
+    |
+    */
+
+    'mutation' => [
+        'budget' => (int) env('SCANNER_MUTANTS_PER_SCAN', 40),
+        'timeout' => (int) env('SCANNER_MUTANT_TIMEOUT', 600),
+        'recheck_days' => (int) env('SCANNER_MUTATION_RECHECK_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
     |

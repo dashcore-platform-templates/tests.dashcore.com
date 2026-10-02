@@ -10,6 +10,8 @@ new class extends Component
 
     public function login(): void
     {
+        $normalise = fn (string $email) => strtolower($email);
+        $this->email = $normalise($this->email);
         $this->redirect('/');
     }
 }; ?>

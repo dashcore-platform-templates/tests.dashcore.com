@@ -98,6 +98,7 @@ class CodeInventory
                     startLine: $method['start'],
                     endLine: $method['end'],
                     match: $isComponent ? [$fqcn.'@'.$method['name'], $this->componentName($class['path']).'@'.$method['name']] : [],
+                    hash: $method['hash'],
                 );
             }
         }
@@ -106,7 +107,7 @@ class CodeInventory
     }
 
     /**
-     * @return array<string, array{path: string, parent: ?string, abstract: bool, methods: list<array{name: string, start: int, end: int, relation: bool}>}>
+     * @return array<string, array{path: string, parent: ?string, abstract: bool, methods: list<array{name: string, start: int, end: int, relation: bool, hash: string}>}>
      */
     private function classes(string $root): array
     {
@@ -126,8 +127,10 @@ class CodeInventory
 
             $path = substr($file->getPathname(), strlen($root) + 1);
 
+            $source = (string) file_get_contents($file->getPathname());
+
             try {
-                $ast = $this->parser->parse((string) file_get_contents($file->getPathname())) ?? [];
+                $ast = $this->parser->parse($source) ?? [];
             } catch (Throwable $e) {
                 $this->errors[] = $path.': '.$e->getMessage();
 
@@ -147,7 +150,7 @@ class CodeInventory
                     'path' => $path,
                     'parent' => $node instanceof Class_ ? $node->extends?->toString() : null,
                     'abstract' => $node instanceof Class_ && $node->isAbstract(),
-                    'methods' => $this->methods($node),
+                    'methods' => $this->methods($node, $source),
                 ];
             }
         }
@@ -156,9 +159,9 @@ class CodeInventory
     }
 
     /**
-     * @return list<array{name: string, start: int, end: int, relation: bool}>
+     * @return list<array{name: string, start: int, end: int, relation: bool, hash: string}>
      */
-    private function methods(ClassLike $node): array
+    private function methods(ClassLike $node, string $source): array
     {
         $methods = [];
 
@@ -178,6 +181,7 @@ class CodeInventory
                 'start' => $stmts[0]->getStartLine(),
                 'end' => $method->getEndLine(),
                 'relation' => $this->isRelation($method),
+                'hash' => sha1(substr($source, $method->getStartFilePos(), $method->getEndFilePos() - $method->getStartFilePos() + 1)),
             ];
         }
 

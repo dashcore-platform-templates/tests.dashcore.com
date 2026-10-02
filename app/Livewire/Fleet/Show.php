@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Fleet;
 
+use App\Enums\SurfaceChange;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
 use App\Enums\TestOutcome;
@@ -38,6 +39,19 @@ class Show extends Component
     #[Url(as: 'q')]
     public string $search = '';
 
+    /** `regressions` narrows to what the latest scan flagged against the one before it. */
+    #[Url]
+    public string $change = '';
+
+    public function showRegressions(): void
+    {
+        $this->status = 'all';
+        $this->kind = '';
+        $this->search = '';
+        $this->change = 'regressions';
+        $this->resetPage();
+    }
+
     public function mount(string $appKey): void
     {
         $this->appId = FleetApp::query()->where('key', $appKey)->firstOrFail()->id;
@@ -45,7 +59,7 @@ class Show extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['status', 'kind', 'search'], true)) {
+        if (in_array($property, ['status', 'kind', 'search', 'change'], true)) {
             $this->resetPage();
         }
     }
@@ -119,6 +133,12 @@ class Show extends Component
             ->when($this->status === 'open', fn ($q) => $q->whereIn('status', [SurfaceStatus::Missing, SurfaceStatus::Weak]))
             ->when(SurfaceStatus::tryFrom($this->status), fn ($q, SurfaceStatus $s) => $q->where('status', $s))
             ->when(SurfaceKind::tryFrom($this->kind), fn ($q, SurfaceKind $k) => $q->where('kind', $k))
+            ->when($this->change !== '' && $this->latestScan !== null, fn ($q) => $q->whereIn('id', ScanSurface::query()
+                ->select('surface_id')
+                ->where('scan_id', $this->latestScan->id)
+                ->whereIn('change', $this->change === 'regressions'
+                    ? [SurfaceChange::NewUntested, SurfaceChange::Lost]
+                    : array_filter([SurfaceChange::tryFrom($this->change)]))))
             ->when(trim($this->search) !== '', fn ($q) => $q->where(fn ($q) => $q
                 ->whereLike('label', '%'.trim($this->search).'%')
                 ->orWhereLike('identifier', '%'.trim($this->search).'%')

@@ -10,7 +10,9 @@ use App\Enums\SurfaceKind;
  *
  * `match` holds the runtime keys that prove it was exercised — a route's
  * "METHOD uri", a component's name or class, an action's "name@method".
- * Code surfaces are proven by executed lines between start and end instead.
+ * Code surfaces are proven by executed lines between start and end instead,
+ * and carry a hash of that body so a mutation verdict can be kept until the
+ * code it was reached on changes.
  */
 final readonly class DiscoveredSurface
 {
@@ -27,6 +29,7 @@ final readonly class DiscoveredSurface
         public ?int $endLine = null,
         public array $match = [],
         public array $meta = [],
+        public ?string $hash = null,
     ) {}
 
     public function key(): string

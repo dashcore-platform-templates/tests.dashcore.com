@@ -38,7 +38,7 @@ final class Recorder
 
         $this->current = [
             'id' => $test->id(),
-            'file' => $this->relative($test->file()),
+            'file' => $this->relative($this->testFile($test)),
             'class' => $test instanceof TestMethod ? $test->className() : null,
             'name' => $test instanceof TestMethod ? $test->testDox()->prettifiedMethodName() : $test->name(),
             'status' => 'passed',
@@ -239,6 +239,26 @@ final class Recorder
         }
 
         return $lines;
+    }
+
+    /**
+     * The file a test lives in. Pest builds each test file's class with eval(),
+     * so PHPUnit reports Pest's factory as the file; Pest keeps the real one
+     * on the generated class.
+     */
+    private function testFile(Test $test): string
+    {
+        $file = $test->file();
+
+        if ($test instanceof TestMethod && str_contains($file, "eval()'d code") && property_exists($test->className(), '__filename')) {
+            $real = $test->className()::$__filename;
+
+            if (is_string($real) && $real !== '') {
+                return $real;
+            }
+        }
+
+        return $file;
     }
 
     private function relative(string $path): string

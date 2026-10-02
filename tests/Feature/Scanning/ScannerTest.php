@@ -2,11 +2,16 @@
 
 namespace Tests\Feature\Scanning;
 
+use App\Enums\MutationResult;
 use App\Enums\ScanStatus;
+use App\Enums\SurfaceChange;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
+use App\Enums\VerdictReason;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Scanning\Inventory\DiscoveredSurface;
+use App\Scanning\Mutation\MutationTester;
 use App\Scanning\Scanner;
 use App\Scanning\SuiteRunner;
 use App\Scanning\Workspace;
@@ -26,6 +31,12 @@ class ScannerTest extends TestCase
     private ?\Throwable $runnerFails = null;
 
     public bool $cleanedUp = false;
+
+    /** @var array<string, MutationResult> verdicts the fake mutation tester returns, by identifier */
+    public array $mutationVerdicts = [];
+
+    /** @var list<string> identifiers the fake mutation tester was asked to check */
+    public array $mutated = [];
 
     private FleetApp $fleetApp;
 
@@ -77,6 +88,19 @@ class ScannerTest extends TestCase
             public function run(Workspace $workspace): array
             {
                 return $this->test->runSuite($workspace);
+            }
+        });
+
+        $this->app->bind(MutationTester::class, fn () => new class($test) extends MutationTester
+        {
+            public function __construct(private readonly ScannerTest $test) {}
+
+            public function test(Workspace $workspace, DiscoveredSurface $surface, array $proving): array
+            {
+                $this->test->mutated[] = $surface->identifier;
+                $result = $this->test->mutationVerdicts[$surface->identifier] ?? MutationResult::Killed;
+
+                return ['result' => $result, 'mutants' => 1, 'killed' => $result === MutationResult::Killed ? 1 : 0, 'survivor' => null];
             }
         });
 
@@ -188,5 +212,115 @@ class ScannerTest extends TestCase
         $this->assertSame(ScanStatus::Failed, $scan->status);
         $this->assertStringContainsString('no checkout of finance.dashcore.com', $scan->error);
         $this->assertFalse($this->cleanedUp, 'no workspace was ever created');
+    }
+
+    /** Tests that prove the report controller and both job methods. */
+    private function provingEverything(): array
+    {
+        return [
+            ['id' => 'T::index', 'file' => 'tests/T.php', 'status' => 'passed', 'assertions' => 1, 'routes' => ['GET reports'],
+                'lines' => ['app/Http/Controllers/ReportController.php' => [9], 'app/Jobs/SendReport.php' => [11, 17]]],
+        ];
+    }
+
+    public function test_a_method_whose_tests_survive_a_mutant_is_weak_and_says_why(): void
+    {
+        $this->probe = $this->provingEverything();
+        $this->mutationVerdicts = ['App\Jobs\SendReport::handle' => MutationResult::Survived];
+
+        $scan = $this->scan();
+
+        $handle = $this->fleetApp->surfaces()->where('identifier', 'App\Jobs\SendReport::handle')->sole();
+        $this->assertSame(SurfaceStatus::Weak, $handle->status);
+        $this->assertSame(VerdictReason::MutantSurvived, $handle->reason);
+        $this->assertSame('survived', $handle->mutation);
+        $this->assertNotNull($handle->mutation_checked_at);
+
+        $failed = $this->fleetApp->surfaces()->where('identifier', 'App\Jobs\SendReport::failed')->sole();
+        $this->assertSame(SurfaceStatus::Tested, $failed->status);
+        $this->assertSame('killed', $failed->mutation);
+
+        $this->assertSame(1, $scan->mutants_survived);
+        $this->assertSame(2, $scan->mutants_killed);
+        $this->assertSame(1, $scan->surfaces_weak);
+        $this->assertSame(MutationResult::Survived, $scan->surfaceResults()->where('surface_id', $handle->id)->sole()->mutation);
+        $this->assertEqualsCanonicalizing(['App\Jobs\SendReport::handle', 'App\Jobs\SendReport::failed', 'App\Http\Controllers\ReportController::index'], $this->mutated, 'routes have no body to mutate');
+    }
+
+    public function test_verdicts_are_kept_while_the_code_is_unchanged_and_survivors_are_rechecked_first(): void
+    {
+        $this->probe = $this->provingEverything();
+        $this->mutationVerdicts = ['App\Jobs\SendReport::handle' => MutationResult::Survived];
+        $this->scan();
+
+        // Nothing changed: kills are reused, the survivor is checked again — and now dies.
+        $this->mutated = [];
+        $this->mutationVerdicts = [];
+        $second = $this->scan();
+
+        $this->assertSame(['App\Jobs\SendReport::handle'], $this->mutated);
+        $this->assertSame(SurfaceStatus::Tested, $this->fleetApp->surfaces()->where('identifier', 'App\Jobs\SendReport::handle')->sole()->status);
+        $this->assertSame(3, $second->mutants_killed, 'reused kills still count');
+
+        // A changed method is checked again; an old kill is re-checked once it ages out.
+        $this->mutated = [];
+        $this->fleetApp->surfaces()->where('identifier', 'App\Jobs\SendReport::failed')->update(['mutation_hash' => 'stale']);
+        $this->fleetApp->surfaces()->where('identifier', 'App\Http\Controllers\ReportController::index')->update(['mutation_checked_at' => now()->subDays(31)]);
+        $this->scan();
+
+        $this->assertSame(['App\Jobs\SendReport::failed', 'App\Http\Controllers\ReportController::index'], $this->mutated, 'changed before aged');
+    }
+
+    public function test_the_budget_caps_mutation_checks_and_says_how_many_wait(): void
+    {
+        config(['scanner.mutation.budget' => 1]);
+        $this->probe = $this->provingEverything();
+
+        $scan = $this->scan();
+
+        $this->assertCount(1, $this->mutated);
+        $this->assertContains('2 tested method(s) are still waiting for a mutation check; the budget is 1 per scan.', $scan->notes);
+    }
+
+    public function test_a_survivor_not_rechecked_this_scan_stays_weak(): void
+    {
+        $this->probe = $this->provingEverything();
+        $this->mutationVerdicts = ['App\Jobs\SendReport::handle' => MutationResult::Survived];
+        $this->scan();
+
+        config(['scanner.mutation.budget' => 0]);
+        $this->scan();
+
+        $this->assertSame(SurfaceStatus::Weak, $this->fleetApp->surfaces()->where('identifier', 'App\Jobs\SendReport::handle')->sole()->status);
+    }
+
+    public function test_the_ratchet_flags_lost_coverage_and_new_untested_surfaces_against_the_last_scan(): void
+    {
+        $this->probe = $this->provingEverything();
+        $first = $this->scan();
+
+        $this->assertNull($first->previous_scan_id);
+        $this->assertSame(0, $first->regressions(), 'the first scan is the baseline');
+
+        // Reports lose their test; a new route arrives untested; POST reports gains one.
+        $this->probe = [['id' => 'T::store', 'file' => 'tests/T.php', 'status' => 'passed', 'assertions' => 1, 'routes' => ['POST reports']]];
+        Process::fake(['*route:list*' => Process::result(json_encode([
+            ['method' => 'GET|HEAD', 'uri' => 'reports', 'middleware' => []],
+            ['method' => 'POST', 'uri' => 'reports', 'middleware' => []],
+            ['method' => 'GET|HEAD', 'uri' => 'exports', 'middleware' => []],
+        ]))]);
+
+        $second = $this->scan();
+        $change = fn (string $identifier) => $second->surfaceResults()->whereHas('surface', fn ($q) => $q->where('identifier', $identifier))->sole()->change;
+
+        $this->assertSame($first->id, $second->previous_scan_id);
+        $this->assertSame(SurfaceChange::Lost, $change('GET reports'));
+        $this->assertSame(SurfaceChange::NewUntested, $change('GET exports'));
+        $this->assertSame(SurfaceChange::Gained, $change('POST reports'));
+        $this->assertNull($change('App\Models\Invoice::total'), 'untested before and after is not news');
+        $this->assertSame(1, $second->surfaces_new_untested);
+        $this->assertSame(1, $second->surfaces_gained);
+        $this->assertGreaterThanOrEqual(1, $second->surfaces_lost);
+        $this->assertSame($second->surfaces_new_untested + $second->surfaces_lost, $second->regressions());
     }
 }

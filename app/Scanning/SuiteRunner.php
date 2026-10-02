@@ -2,6 +2,7 @@
 
 namespace App\Scanning;
 
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -17,6 +18,8 @@ use RuntimeException;
 class SuiteRunner
 {
     /**
+     * The whole suite, with coverage.
+     *
      * @return array{framework: string, exit_code: ?int, output: string, probe: string, junit: string}
      */
     public function run(Workspace $workspace): array
@@ -27,49 +30,47 @@ class SuiteRunner
             throw new RuntimeException("Xdebug was not found at {$xdebug}. Coverage is how code surfaces are judged, so a scan without it would report everything as untested. Set SCANNER_XDEBUG.");
         }
 
-        $framework = is_file($workspace->path.'/vendor/bin/pest') ? 'pest' : 'phpunit';
-
-        if (! is_file($workspace->path.'/vendor/bin/'.$framework)) {
-            throw new RuntimeException('Neither Pest nor PHPUnit is installed in the app.');
-        }
-
+        $framework = $this->framework($workspace);
         $probe = $workspace->runDir.'/probe.ndjson';
         $junit = $workspace->runDir.'/junit.xml';
-        @unlink($probe);
 
-        $result = Process::path($workspace->path)
-            ->timeout((int) config('scanner.timeout'))
-            ->env([
-                ...$workspace->environment(),
-                'DASHCORE_PROBE_OUT' => $probe,
-                'DASHCORE_PROBE_ROOT' => $workspace->path,
-            ])
-            ->run([
-                $this->php(),
-                '-d', 'memory_limit=-1',
-                '-d', 'zend_extension='.$xdebug,
-                '-d', 'xdebug.mode=coverage',
-                '-d', 'auto_prepend_file='.base_path('probe/prepend.php'),
-                'vendor/bin/'.$framework,
-                '--extension', 'DashcoreTestsProbe\\Extension',
-                '--log-junit', $junit,
-                '--colors=never',
-                '--do-not-cache-result',
-            ]);
+        $result = $this->execute($workspace, $framework, $probe, ['--log-junit', $junit], (int) config('scanner.timeout'), $xdebug);
 
-        $output = $result->output()."\n".$result->errorOutput();
+        $output = $result['output'];
         file_put_contents($workspace->runDir.'/output.log', $output);
 
         if (! is_file($probe) || filesize($probe) === 0) {
-            throw new RuntimeException('The suite produced no test results (exit '.($result->exitCode() ?? 'timeout').'). '.Str::limit(trim($output), 3000, '…', preserveWords: false));
+            throw new RuntimeException('The suite produced no test results (exit '.($result['exit_code'] ?? 'timeout').'). '.Str::limit(trim($output), 3000, '…', preserveWords: false));
         }
 
         return [
             'framework' => $framework,
-            'exit_code' => $result->exitCode(),
+            'exit_code' => $result['exit_code'],
             'output' => $output,
             'probe' => $probe,
             'junit' => $junit,
+        ];
+    }
+
+    /**
+     * Only the given test files, without coverage — for checking a mutant
+     * against the tests that reach it.
+     *
+     * @param  list<string>  $files  paths relative to the app
+     * @return array{exit_code: ?int, timed_out: bool, probe: string, output: string}
+     */
+    public function runFiles(Workspace $workspace, array $files, string $name, int $timeout): array
+    {
+        $probe = $workspace->runDir.'/'.$name.'.ndjson';
+
+        $result = $this->execute($workspace, $this->framework($workspace), $probe, $files, $timeout, null);
+        file_put_contents($workspace->runDir.'/'.$name.'.log', $result['output']);
+
+        return [
+            'exit_code' => $result['exit_code'],
+            'timed_out' => $result['timed_out'],
+            'probe' => $probe,
+            'output' => $result['output'],
         ];
     }
 
@@ -82,5 +83,68 @@ class SuiteRunner
         $php = (string) config('scanner.php');
 
         return str_contains(basename($php), 'fpm') ? 'php' : $php;
+    }
+
+    private function framework(Workspace $workspace): string
+    {
+        $framework = is_file($workspace->path.'/vendor/bin/pest') ? 'pest' : 'phpunit';
+
+        if (! is_file($workspace->path.'/vendor/bin/'.$framework)) {
+            throw new RuntimeException('Neither Pest nor PHPUnit is installed in the app.');
+        }
+
+        return $framework;
+    }
+
+    /**
+     * @param  list<string>  $arguments
+     * @return array{exit_code: ?int, timed_out: bool, output: string}
+     */
+    private function execute(Workspace $workspace, string $framework, string $probe, array $arguments, int $timeout, ?string $xdebug): array
+    {
+        @unlink($probe);
+
+        $ini = ['-d', 'memory_limit=-1'];
+
+        if ($xdebug !== null) {
+            array_push($ini, '-d', 'zend_extension='.$xdebug, '-d', 'xdebug.mode=coverage');
+        }
+
+        $environment = [
+            ...$workspace->environment(),
+            'DASHCORE_PROBE_OUT' => $probe,
+            'DASHCORE_PROBE_ROOT' => $workspace->path,
+        ];
+
+        if ($xdebug === null) {
+            $environment['XDEBUG_MODE'] = 'off';
+        }
+
+        $timedOut = false;
+
+        try {
+            $result = Process::path($workspace->path)
+                ->timeout($timeout)
+                ->env($environment)
+                ->run([
+                    $this->php(),
+                    ...$ini,
+                    '-d', 'auto_prepend_file='.base_path('probe/prepend.php'),
+                    'vendor/bin/'.$framework,
+                    '--extension', 'DashcoreTestsProbe\\Extension',
+                    '--colors=never',
+                    '--do-not-cache-result',
+                    ...$arguments,
+                ]);
+        } catch (ProcessTimedOutException $e) {
+            $timedOut = true;
+            $result = $e->result;
+        }
+
+        return [
+            'exit_code' => $timedOut ? null : $result->exitCode(),
+            'timed_out' => $timedOut,
+            'output' => $result->output()."\n".$result->errorOutput(),
+        ];
     }
 }

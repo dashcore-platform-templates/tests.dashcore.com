@@ -98,6 +98,36 @@
             </div>
         @endif
 
+        {{-- Since the last scan, and how hard the tests bite --}}
+        <div class="grid gap-3 sm:grid-cols-2 mb-6">
+            <div class="card-os p-4">
+                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Since the previous scan</p>
+                @if ($scan->previous_scan_id === null)
+                    <p class="mt-1 text-sm text-surface-400">This is the first scan — the baseline later scans are held to.</p>
+                @else
+                    <p class="mt-1 text-sm">
+                        <span class="{{ $scan->surfaces_lost > 0 ? 'text-red-400' : 'text-surface-400' }}">{{ $scan->surfaces_lost }} lost coverage</span> ·
+                        <span class="{{ $scan->surfaces_new_untested > 0 ? 'text-red-400' : 'text-surface-400' }}">{{ $scan->surfaces_new_untested }} new and untested</span> ·
+                        <span class="{{ $scan->surfaces_gained > 0 ? 'text-success-500' : 'text-surface-400' }}">{{ $scan->surfaces_gained }} newly tested</span>
+                    </p>
+                    @if ($scan->regressions() > 0)
+                        <button type="button" wire:click="showRegressions" wire:loading.attr="disabled" wire:target="showRegressions" class="mt-2 inline-flex items-center gap-1.5 text-xs text-accent-400 hover:text-accent-500 disabled:opacity-50">
+                            <x-spinner class="h-3 w-3" wire:loading wire:target="showRegressions" />
+                            Show the {{ $scan->regressions() }} {{ \Illuminate\Support\Str::plural('regression', $scan->regressions()) }}
+                        </button>
+                    @endif
+                @endif
+            </div>
+            <div class="card-os p-4">
+                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Mutation checks</p>
+                <p class="mt-1 text-sm">
+                    <span class="text-success-500">{{ $scan->mutants_killed }} caught</span> ·
+                    <span class="{{ $scan->mutants_survived > 0 ? 'text-warning-500' : 'text-surface-400' }}">{{ $scan->mutants_survived }} {{ \Illuminate\Support\Str::plural('method', $scan->mutants_survived) }} could break unnoticed</span>
+                </p>
+                <p class="text-xs text-surface-500 mt-1">Each tested method's body is swapped for a trivial default; its tests must fail.</p>
+            </div>
+        </div>
+
         {{-- By kind --}}
         <div class="card-os p-4 mb-6">
             <h2 class="text-sm font-semibold text-surface-200 uppercase tracking-wider mb-3">By kind</h2>
@@ -133,6 +163,13 @@
                         <option value="{{ $k->value }}">{{ $k->label() }}</option>
                     @endforeach
                 </select>
+                <select wire:model.live="change" aria-label="Change since the previous scan" class="rounded-md border-0 bg-surface-800 py-1.5 pl-3 pr-8 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500">
+                    <option value="">Any change</option>
+                    <option value="regressions">Regressions</option>
+                    <option value="lost">Lost coverage</option>
+                    <option value="new-untested">New, untested</option>
+                    <option value="gained">Newly tested</option>
+                </select>
                 <input
                     type="search"
                     wire:model.live.debounce.300ms="search"
@@ -140,10 +177,10 @@
                     aria-label="Search surfaces"
                     class="w-48 rounded-md border-0 bg-surface-800 py-1.5 px-3 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500"
                 >
-                <x-spinner class="h-4 w-4 text-surface-400" wire:loading wire:target="status,kind,search,gotoPage,nextPage,previousPage" />
+                <x-spinner class="h-4 w-4 text-surface-400" wire:loading wire:target="status,kind,search,change,gotoPage,nextPage,previousPage" />
             </div>
 
-            <ul class="divide-y divide-surface-800" wire:loading.class="opacity-60" wire:target="status,kind,search,gotoPage,nextPage,previousPage">
+            <ul class="divide-y divide-surface-800" wire:loading.class="opacity-60" wire:target="status,kind,search,change,gotoPage,nextPage,previousPage">
                 @forelse ($this->surfaces as $surface)
                     @php $result = $this->evidence->get($surface->id); @endphp
                     <li class="px-4 py-3" wire:key="surface-{{ $surface->id }}" x-data="{ open: false }">
@@ -162,6 +199,19 @@
                                     @if ($surface->meta['name'] ?? null) · {{ $surface->meta['name'] }}@endif
                                     @if ($surface->meta['middleware'] ?? null) · <span title="Middleware">{{ implode(', ', $surface->meta['middleware']) }}</span>@endif
                                 </p>
+                                @if ($surface->reason || $result?->change || $surface->mutation === 'killed')
+                                    <p class="mt-1 flex flex-wrap gap-2 text-xs">
+                                        @if ($surface->reason)
+                                            <span class="text-warning-500">{{ $surface->reason->label() }}</span>
+                                        @endif
+                                        @if ($result?->change)
+                                            <span @class(['text-red-400' => $result->change->isRegression(), 'text-success-500' => ! $result->change->isRegression()])>{{ $result->change->label() }}</span>
+                                        @endif
+                                        @if ($surface->mutation === 'killed' && $surface->status?->value === 'tested')
+                                            <span class="text-surface-500" title="Its body was swapped for a trivial default and a test failed">Breakage caught</span>
+                                        @endif
+                                    </p>
+                                @endif
                             </div>
                             @if ($result && $result->tests_count > 0)
                                 <button type="button" x-on:click="open = ! open" class="shrink-0 text-xs text-accent-400 hover:text-accent-500" x-bind:aria-expanded="open">
