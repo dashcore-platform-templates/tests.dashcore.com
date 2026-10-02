@@ -8,16 +8,20 @@
     <div class="mb-6">
         <a href="{{ route('fleet.show', $build->fleetApp->key) }}" wire:navigate class="text-xs text-surface-500 hover:text-surface-300">&larr; {{ $build->fleetApp->name }}</a>
         <div class="mt-1 flex flex-wrap items-center gap-3">
-            <h1 class="text-2xl font-bold text-surface-100">Build #{{ $build->id }}</h1>
+            <h1 class="text-2xl font-bold text-surface-100">{{ $build->kind->value === 'testkit' ? 'Fleet baseline' : 'Build' }} #{{ $build->id }}</h1>
             <x-build-status :build="$build" />
             @if ($build->pr_url)
                 <a href="{{ $build->pr_url }}" target="_blank" rel="noopener" class="text-sm text-accent-400 hover:text-accent-500">PR #{{ $build->pr_number }} &nearr;</a>
             @endif
         </div>
         <p class="text-sm text-surface-400 mt-1">
+            @if ($build->kind->value === 'testkit')
+                Installs dashcore/testkit and records this app's current exceptions for review.
+            @else
             {{ $build->targets_proven }} of {{ count($build->targets) }} {{ \Illuminate\Support\Str::plural('target', count($build->targets)) }} proven
             @if ($build->tests_added) · {{ $build->tests_added }} {{ \Illuminate\Support\Str::plural('test', $build->tests_added) }} written @endif
             @if ($build->cost_usd !== null) · agent cost ${{ number_format((float) $build->cost_usd, 2) }} @endif
+            @endif
         </p>
         <p class="text-xs text-surface-500 mt-1">
             Requested {{ $build->created_at->diffForHumans() }}{{ $build->requestedBy ? ' by '.$build->requestedBy->name : ' by the schedule' }}
@@ -29,7 +33,7 @@
     @if ($build->error)
         <div @class(['card-os mb-6 px-4 py-3 border', 'border-warning-500/40' => $build->status->value === 'rejected', 'border-red-500/40' => $build->status->value !== 'rejected'])>
             <p @class(['text-sm font-medium', 'text-warning-500' => $build->status->value === 'rejected', 'text-red-400' => $build->status->value !== 'rejected'])>
-                {{ $build->status->value === 'rejected' ? 'Not proposed — the tests did not pass verification' : 'The build failed' }}
+                {{ $build->status->value === 'rejected' ? 'Not proposed — it did not pass verification' : 'The build failed' }}
             </p>
             <ul class="mt-2 space-y-1 text-sm text-surface-300">
                 @foreach (explode("\n", $build->error) as $line)
@@ -49,6 +53,7 @@
         </div>
     @endif
 
+    @if ($build->targets !== [])
     <div class="card-os mb-6">
         <h2 class="border-b border-surface-800 p-4 text-sm font-semibold uppercase tracking-wider text-surface-200">Targets</h2>
         <ul class="divide-y divide-surface-800">
@@ -82,6 +87,7 @@
             @endforeach
         </ul>
     </div>
+    @endif
 
     @foreach (['suspected_bugs' => ['Suspected bugs the agent left untested', 'description', 'text-red-400'], 'skipped' => ['Left out by the agent', 'reason', 'text-warning-500']] as $key => [$title, $field, $tone])
         @if (! empty($report[$key]))

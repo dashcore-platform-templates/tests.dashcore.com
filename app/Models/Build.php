@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\BuildKind;
 use App\Enums\BuildStatus;
 use Database\Factories\BuildFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,6 +28,7 @@ class Build extends Model
     protected function casts(): array
     {
         return [
+            'kind' => BuildKind::class,
             'status' => BuildStatus::class,
             'targets' => 'array',
             'verification' => 'array',

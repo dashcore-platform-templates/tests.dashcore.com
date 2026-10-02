@@ -23,6 +23,25 @@ class Publisher
      */
     public function publish(Build $build, Workspace $workspace, array $files, array $verification): array
     {
+        return $this->ship(
+            $build,
+            $workspace,
+            $files,
+            $this->title($build, $verification),
+            $this->commitMessage($build, $verification),
+            $this->body($build, $verification),
+        );
+    }
+
+    /**
+     * Commit exactly $files on the workspace's branch, then push and open the
+     * PR when publishing is on.
+     *
+     * @param  list<string>  $files
+     * @return array{commit: string, pr_url: ?string, pr_number: ?int}
+     */
+    public function ship(Build $build, Workspace $workspace, array $files, string $title, string $message, string $body): array
+    {
         $git = fn (array $args, int $timeout = 120) => Process::path($workspace->path)->timeout($timeout)->run(['git', ...$args]);
 
         $add = $git(['add', '--', ...$files]);
@@ -30,7 +49,7 @@ class Publisher
             throw new RuntimeException('git add failed: '.$add->errorOutput());
         }
 
-        $commit = $git(['commit', '--no-verify', '-m', $this->commitMessage($build, $verification)]);
+        $commit = $git(['commit', '--no-verify', '-m', $message]);
         if ($commit->failed()) {
             throw new RuntimeException('git commit failed: '.trim($commit->errorOutput() ?: $commit->output()));
         }
@@ -47,7 +66,7 @@ class Publisher
         }
 
         $bodyFile = $workspace->runDir.'/pr-body.md';
-        file_put_contents($bodyFile, $this->body($build, $verification));
+        file_put_contents($bodyFile, $body);
 
         $repo = $build->fleetApp->repo;
         $pr = Process::path($workspace->path)->timeout(120)->run(array_values(array_filter([
@@ -55,7 +74,7 @@ class Publisher
             $repo ? '--repo' : null, $repo,
             '--base', Str::after((string) $build->base_ref, 'origin/'),
             '--head', (string) $workspace->branch,
-            '--title', $this->title($build, $verification),
+            '--title', $title,
             '--body-file', $bodyFile,
         ], fn ($v) => $v !== null)));
 

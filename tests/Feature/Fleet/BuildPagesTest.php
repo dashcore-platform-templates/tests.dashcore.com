@@ -132,7 +132,7 @@ class BuildPagesTest extends TestCase
 
         Livewire::actingAs(User::factory()->create())
             ->test(BuildShow::class, ['buildId' => $build->id])
-            ->assertSee('Not proposed — the tests did not pass verification')
+            ->assertSee('Not proposed — it did not pass verification')
             ->assertSee('A new test asserts nothing: hollow');
     }
 
@@ -153,5 +153,31 @@ class BuildPagesTest extends TestCase
     {
         $this->artisan('tests:build', ['--surface' => 999])->expectsOutputToContain('--surface needs exactly one app')->assertFailed();
         $this->artisan('tests:build', ['app' => ['nope']])->expectsOutputToContain('Not in the fleet: nope')->assertFailed();
+    }
+
+    public function test_the_fleet_baseline_can_be_installed_from_the_app_page_by_owners_and_admins(): void
+    {
+        Livewire::actingAs(User::factory()->create())->test(Index::class)->assertSee('No fleet baseline');
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertDontSee('Install fleet baseline')
+            ->call('installBaseline')
+            ->assertForbidden();
+
+        Livewire::actingAs(User::factory()->owner()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertSee('No fleet baseline')
+            ->call('installBaseline')
+            ->assertDispatched('fleet-notice', message: 'Fleet baseline install queued. A PR opens once it passes here.');
+
+        Queue::assertPushed(RunBuild::class, fn (RunBuild $job) => $job->build->kind->value === 'testkit');
+
+        $this->fleetApp->scans()->update(['testkit_version' => '0.1.3']);
+
+        Livewire::actingAs(User::factory()->owner()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertSee('Fleet baseline 0.1.3')
+            ->assertDontSee('Install fleet baseline');
     }
 }

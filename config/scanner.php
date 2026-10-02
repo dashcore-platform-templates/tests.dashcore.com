@@ -125,6 +125,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | The fleet baseline
+    |--------------------------------------------------------------------------
+    |
+    | A checkout of dashcore/testkit, whose bin/vendor-into installs a release
+    | into an app. Defaults to `testkit` under the scanner root. `version` pins
+    | the release to roll out; unset means the checkout's newest tag.
+    |
+    */
+
+    'testkit' => [
+        'path' => env('SCANNER_TESTKIT_PATH'),
+        'version' => env('SCANNER_TESTKIT_VERSION'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
     |

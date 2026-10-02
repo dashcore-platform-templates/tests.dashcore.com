@@ -114,6 +114,11 @@ surfaces (routes, Livewire components/actions, and every public method under
   database/factories/ only), `BuildVerifier` re-checks everything itself
   (reach, mutation, full suite), `Publisher` commits, pushes and opens a PR.
   `tests:build [keys] [--surface=] [--now]`; `tests:sync-builds` follows PRs.
+- **Fleet baseline** — `dashcore/testkit` (repo `dashcoretech/testkit`, checkout
+  `~/Herd/testkit`, vendored in `packages/`): route guards, Postgres, migration
+  round trip, debug/env calls, Livewire loading feedback — ratchets recorded in
+  `config/testkit.php`. `TestkitInstaller` rolls it out, one verified PR per app:
+  `tests:install-testkit [keys] [--now]`. Scans record each app's version.
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, starts the `scans` worker on demand,

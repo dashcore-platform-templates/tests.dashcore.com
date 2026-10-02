@@ -3,6 +3,8 @@
 namespace App\Jobs;
 
 use App\Building\Builder;
+use App\Building\TestkitInstaller;
+use App\Enums\BuildKind;
 use App\Enums\BuildStatus;
 use App\Models\Build;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,13 +30,15 @@ class RunBuild implements ShouldQueue
         $this->onQueue('builds');
     }
 
-    public function handle(Builder $builder): void
+    public function handle(Builder $builder, TestkitInstaller $installer): void
     {
         if ($this->build->status !== BuildStatus::Queued) {
             return;
         }
 
-        $builder->run($this->build);
+        $this->build->kind === BuildKind::Testkit
+            ? $installer->run($this->build)
+            : $builder->run($this->build);
     }
 
     public function failed(?Throwable $e): void

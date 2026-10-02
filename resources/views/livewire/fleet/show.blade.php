@@ -36,6 +36,17 @@
             @if ($current)
                 <a href="{{ route('scans.show', $current) }}" wire:navigate><x-scan-status :scan="$current" /></a>
             @endif
+            @if ($this->canManage && $app->isScannable() && $scan && $scan->testkit_version === null)
+                <button
+                    wire:click="installBaseline"
+                    wire:loading.attr="disabled"
+                    wire:target="installBaseline"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-800 text-surface-200 text-sm font-medium hover:bg-surface-700 transition-colors disabled:opacity-50"
+                >
+                    <x-spinner wire:loading wire:target="installBaseline" />
+                    Install fleet baseline
+                </button>
+            @endif
             @if ($this->canManage && $app->isScannable() && $scan && ($scan->surfaces_missing + $scan->surfaces_weak) > 0)
                 <button
                     wire:click="build"
@@ -94,6 +105,9 @@
                 <p class="mt-1 text-sm text-surface-200">{{ $scan->finished_at?->diffForHumans() }}</p>
                 <p class="text-xs text-surface-500 mt-1 truncate" title="{{ $scan->commit_subject }}">
                     <span class="font-mono">{{ substr((string) $scan->commit_sha, 0, 7) }}</span> on {{ $scan->ref }} · {{ $scan->framework }}
+                </p>
+                <p class="text-xs mt-0.5 {{ $scan->testkit_version ? 'text-surface-500' : 'text-warning-500' }}">
+                    {{ $scan->testkit_version ? 'Fleet baseline '.$scan->testkit_version : 'No fleet baseline' }}
                 </p>
             </div>
         </div>
@@ -296,7 +310,13 @@
                     @foreach ($this->builds as $b)
                         <tr wire:key="build-{{ $b->id }}">
                             <td class="px-4 py-2 whitespace-nowrap"><a href="{{ route('builds.show', $b) }}" wire:navigate><x-build-status :build="$b" /></a></td>
-                            <td class="px-4 py-2 text-sm text-surface-300">{{ $b->targets_proven }}/{{ count($b->targets) }} proven</td>
+                            <td class="px-4 py-2 text-sm text-surface-300">
+                                @if ($b->kind->value === 'testkit')
+                                    {{ $b->kind->label() }}
+                                @else
+                                    {{ $b->targets_proven }}/{{ count($b->targets) }} proven
+                                @endif
+                            </td>
                             <td class="px-4 py-2 text-sm">
                                 @if ($b->pr_url)
                                     <a href="{{ $b->pr_url }}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-500">PR #{{ $b->pr_number }}</a>

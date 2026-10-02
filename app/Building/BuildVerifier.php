@@ -209,7 +209,7 @@ class BuildVerifier
      *
      * @return list<string>
      */
-    private function suiteRegressions(Build $build, Workspace $workspace): array
+    public function suiteRegressions(Build $build, Workspace $workspace): array
     {
         $run = $this->runner->runFiles($workspace, [], 'build-suite', (int) config('scanner.timeout'));
         $records = $this->reader->read($run['probe']);

@@ -94,6 +94,19 @@ class Show extends Component
         unset($this->builds, $this->heldTargets);
     }
 
+    public function installBaseline(BuildRequester $requester): void
+    {
+        abort_unless($this->canManage, 403);
+
+        $build = $requester->requestTestkit($this->app, auth()->user());
+
+        $this->dispatch('fleet-notice', message: $build === null
+            ? 'A build is running, or a baseline PR is already open for this app.'
+            : 'Fleet baseline install queued. A PR opens once it passes here.');
+
+        unset($this->builds);
+    }
+
     #[Computed]
     public function builds(): Collection
     {

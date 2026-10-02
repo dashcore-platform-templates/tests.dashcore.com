@@ -107,6 +107,9 @@
                             <td class="px-4 py-3 whitespace-nowrap">
                                 <a href="{{ route('fleet.show', $app->key) }}" wire:navigate class="text-sm font-medium text-surface-100 hover:text-accent-400">{{ $app->name }}</a>
                                 <div class="text-xs text-surface-500">{{ $app->host }}@if ($app->group) · {{ $app->group }}@endif</div>
+                                @if ($done && ! $done->testkit_version)
+                                    <div class="text-xs text-warning-500">No fleet baseline</div>
+                                @endif
                             </td>
                             <td class="px-4 py-3">
                                 <x-score-bar :score="$done?->score" :tested="$done?->surfaces_tested ?? 0" :weak="$done?->surfaces_weak ?? 0" :total="$done?->surfaces_total ?? 0" />

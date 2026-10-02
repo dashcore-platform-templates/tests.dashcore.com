@@ -33,7 +33,9 @@ class RouteGuards
                 continue;
             }
 
-            $middleware = $this->router->gatherRouteMiddleware($route);
+            // Both forms: aliases as written (bridge.auth, auth:sanctum) and the
+            // classes they resolve to.
+            $middleware = [...$route->gatherMiddleware(), ...$this->router->gatherRouteMiddleware($route)];
 
             if ($this->guarded($middleware, $guards)) {
                 continue;
@@ -88,6 +90,11 @@ class RouteGuards
         }
 
         $class = ltrim((string) $route->getControllerClass(), '\\');
+
+        // A redirect exposes nothing; where it leads is checked on its own.
+        if ($class === 'Illuminate\\Routing\\RedirectController') {
+            return false;
+        }
 
         // Route::view and Route::redirect use the framework's own controllers
         // but are pages the app declared.

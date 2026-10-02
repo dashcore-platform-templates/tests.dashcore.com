@@ -9,8 +9,8 @@ use RecursiveIteratorIterator;
  * DashCore rule: every Livewire action gives feedback while it runs — no dead
  * space after a click. Read from the views: each wire:click, wire:submit or
  * wire:change that calls a method needs, in the same view, a wire:loading
- * element aimed at that method or at nothing in particular, or a
- * wire:loading.attr / .class on the element itself.
+ * element aimed at that method or at nothing in particular, a wire:loading
+ * attribute on the element itself, or a Flux button (which shows its own).
  */
 class LoadingFeedback
 {
@@ -59,8 +59,21 @@ class LoadingFeedback
 
         $actions = [];
         $targeted = [];
+        $fluxSubmit = false;
 
         foreach ($tags[0] as $tag) {
+            // Flux buttons show their own spinner for wire:click, and for
+            // type="submit" inside a wire:submit form, unless told not to.
+            if (str_starts_with($tag, '<flux:button') && ! preg_match('/\s:?loading="(?:false|0)"/', $tag)) {
+                if (preg_match('/\stype="submit"/', $tag)) {
+                    $fluxSubmit = true;
+                }
+
+                if (preg_match('/\swire:click(?:\.[\w.-]+)?="([^"]+)"/', $tag, $click) && ! str_starts_with(trim($click[1]), '$js')) {
+                    $targeted[$this->method($click[1])] = true;
+                }
+            }
+
             $isAction = (bool) preg_match('/\swire:(?:click|submit|change)(?:\.[\w.-]+)?="([^"]+)"/', $tag, $call);
 
             if ($isAction) {
@@ -82,12 +95,17 @@ class LoadingFeedback
         $missing = [];
 
         foreach ($actions as [$method, $tag]) {
-            if ($method === '' || str_starts_with($method, '$')) {
+            // Livewire's own helpers ($set, $refresh…) and names built at render time.
+            if ($method === '' || str_starts_with($method, '$') || str_contains($method, '{{') || str_contains($method, '{!!')) {
                 continue;
             }
 
             // Feedback on the element itself: it disables or restyles while its action runs.
             if (preg_match('/\swire:loading(?:[.=\s>]|$)/', $tag) && ! preg_match('/\swire:target=/', $tag)) {
+                continue;
+            }
+
+            if ($fluxSubmit && preg_match('/\swire:submit/', $tag)) {
                 continue;
             }
 

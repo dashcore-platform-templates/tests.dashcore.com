@@ -2,6 +2,7 @@
 
 namespace App\Scanning;
 
+use App\Building\TestkitInstaller;
 use App\Enums\MutationResult;
 use App\Enums\ScanStatus;
 use App\Enums\SurfaceChange;
@@ -62,7 +63,12 @@ class Scanner
             $scan->update(['status' => ScanStatus::Running]);
             $run = $this->runner->run($workspace);
 
-            $scan->update(['status' => ScanStatus::Analysing, 'framework' => $run['framework'], 'exit_code' => $run['exit_code']]);
+            $scan->update([
+                'status' => ScanStatus::Analysing,
+                'framework' => $run['framework'],
+                'exit_code' => $run['exit_code'],
+                'testkit_version' => app(TestkitInstaller::class)->installedVersion($workspace->path),
+            ]);
 
             $surfaces = $this->inventory->discover($workspace->path, $this->runner->php(), $workspace->environment());
             $tests = $this->reader->read($run['probe']);

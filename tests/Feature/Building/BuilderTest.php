@@ -7,6 +7,7 @@ use App\Building\Builder;
 use App\Building\BuildRequester;
 use App\Building\BuildVerifier;
 use App\Building\Publisher;
+use App\Building\TestkitInstaller;
 use App\Enums\BuildStatus;
 use App\Enums\SurfaceStatus;
 use App\Jobs\RunBuild;
@@ -231,7 +232,14 @@ class BuilderTest extends TestCase
         $done = $this->fleetApp->builds()->create(['status' => BuildStatus::Opened, 'targets' => []]);
         $builder = \Mockery::mock(Builder::class);
         $builder->shouldNotReceive('run');
-        (new RunBuild($done))->handle($builder);
+        $installer = \Mockery::mock(TestkitInstaller::class);
+        $installer->shouldNotReceive('run');
+        (new RunBuild($done))->handle($builder, $installer);
+
+        $testkit = $this->fleetApp->builds()->create(['kind' => 'testkit', 'status' => BuildStatus::Queued, 'targets' => []]);
+        $installer = \Mockery::mock(TestkitInstaller::class);
+        $installer->shouldReceive('run')->once();
+        (new RunBuild($testkit))->handle($builder, $installer);
 
         $writing = $this->fleetApp->builds()->create(['status' => BuildStatus::Writing, 'targets' => []]);
         (new RunBuild($writing))->failed(new RuntimeException('Killed'));
