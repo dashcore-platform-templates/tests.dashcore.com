@@ -248,20 +248,21 @@ class Workspace
         $npm = (string) config('scanner.npm');
 
         if (! is_dir($this->path.'/node_modules')) {
-            $install = Process::path($this->path)->timeout(1800)->run([$npm, is_file($this->path.'/package-lock.json') ? 'ci' : 'install', '--no-audit', '--no-fund']);
-
-            if ($install->failed()) {
-                $this->notes[] = 'npm install failed, so views that load Vite assets may fail: '.Str::limit(trim($install->errorOutput()), 500);
-
-                return;
-            }
+            $this->mustRun(
+                Process::path($this->path)->timeout(1800)->env($this->environment()),
+                [$npm, is_file($this->path.'/package-lock.json') ? 'ci' : 'install', '--no-audit', '--no-fund'],
+                'npm install',
+            );
         }
 
-        $build = Process::path($this->path)->timeout(1800)->run([$npm, 'run', 'build']);
-
-        if ($build->failed()) {
-            $this->notes[] = 'npm run build failed, so views that load Vite assets may fail: '.Str::limit(trim($build->errorOutput()), 500);
-        }
+        // Fatal, not a note: without built assets every test that renders a
+        // page fails for this machine's reason, not the app's, and the scan
+        // would report a broken suite that is not broken.
+        $this->mustRun(
+            Process::path($this->path)->timeout(1800)->env($this->environment()),
+            [$npm, 'run', 'build'],
+            'npm run build',
+        );
     }
 
     private function createDatabase(): void
