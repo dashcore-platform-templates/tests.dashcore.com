@@ -33,7 +33,7 @@
         <div class="card-os p-4">
             <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Fleet score</p>
             <p class="mt-1 font-mono text-2xl font-semibold text-surface-100">{{ $totals['score'] === null ? '—' : $totals['score'].'%' }}</p>
-            <p class="text-xs text-surface-500 mt-1">{{ number_format($totals['tested']) }} of {{ number_format($totals['total']) }} surfaces tested</p>
+            <p class="text-xs text-surface-500 mt-1">{{ number_format($totals['tested']) }} of {{ number_format($totals['total']) }} surfaces tested · {{ $totals['scanned'] }} of {{ $totals['apps'] }} apps scanned</p>
         </div>
         <div class="card-os p-4">
             <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Untested</p>
@@ -48,7 +48,7 @@
         <div class="card-os p-4">
             <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Failing tests</p>
             <p class="mt-1 font-mono text-2xl font-semibold {{ $totals['failing'] > 0 ? 'text-red-400' : 'text-surface-100' }}">{{ number_format($totals['failing']) }}</p>
-            <p class="text-xs text-surface-500 mt-1">{{ $totals['scanned'] }} of {{ $totals['apps'] }} apps scanned</p>
+            <p class="text-xs text-surface-500 mt-1">in the latest scan of each app</p>
         </div>
     </div>
 
