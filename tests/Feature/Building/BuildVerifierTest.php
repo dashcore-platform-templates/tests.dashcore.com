@@ -59,7 +59,7 @@ class BuildVerifierTest extends TestCase
 
         $this->total = $app->surfaces()->create(['kind' => SurfaceKind::Service, 'identifier' => 'App\Services\Pricing::total', 'label' => 'Pricing::total']);
         $this->route = $app->surfaces()->create(['kind' => SurfaceKind::Route, 'identifier' => 'GET reports', 'label' => 'GET /reports']);
-        $this->build = $app->builds()->create(['status' => 'verifying', 'targets' => [$this->total->id, $this->route->id], 'scan_id' => $scan->id]);
+        $this->build = $app->builds()->create(['status' => 'verifying', 'targets' => [$this->total->id, $this->route->id], 'scan_id' => $scan->id, 'base_sha' => $scan->commit_sha]);
 
         $this->workspace = new Workspace($app, $this->build);
         $this->workspace->path = $this->dir;
@@ -142,7 +142,9 @@ class BuildVerifierTest extends TestCase
 
     private function verify(): array
     {
-        return app(BuildVerifier::class)->verify($this->build, $this->workspace, Surface::whereIn('id', $this->build->targets)->get());
+        $verifier = app(BuildVerifier::class);
+
+        return $verifier->verify($this->build, $this->workspace, Surface::whereIn('id', $this->build->targets)->get(), $verifier->baselineFailures($this->build, $this->workspace));
     }
 
     public function test_good_tests_are_accepted_and_only_tests_and_factories_are_kept(): void
@@ -216,6 +218,26 @@ class BuildVerifierTest extends TestCase
         $this->assertSame(['The full suite has a new failure: was fine (tests/Feature/OtherTest.php) — Duplicate key'], $report['reasons']);
     }
 
+    public function test_a_new_failure_that_passes_when_run_again_is_noted_as_flaky_not_blamed(): void
+    {
+        $this->agentWrites(['tests/Feature/PricingTest.php' => '<?php // test']);
+        $this->runs['build-suite'][] = ['id' => 'Other::flaky', 'file' => 'tests/Feature/OtherTest.php', 'name' => 'flaky', 'status' => 'failed', 'assertions' => 1];
+        $this->runs['build-recheck'] = [['id' => 'Other::flaky', 'status' => 'passed', 'assertions' => 1]];
+
+        $report = $this->verify();
+
+        $this->assertTrue($report['accepted'], implode("\n", $report['reasons']));
+        $this->assertSame(['Flaky: flaky (tests/Feature/OtherTest.php) failed in the full suite and passed when run again.'], $report['notes']);
+    }
+
+    public function test_without_a_scan_of_the_base_commit_the_base_is_measured_first(): void
+    {
+        $this->build->update(['base_sha' => str_repeat('f', 40)]);
+        $this->runs['base-suite'] = [['id' => 'Other::was_broken', 'status' => 'failed', 'assertions' => 1]];
+
+        $this->assertSame(['Other::was_broken' => true], app(BuildVerifier::class)->baselineFailures($this->build->fresh(), $this->workspace));
+    }
+
     public function test_a_suite_that_will_not_run_is_a_rejection(): void
     {
         $this->agentWrites(['tests/Feature/PricingTest.php' => '<?php // test']);
@@ -224,6 +246,6 @@ class BuildVerifierTest extends TestCase
         $report = $this->verify();
 
         $this->assertFalse($report['accepted']);
-        $this->assertStringContainsString('The full suite did not run with the new tests in it', $report['reasons'][0]);
+        $this->assertStringContainsString('The full suite did not run with the change in it', $report['reasons'][0]);
     }
 }

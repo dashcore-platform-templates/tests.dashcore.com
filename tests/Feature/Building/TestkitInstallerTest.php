@@ -135,7 +135,8 @@ class TestkitInstallerTest extends TestCase
             'baseline' => [
                 ['id' => 'FleetBaselineTest::routes', 'name' => 'every app route has an authentication guard or is declared public', 'status' => 'passed', 'assertions' => 1],
             ],
-            'build-suite' => [['id' => 'A::a', 'status' => 'passed', 'assertions' => 1]],
+            'base-suite' => [['id' => 'A::a', 'status' => 'passed', 'assertions' => 1], ['id' => 'A::broken', 'status' => 'failed', 'assertions' => 1]],
+            'build-suite' => [['id' => 'A::a', 'status' => 'passed', 'assertions' => 1], ['id' => 'A::broken', 'status' => 'failed', 'assertions' => 1]],
         ];
     }
 
@@ -220,5 +221,22 @@ class TestkitInstallerTest extends TestCase
         Queue::assertPushed(RunBuild::class, fn (RunBuild $job) => $job->build->kind === BuildKind::Testkit);
         Queue::assertPushed(RunBuild::class, 1);
         $this->assertNull(app(BuildRequester::class)->requestTestkit(FleetApp::factory()->create()), 'no checkout');
+    }
+
+    public function test_a_failure_the_base_already_had_is_not_the_installs(): void
+    {
+        $build = app(TestkitInstaller::class)->run($this->build());
+
+        $this->assertSame(BuildStatus::Opened, $build->status, (string) $build->error);
+    }
+
+    public function test_a_suite_that_will_not_run_on_the_base_commit_fails_the_install(): void
+    {
+        $this->runs['base-suite'] = [];
+
+        $build = app(TestkitInstaller::class)->run($this->build());
+
+        $this->assertSame(BuildStatus::Failed, $build->status);
+        $this->assertStringContainsString('The suite does not run on the base commit', $build->error);
     }
 }

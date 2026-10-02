@@ -9,6 +9,7 @@ use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Database\Connection;
+use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -228,8 +229,21 @@ class Workspace
     private function installDependencies(string $repo): void
     {
         foreach (['vendor', 'node_modules'] as $dir) {
-            if (is_dir($repo.'/'.$dir) && ! is_dir($this->path.'/'.$dir)) {
-                Process::timeout(600)->run(['cp', '-cR', $repo.'/'.$dir, $this->path.'/'.$dir]);
+            if (! is_dir($repo.'/'.$dir) || is_dir($this->path.'/'.$dir)) {
+                continue;
+            }
+
+            // Only a head start: if the copy fails or crawls, the install
+            // below builds the directory from scratch instead.
+            try {
+                $copied = Process::timeout(1200)->run(['cp', '-cR', $repo.'/'.$dir, $this->path.'/'.$dir])->successful();
+            } catch (ProcessTimedOutException) {
+                $copied = false;
+            }
+
+            if (! $copied) {
+                File::deleteDirectory($this->path.'/'.$dir);
+                $this->notes[] = "Copying {$dir}/ from the app's checkout failed or took too long; it was installed from scratch instead.";
             }
         }
 

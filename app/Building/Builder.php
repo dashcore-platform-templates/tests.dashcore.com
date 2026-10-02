@@ -53,6 +53,9 @@ class Builder
 
             $workspace->prepare($revision['sha'], $branch);
 
+            // What already fails before the agent touches anything.
+            $baseline = $this->verifier->baselineFailures($build, $workspace);
+
             $build->update(['status' => BuildStatus::Writing]);
             $framework = is_file($workspace->path.'/vendor/bin/pest') ? 'pest' : 'phpunit';
             $agent = $this->agent->run($workspace, $this->prompts->build($build, $targets, $framework));
@@ -68,14 +71,17 @@ class Builder
             }
 
             $build->update(['status' => BuildStatus::Verifying]);
-            $verification = $this->verifier->verify($build, $workspace, $targets);
+            $verification = $this->verifier->verify($build, $workspace, $targets, $baseline);
 
             $build->update([
                 'verification' => $verification,
                 'changed_files' => $verification['files'],
                 'targets_proven' => count(array_filter($verification['targets'], fn (array $t) => $t['proven'])),
                 'tests_added' => $verification['tests'],
-                'notes' => array_map(fn (string $f) => "Put back a change outside tests/ and database/factories/: {$f}", $verification['reverted']) ?: null,
+                'notes' => [
+                    ...array_map(fn (string $f) => "Put back a change outside tests/ and database/factories/: {$f}", $verification['reverted']),
+                    ...$verification['notes'],
+                ] ?: null,
             ]);
 
             if (! $verification['accepted']) {
