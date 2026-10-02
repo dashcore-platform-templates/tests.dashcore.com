@@ -53,7 +53,7 @@ class ProbeTest extends TestCase
 
         @unlink($out);
 
-        $this->assertCount(6, self::$records, "The probe should record every test.\n".$result->output().$result->errorOutput());
+        $this->assertCount(8, self::$records, "The probe should record every test.\n".$result->output().$result->errorOutput());
     }
 
     public static function tearDownAfterClass(): void
@@ -91,6 +91,11 @@ class ProbeTest extends TestCase
         foreach (array_keys($keys) as $key) {
             $this->assertStringStartsNotWith('POST livewire', $key, 'Livewire\'s own endpoint is not an app route');
         }
+    }
+
+    public function test_a_time_limit_set_by_code_under_test_does_not_outlive_its_test(): void
+    {
+        $this->assertSame(TestOutcome::Passed, self::$records['test_a_time_limit_set_by_an_earlier_test_is_gone']->outcome);
     }
 
     public function test_it_records_outcomes_and_assertion_counts(): void
