@@ -155,7 +155,11 @@ class TestkitInstaller
         );
 
         $run([$path.'/bin/vendor-into', $workspace->path, $version], 'bin/vendor-into');
-        $run([(string) config('scanner.composer'), 'require', '--dev', 'dashcore/testkit:^'.ltrim(Str::beforeLast($version, '.'), 'v'), '--no-interaction', '--no-progress'], 'composer require');
+        // The app's own composer scripts (boost:update and the like) are not
+        // part of installing a test package and can fail in a worktree; only
+        // package discovery is needed, so the new provider is registered.
+        $run([(string) config('scanner.composer'), 'require', '--dev', 'dashcore/testkit:^'.ltrim(Str::beforeLast($version, '.'), 'v'), '--no-interaction', '--no-progress', '--no-scripts'], 'composer require');
+        $run([$this->runner->php(), 'artisan', 'package:discover', '--no-interaction'], 'package:discover');
 
         $notes = [];
 
