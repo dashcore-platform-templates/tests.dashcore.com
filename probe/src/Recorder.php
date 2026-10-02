@@ -5,6 +5,7 @@ namespace DashcoreTestsProbe;
 use Illuminate\Console\Events\CommandStarting;
 use Illuminate\Container\Container;
 use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Routing\Events\PreparingResponse;
 use Illuminate\Routing\Events\RouteMatched;
 use PHPUnit\Event\Code\Test;
 use PHPUnit\Event\Code\TestMethod;
@@ -24,6 +25,11 @@ final class Recorder
 
     private int $startedAt = 0;
 
+    /** @var list<string> the route the current request matched, until its action runs */
+    private array $matched = [];
+
+    private int $prepared = 0;
+
     public function __construct(
         private readonly string $out,
         private readonly string $root,
@@ -35,6 +41,8 @@ final class Recorder
     public function start(Test $test): void
     {
         $this->startedAt = hrtime(true);
+        $this->matched = [];
+        $this->prepared = 0;
 
         $this->current = [
             'id' => $test->id(),
@@ -45,6 +53,7 @@ final class Recorder
             'message' => null,
             'assertions' => 0,
             'routes' => [],
+            'routes_matched' => [],
             'mounts' => [],
             'calls' => [],
             'mount_classes' => [],
@@ -95,7 +104,7 @@ final class Recorder
         $this->current['assertions'] = $assertions;
         $this->current['duration_ms'] = (int) round((hrtime(true) - $this->startedAt) / 1e6);
 
-        foreach (['routes', 'mounts', 'calls', 'mount_classes', 'call_classes', 'commands', 'jobs'] as $key) {
+        foreach (['routes', 'routes_matched', 'mounts', 'calls', 'mount_classes', 'call_classes', 'commands', 'jobs'] as $key) {
             $this->current[$key] = array_values(array_unique($this->current[$key]));
         }
 
@@ -122,15 +131,38 @@ final class Recorder
 
         $events = $app->make('events');
 
+        // A route counts only once its action has run, not when it is matched:
+        // a test that is turned away by middleware (a guest redirected to log
+        // in) has not exercised what the route does. The router prepares a
+        // response inside the middleware pipeline only when the action ran,
+        // and once more outside it either way — so the second preparation
+        // after a match means the action ran.
         $events->listen(RouteMatched::class, fn (RouteMatched $event) => $this->guard(function () use ($event) {
+            $this->matched = [];
+            $this->prepared = 0;
+
             if (str_starts_with($event->route->uri(), 'livewire')) {
                 return;
             }
 
             foreach ($event->route->methods() as $method) {
                 if ($method !== 'HEAD') {
-                    $this->current['routes'][] = $method.' '.$event->route->uri();
+                    $this->matched[] = $method.' '.$event->route->uri();
                 }
+            }
+
+            array_push($this->current['routes_matched'], ...$this->matched);
+
+            // Without the event (Laravel before 10) a match is the best evidence there is.
+            if (! class_exists(PreparingResponse::class)) {
+                array_push($this->current['routes'], ...$this->matched);
+            }
+        }));
+
+        $events->listen(PreparingResponse::class, fn () => $this->guard(function () {
+            if ($this->matched !== [] && ++$this->prepared === 2) {
+                array_push($this->current['routes'], ...$this->matched);
+                $this->matched = [];
             }
         }));
 

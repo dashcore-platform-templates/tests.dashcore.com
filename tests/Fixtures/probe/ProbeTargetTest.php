@@ -21,6 +21,16 @@ class ProbeTargetTest extends TestCase
         $this->get('/')->assertOk();
     }
 
+    public function test_a_guest_is_turned_away(): void
+    {
+        $this->get('/dashboard')->assertRedirect('/login');
+    }
+
+    public function test_a_member_reaches_the_dashboard(): void
+    {
+        $this->actingAs(User::factory()->create())->get('/dashboard')->assertOk();
+    }
+
     public function test_opens_the_invite_modal(): void
     {
         $this->actingAs(User::factory()->owner()->create());

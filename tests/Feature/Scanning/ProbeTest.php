@@ -53,7 +53,7 @@ class ProbeTest extends TestCase
 
         @unlink($out);
 
-        $this->assertCount(4, self::$records, "The probe should record every test.\n".$result->output().$result->errorOutput());
+        $this->assertCount(6, self::$records, "The probe should record every test.\n".$result->output().$result->errorOutput());
     }
 
     public static function tearDownAfterClass(): void
@@ -71,6 +71,12 @@ class ProbeTest extends TestCase
         $this->assertGreaterThan(0, $record->assertions);
         $this->assertArrayHasKey('GET /', $record->keys);
         $this->assertSame('tests/Fixtures/probe/ProbeTargetTest.php', $record->file);
+    }
+
+    public function test_a_route_counts_only_when_its_action_ran_not_when_middleware_turned_the_test_away(): void
+    {
+        $this->assertArrayNotHasKey('GET dashboard', self::$records['test_a_guest_is_turned_away']->keys, 'redirected to log in before the route did anything');
+        $this->assertArrayHasKey('GET dashboard', self::$records['test_a_member_reaches_the_dashboard']->keys);
     }
 
     public function test_it_records_livewire_components_and_actions_by_name_and_class(): void
