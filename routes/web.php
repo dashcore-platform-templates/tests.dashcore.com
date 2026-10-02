@@ -25,6 +25,12 @@ Route::view('permissions', 'permissions')
     ->middleware(['auth', 'verified', 'permission:permissions'])
     ->name('permissions');
 
+Route::middleware(['auth', 'verified', 'permission:fleet-tests'])->group(function () {
+    Route::view('fleet', 'fleet.index')->name('fleet.index');
+    Route::view('fleet/{key}', 'fleet.show')->name('fleet.show');
+    Route::view('scans/{scan}', 'scans.show')->whereNumber('scan')->name('scans.show');
+});
+
 Volt::route('invitations/{token}', 'pages.invitations.accept')
     ->name('invitations.accept');
 

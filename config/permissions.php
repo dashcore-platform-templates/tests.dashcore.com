@@ -84,6 +84,15 @@ return [
         'member' => 'view',
     ],
 
+    // Fleet test coverage: everyone can read it, owners and admins can
+    // trigger scans and re-read the fleet roster.
+    'fleet-tests' => [
+        'owner' => 'full',
+        'admin' => 'full',
+        'finance' => 'view',
+        'member' => 'view',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Modules
@@ -101,6 +110,9 @@ return [
         'General' => [
             'dashboard',
             'profile',
+        ],
+        'Tests' => [
+            'fleet-tests',
         ],
         'Settings' => [
             'team-management',

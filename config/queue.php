@@ -44,6 +44,17 @@ return [
             'after_commit' => false,
         ],
 
+        // Scans run for up to SCANNER_TIMEOUT seconds; retry_after must outlast
+        // that or a running scan is handed to a second worker mid-run.
+        'scans' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'scans',
+            'retry_after' => (int) env('SCANNER_TIMEOUT', 7200) + 1800,
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

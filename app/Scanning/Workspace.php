@@ -1,0 +1,315 @@
+<?php
+
+namespace App\Scanning;
+
+use App\Models\FleetApp;
+use App\Models\Scan;
+use DOMDocument;
+use DOMElement;
+use DOMXPath;
+use Illuminate\Database\Connection;
+use Illuminate\Process\PendingProcess;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
+use RuntimeException;
+
+/**
+ * A disposable copy of one app to run its suite in.
+ *
+ * The scan never runs in the app's own working copy — someone may be halfway
+ * through a change there — and never against its development database. It
+ * checks the default branch out into a git worktree, gives it a fresh .env
+ * from .env.example (so no real credential is in reach of a test), points
+ * phpunit.xml at a Postgres database of its own, and removes all of it after.
+ */
+class Workspace
+{
+    public string $path;
+
+    public string $runDir;
+
+    public string $database;
+
+    /** @var list<string> */
+    public array $notes = [];
+
+    private bool $worktreeAdded = false;
+
+    private bool $databaseCreated = false;
+
+    public function __construct(
+        private readonly FleetApp $app,
+        private readonly Scan $scan,
+    ) {
+        $base = rtrim((string) config('scanner.workspace'), '/').'/'.$app->key;
+        $this->path = $base.'/worktrees/'.$scan->id;
+        $this->runDir = $base.'/runs/'.$scan->id;
+        $this->database = Str::of((string) config('scanner.database.prefix'))
+            ->append($app->key)
+            ->lower()
+            ->replaceMatches('/[^a-z0-9_]/', '_')
+            ->limit(63, '')
+            ->toString();
+    }
+
+    /**
+     * @return array{ref: string, sha: string, subject: string}
+     */
+    public function resolveRevision(): array
+    {
+        $repo = (string) $this->app->local_path;
+
+        $fetch = Process::path($repo)->timeout(120)->run(['git', 'fetch', '--quiet', 'origin']);
+
+        if ($fetch->failed()) {
+            $this->notes[] = 'git fetch failed, so the scan used the last fetched state: '.trim($fetch->errorOutput());
+        }
+
+        foreach ($this->candidateRefs($repo) as $ref) {
+            $sha = Process::path($repo)->run(['git', 'rev-parse', '--verify', '--quiet', $ref.'^{commit}']);
+
+            if ($sha->successful() && trim($sha->output()) !== '') {
+                $sha = trim($sha->output());
+                $subject = trim(Process::path($repo)->run(['git', 'log', '-1', '--format=%s', $sha])->output());
+
+                return ['ref' => $ref, 'sha' => $sha, 'subject' => $subject];
+            }
+        }
+
+        throw new RuntimeException('No default branch could be resolved in '.$repo.'.');
+    }
+
+    public function prepare(string $sha): void
+    {
+        $repo = (string) $this->app->local_path;
+
+        File::ensureDirectoryExists(dirname($this->path));
+        File::ensureDirectoryExists($this->runDir);
+
+        if (is_dir($this->path)) {
+            $this->removeWorktree();
+        }
+
+        $this->mustRun(Process::path($repo)->timeout(300), ['git', 'worktree', 'add', '--detach', $this->path, $sha], 'git worktree add');
+        $this->worktreeAdded = true;
+        $this->path = (string) realpath($this->path);
+
+        $this->writeEnv();
+        $this->installDependencies($repo);
+        $this->createDatabase();
+        $this->pointPhpunitAtDatabase();
+    }
+
+    public function cleanup(): void
+    {
+        if ($this->worktreeAdded) {
+            $this->removeWorktree();
+        }
+
+        if ($this->databaseCreated) {
+            try {
+                $this->connection()->statement('DROP DATABASE IF EXISTS "'.$this->database.'" WITH (FORCE)');
+            } catch (\Throwable $e) {
+                $this->notes[] = 'The scratch database could not be dropped: '.$e->getMessage();
+            }
+        }
+    }
+
+    /**
+     * The environment every process in the worktree runs with. Process
+     * environment wins over a non-forced phpunit.xml entry and over .env, so
+     * the database it names is the only one in reach.
+     *
+     * @return array<string, string>
+     */
+    public function environment(): array
+    {
+        $config = $this->connection()->getConfig();
+
+        return [
+            'APP_ENV' => 'testing',
+            'DB_CONNECTION' => 'pgsql',
+            'DB_HOST' => (string) ($config['host'] ?? '127.0.0.1'),
+            'DB_PORT' => (string) ($config['port'] ?? '5432'),
+            'DB_DATABASE' => $this->database,
+            'DB_USERNAME' => (string) ($config['username'] ?? ''),
+            'DB_PASSWORD' => (string) ($config['password'] ?? ''),
+            'DB_URL' => '',
+            'MAIL_MAILER' => 'array',
+            'NIGHTWATCH_ENABLED' => 'false',
+            'XDEBUG_MODE' => 'coverage',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function candidateRefs(string $repo): array
+    {
+        $refs = [];
+        $head = Process::path($repo)->run(['git', 'symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD']);
+
+        if ($head->successful() && trim($head->output()) !== '') {
+            $refs[] = trim($head->output());
+        }
+
+        return array_values(array_unique([...$refs, 'origin/main', 'origin/master', 'main', 'master']));
+    }
+
+    private function writeEnv(): void
+    {
+        $example = $this->path.'/.env.example';
+        $env = is_file($example) ? (string) file_get_contents($example) : '';
+
+        $values = [
+            'APP_KEY' => 'base64:'.base64_encode(random_bytes(32)),
+            ...$this->environment(),
+        ];
+
+        foreach ($values as $key => $value) {
+            $line = $key.'='.($value === '' || preg_match('/\s/', $value) ? '"'.$value.'"' : $value);
+            $pattern = '/^'.preg_quote($key, '/').'=.*$/m';
+            $env = preg_match($pattern, $env) ? (string) preg_replace($pattern, $line, $env) : rtrim($env)."\n".$line."\n";
+        }
+
+        file_put_contents($this->path.'/.env', $env);
+    }
+
+    /**
+     * vendor/ and node_modules/ are cloned from the app's own checkout first
+     * — on APFS that is copy-on-write and instant — so the install that
+     * follows only has to reconcile the difference against the lock file.
+     */
+    private function installDependencies(string $repo): void
+    {
+        foreach (['vendor', 'node_modules'] as $dir) {
+            if (is_dir($repo.'/'.$dir) && ! is_dir($this->path.'/'.$dir)) {
+                Process::timeout(600)->run(['cp', '-cR', $repo.'/'.$dir, $this->path.'/'.$dir]);
+            }
+        }
+
+        $this->mustRun(
+            Process::path($this->path)->timeout(1800)->env($this->environment()),
+            [(string) config('scanner.composer'), 'install', '--no-interaction', '--no-progress', '--prefer-dist'],
+            'composer install',
+        );
+
+        $package = is_file($this->path.'/package.json') ? json_decode((string) file_get_contents($this->path.'/package.json'), true) : null;
+
+        if (! is_array($package) || ! isset($package['scripts']['build'])) {
+            return;
+        }
+
+        $npm = (string) config('scanner.npm');
+
+        if (! is_dir($this->path.'/node_modules')) {
+            $install = Process::path($this->path)->timeout(1800)->run([$npm, is_file($this->path.'/package-lock.json') ? 'ci' : 'install', '--no-audit', '--no-fund']);
+
+            if ($install->failed()) {
+                $this->notes[] = 'npm install failed, so views that load Vite assets may fail: '.Str::limit(trim($install->errorOutput()), 500);
+
+                return;
+            }
+        }
+
+        $build = Process::path($this->path)->timeout(1800)->run([$npm, 'run', 'build']);
+
+        if ($build->failed()) {
+            $this->notes[] = 'npm run build failed, so views that load Vite assets may fail: '.Str::limit(trim($build->errorOutput()), 500);
+        }
+    }
+
+    private function createDatabase(): void
+    {
+        $connection = $this->connection();
+
+        $connection->statement('DROP DATABASE IF EXISTS "'.$this->database.'" WITH (FORCE)');
+        $connection->statement('CREATE DATABASE "'.$this->database.'"');
+        $this->databaseCreated = true;
+    }
+
+    /**
+     * Rewrite the worktree's phpunit config so every DB_* entry names the
+     * scratch database, forced — many fleet apps force their own test
+     * database, which would otherwise win over the process environment and
+     * put two scans, or a scan and a developer, on the same database.
+     */
+    private function pointPhpunitAtDatabase(): void
+    {
+        $file = collect(['phpunit.xml', 'phpunit.xml.dist'])
+            ->map(fn (string $name) => $this->path.'/'.$name)
+            ->first(fn (string $path) => is_file($path));
+
+        if ($file === null) {
+            throw new RuntimeException('The app has no phpunit.xml, so there is no suite to run.');
+        }
+
+        $dom = new DOMDocument;
+        $dom->preserveWhiteSpace = true;
+
+        if (! @$dom->load($file)) {
+            throw new RuntimeException('phpunit.xml could not be parsed.');
+        }
+
+        $xpath = new DOMXPath($dom);
+        $php = $xpath->query('/phpunit/php')->item(0);
+
+        if (! $php instanceof DOMElement) {
+            $php = $dom->createElement('php');
+            $dom->documentElement->appendChild($php);
+        }
+
+        $values = array_intersect_key($this->environment(), array_flip([
+            'DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'DB_URL',
+        ]));
+
+        foreach ($values as $name => $value) {
+            foreach (['env', 'server'] as $tag) {
+                foreach (iterator_to_array($xpath->query("/phpunit/php/{$tag}[@name='{$name}']")) as $existing) {
+                    $existing->parentNode->removeChild($existing);
+                }
+
+                $element = $dom->createElement($tag);
+                $element->setAttribute('name', $name);
+                $element->setAttribute('value', $value);
+                $element->setAttribute('force', 'true');
+                $php->appendChild($element);
+            }
+        }
+
+        $dom->save($file);
+    }
+
+    private function removeWorktree(): void
+    {
+        $repo = (string) $this->app->local_path;
+
+        $remove = Process::path($repo)->timeout(300)->run(['git', 'worktree', 'remove', '--force', $this->path]);
+
+        if ($remove->failed() && is_dir($this->path)) {
+            File::deleteDirectory($this->path);
+        }
+
+        Process::path($repo)->run(['git', 'worktree', 'prune']);
+        $this->worktreeAdded = false;
+    }
+
+    private function connection(): Connection
+    {
+        return DB::connection((string) config('scanner.database.connection'));
+    }
+
+    /**
+     * @param  list<string>  $command
+     */
+    private function mustRun(PendingProcess $process, array $command, string $what): void
+    {
+        $result = $process->run($command);
+
+        if ($result->failed()) {
+            throw new RuntimeException($what.' failed: '.Str::limit(trim($result->errorOutput() ?: $result->output()), 2000));
+        }
+    }
+}

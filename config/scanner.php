@@ -1,0 +1,96 @@
+<?php
+
+return [
+
+    /*
+    |--------------------------------------------------------------------------
+    | Where the fleet's checkouts live
+    |--------------------------------------------------------------------------
+    |
+    | The directory holding one checkout per app, named by its production host
+    | (`finance.dashcore.com`). An app is only scanned if its checkout is found
+    | inside this root after realpath(), so a symlink cannot point a scan at
+    | anything else. Unset means nothing is scannable: a root that guesses is
+    | not an allowlist.
+    |
+    */
+
+    'root' => env('SCANNER_ROOT'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scratch space
+    |--------------------------------------------------------------------------
+    |
+    | Each scan runs in a throwaway git worktree of the app's default branch,
+    | created here and removed when the scan ends — the app's own working copy
+    | and its development database are never touched. Raw probe output is kept
+    | beside it for `keep_runs` scans per app, for debugging a verdict.
+    |
+    */
+
+    'workspace' => env('SCANNER_WORKSPACE', storage_path('scanner')),
+
+    'keep_runs' => (int) env('SCANNER_KEEP_RUNS', 5),
+
+    /*
+    |--------------------------------------------------------------------------
+    | The test process
+    |--------------------------------------------------------------------------
+    |
+    | Coverage comes from Xdebug, loaded only into the scan's own PHP process.
+    | Herd ships one per PHP version; the default finds the one matching the
+    | PHP binary below. Scans favour quality over speed — the timeout is long
+    | because the machines running this are not in a hurry.
+    |
+    */
+
+    'php' => env('SCANNER_PHP', PHP_BINARY),
+
+    'xdebug' => env('SCANNER_XDEBUG', sprintf(
+        '/Applications/Herd.app/Contents/Resources/xdebug/xdebug-%d%d-%s.so',
+        PHP_MAJOR_VERSION,
+        PHP_MINOR_VERSION,
+        php_uname('m') === 'arm64' ? 'arm64' : 'x86',
+    )),
+
+    'composer' => env('SCANNER_COMPOSER', 'composer'),
+
+    'npm' => env('SCANNER_NPM', 'npm'),
+
+    'timeout' => (int) env('SCANNER_TIMEOUT', 7200),
+
+    /*
+    |--------------------------------------------------------------------------
+    | The test database
+    |--------------------------------------------------------------------------
+    |
+    | Every suite runs against Postgres, whatever its phpunit.xml says, so a
+    | query that only works on SQLite shows up as the failure it is in
+    | production. Each app gets its own database, dropped and recreated for
+    | every scan, on the server this app itself uses.
+    |
+    */
+
+    'database' => [
+        'connection' => env('SCANNER_DB_CONNECTION', 'pgsql'),
+        'prefix' => env('SCANNER_DB_PREFIX', 'tests_scan_'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Queue
+    |--------------------------------------------------------------------------
+    |
+    | Scans run for minutes to hours, so they go on their own connection whose
+    | retry_after outlasts the timeout — on the default connection a running
+    | scan would be handed to a second worker after 90 seconds.
+    |
+    */
+
+    'queue' => [
+        'connection' => env('SCANNER_QUEUE_CONNECTION', 'scans'),
+        'queue' => env('SCANNER_QUEUE', 'scans'),
+    ],
+
+];
