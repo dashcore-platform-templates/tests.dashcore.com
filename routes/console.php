@@ -14,13 +14,10 @@ Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 // Every scannable app, every night, from its default branch.
 Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping();
 
-// Scans and builds run on their own worker — scans first — started here when
-// there is work and gone when there is none, so the host needs no extra
-// launch agent. The lock outlives the longest night so a second never starts.
-Schedule::command('queue:work scans --queue=scans,builds --stop-when-empty --tries=1 --sleep=3')
-    ->everyMinute()
-    ->withoutOverlapping(720)
-    ->runInBackground();
+// Scans and builds run on their own long-lived worker, the launchd agent
+// com.dashcore.queue-tests (KeepAlive) — not from here. The fleet host runs
+// this schedule as a periodic launchd job, and launchd ends every process the
+// tick started when the tick ends, so a worker started here dies mid-scan.
 
 // One build per app with gaps and nothing already waiting on review, after
 // the scans it plans from. Off unless SCANNER_BUILD_NIGHTLY is set.

@@ -121,8 +121,10 @@ surfaces (routes, Livewire components/actions, and every public method under
   `tests:install-testkit [keys] [--now]`. Scans record each app's version.
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
-  `routes/console.php` syncs, scans nightly, starts the `scans` worker on demand,
-  and prunes old per-test detail.
+  `routes/console.php` syncs, scans nightly, follows build PRs and prunes old
+  per-test detail. The `scans` worker (queues `scans,builds`) is the launchd
+  agent `~/Library/LaunchAgents/com.dashcore.queue-tests.plist` — never start it
+  from the schedule: launchd kills a tick's background processes when it ends.
 
 ## NavigationRegistry Contract
 
