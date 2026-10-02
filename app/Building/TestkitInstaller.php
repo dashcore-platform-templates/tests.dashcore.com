@@ -222,6 +222,18 @@ class TestkitInstaller
             return [['The baseline test did not run: '.mb_substr(trim($run['output']), -1500)], []];
         }
 
+        $notes = [];
+
+        // A history that already does not roll back is debt the app had
+        // before the baseline, not a reason to keep the baseline out: record
+        // it, say which migration failed, and check the rest.
+        $migrations = array_values(array_filter($records, fn ($r) => str_contains($r->name, 'migration') && $r->outcome !== TestOutcome::Passed));
+
+        if ($migrations !== [] && $this->recordMigrationDebt($workspace, (string) $migrations[0]->message)) {
+            $notes[] = 'This app\'s migrations do not roll back cleanly today, so the round-trip check is off in config/testkit.php until they do: '.mb_substr((string) $migrations[0]->message, 0, 600);
+            $records = $this->reader->read($this->runner->runFiles($workspace, ['tests/Feature/FleetBaselineTest.php'], 'baseline-again', 1800)['probe']);
+        }
+
         $reasons = [];
 
         foreach ($records as $record) {
@@ -231,12 +243,35 @@ class TestkitInstaller
         }
 
         if ($reasons !== []) {
-            return [$reasons, []];
+            return [$reasons, $notes];
         }
 
         $suite = $this->verifier->suiteRegressions($build, $workspace, $baseline);
 
-        return [$suite['reasons'], $suite['notes']];
+        return [$suite['reasons'], [...$notes, ...$suite['notes']]];
+    }
+
+    private function recordMigrationDebt(Workspace $workspace, string $why): bool
+    {
+        $file = $workspace->path.'/config/testkit.php';
+        $config = (string) @file_get_contents($file);
+        $why = str_replace(["\n", '*/'], [' ', '* /'], mb_substr($why, 0, 300));
+
+        $updated = preg_replace(
+            "/'round_trip' => true,/",
+            "// TODO: the history does not roll back yet — {$why}\n        'round_trip' => false,",
+            $config,
+            1,
+            $count,
+        );
+
+        if ($count !== 1) {
+            return false;
+        }
+
+        file_put_contents($file, $updated);
+
+        return true;
     }
 
     /**

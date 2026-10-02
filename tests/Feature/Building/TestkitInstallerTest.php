@@ -121,7 +121,7 @@ class TestkitInstallerTest extends TestCase
             $command = implode(' ', (array) $process->command);
 
             if (str_contains($command, 'testkit:install')) {
-                file_put_contents($test->dir.'/config/testkit.php', "<?php\n\nreturn [\n    'routes' => ['public' => ['GET /', 'POST webhooks/stripe']],\n    'database' => [\n        'driver' => 'pgsql',\n    ],\n    'debug_calls' => ['allow' => []],\n    'env_calls' => ['allow' => []],\n    'loading' => ['allow' => ['resources/views/livewire/reports.blade.php@toggle']],\n];\n");
+                file_put_contents($test->dir.'/config/testkit.php', "<?php\n\nreturn [\n    'routes' => ['public' => ['GET /', 'POST webhooks/stripe']],\n    'database' => [\n        'driver' => 'pgsql',\n    ],\n    'migrations' => [\n        'round_trip' => true,\n    ],\n    'debug_calls' => ['allow' => []],\n    'env_calls' => ['allow' => []],\n    'loading' => ['allow' => ['resources/views/livewire/reports.blade.php@toggle']],\n];\n");
             }
 
             return match (true) {
@@ -193,12 +193,12 @@ class TestkitInstallerTest extends TestCase
 
     public function test_a_baseline_that_does_not_pass_is_not_proposed(): void
     {
-        $this->runs['baseline'][] = ['id' => 'FleetBaselineTest::migrations', 'name' => 'every migration rolls back and runs again cleanly', 'status' => 'failed', 'message' => 'Tables are left after rolling every migration back', 'assertions' => 1];
+        $this->runs['baseline'][] = ['id' => 'FleetBaselineTest::loading', 'name' => 'every Livewire action gives loading feedback', 'status' => 'failed', 'message' => 'Livewire actions with no loading feedback', 'assertions' => 1];
 
         $build = app(TestkitInstaller::class)->run($this->build());
 
         $this->assertSame(BuildStatus::Rejected, $build->status);
-        $this->assertStringContainsString('A baseline check does not pass (failed): every migration rolls back and runs again cleanly — Tables are left', $build->error);
+        $this->assertStringContainsString('A baseline check does not pass (failed): every Livewire action gives loading feedback — Livewire actions with no loading feedback', $build->error);
         $this->assertNull($this->shipped);
     }
 
@@ -239,5 +239,17 @@ class TestkitInstallerTest extends TestCase
 
         $this->assertSame(BuildStatus::Failed, $build->status);
         $this->assertStringContainsString('The suite does not run on the base commit', $build->error);
+    }
+
+    public function test_a_history_that_already_does_not_roll_back_is_recorded_as_debt_not_a_blocker(): void
+    {
+        $this->runs['baseline'] = [['id' => 'FleetBaselineTest::migrations', 'name' => 'every migration rolls back and runs again cleanly', 'status' => 'errored', 'message' => 'Undefined variable $table', 'assertions' => 0]];
+        $this->runs['baseline-again'] = [['id' => 'FleetBaselineTest::migrations', 'name' => 'every migration rolls back and runs again cleanly', 'status' => 'passed', 'assertions' => 1]];
+
+        $build = app(TestkitInstaller::class)->run($this->build());
+
+        $this->assertSame(BuildStatus::Opened, $build->status, (string) $build->error);
+        $this->assertStringContainsString('do not roll back cleanly today', implode("\n", $build->notes));
+        $this->assertStringContainsString('[!WARNING]', $this->shipped['body']);
     }
 }
