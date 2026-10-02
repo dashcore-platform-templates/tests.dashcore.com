@@ -90,7 +90,12 @@ class BuilderTest extends TestCase
         {
             public function __construct(private readonly BuilderTest $test) {}
 
-            public function verify(Build $build, Workspace $workspace, Collection $targets): array
+            public function baselineFailures(Build $build, Workspace $workspace): array
+            {
+                return [];
+            }
+
+            public function verify(Build $build, Workspace $workspace, Collection $targets, array $baseline = []): array
             {
                 return $this->test->verification;
             }
@@ -119,7 +124,7 @@ class BuilderTest extends TestCase
         $round = $this->fleetApp->surfaces()->create(['kind' => 'route', 'identifier' => 'GET reports', 'label' => 'GET /reports', 'status' => SurfaceStatus::Missing, 'meta' => ['middleware' => ['web', 'auth'], 'name' => 'reports']]);
 
         $this->verification = [
-            'accepted' => true, 'reasons' => [], 'files' => ['tests/Feature/PricingTest.php'], 'reverted' => ['app/Services/Pricing.php'], 'tests' => 4,
+            'accepted' => true, 'reasons' => [], 'notes' => ['Flaky: totals with tax (tests/Feature/PricingTest.php) failed in the full suite and passed when run again.'], 'files' => ['tests/Feature/PricingTest.php'], 'reverted' => ['app/Services/Pricing.php'], 'tests' => 4,
             'targets' => [
                 $total->id => ['label' => 'Pricing::total', 'status' => 'tested', 'mutation' => 'killed', 'proven' => true, 'tests' => ['totals']],
                 $round->id => ['label' => 'GET /reports', 'status' => 'missing', 'mutation' => null, 'proven' => false, 'tests' => []],
@@ -142,7 +147,10 @@ class BuilderTest extends TestCase
         $this->assertStringStartsWith('tests/auto-'.$build->id.'-pricingtotal', $build->branch);
         $this->assertSame($build->branch, $this->branch);
         $this->assertSame([['target' => '2', 'description' => 'rounds the wrong way']], $build->agent_report['suspected_bugs']);
-        $this->assertSame(['Put back a change outside tests/ and database/factories/: app/Services/Pricing.php'], $build->notes);
+        $this->assertSame([
+            'Put back a change outside tests/ and database/factories/: app/Services/Pricing.php',
+            'Flaky: totals with tax (tests/Feature/PricingTest.php) failed in the full suite and passed when run again.',
+        ], $build->notes);
         $this->assertFalse($this->keptBranch, 'the remote holds the branch once pushed');
     }
 

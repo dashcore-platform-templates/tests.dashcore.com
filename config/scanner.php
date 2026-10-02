@@ -25,11 +25,14 @@ return [
     | Each scan runs in a throwaway git worktree of the app's default branch,
     | created here and removed when the scan ends — the app's own working copy
     | and its development database are never touched. Raw probe output is kept
-    | beside it for `keep_runs` scans per app, for debugging a verdict.
+    | beside it for `keep_runs` scans per app, for debugging a verdict. The
+    | directory ends in .noindex so Spotlight leaves it alone: every scan
+    | copies an app's vendor/ and node_modules/ here, and indexing tens of
+    | thousands of short-lived files took the fleet host to a load of 70.
     |
     */
 
-    'workspace' => env('SCANNER_WORKSPACE', storage_path('scanner')),
+    'workspace' => env('SCANNER_WORKSPACE', storage_path('scanner.noindex')),
 
     'keep_runs' => (int) env('SCANNER_KEEP_RUNS', 5),
 

@@ -3,6 +3,7 @@
 namespace App\Building;
 
 use App\Enums\MutationResult;
+use App\Enums\ScanStatus;
 use App\Enums\SurfaceStatus;
 use App\Enums\TestOutcome;
 use App\Models\Build;
@@ -18,6 +19,7 @@ use App\Scanning\Workspace;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use RuntimeException;
 
 /**
  * Decides, without taking the agent's word for anything, whether a build's
@@ -43,15 +45,16 @@ class BuildVerifier
 
     /**
      * @param  Collection<int, Surface>  $targets
-     * @return array{accepted: bool, reasons: list<string>, files: list<string>, reverted: list<string>, tests: int, targets: array<int, array{label: string, status: string, mutation: ?string, proven: bool, tests: list<string>}>}
+     * @param  array<string, true>  $baseline  tests already failing on the base commit
+     * @return array{accepted: bool, reasons: list<string>, notes: list<string>, files: list<string>, reverted: list<string>, tests: int, targets: array<int, array{label: string, status: string, mutation: ?string, proven: bool, tests: list<string>}>}
      */
-    public function verify(Build $build, Workspace $workspace, Collection $targets): array
+    public function verify(Build $build, Workspace $workspace, Collection $targets, array $baseline = []): array
     {
         $reasons = [];
         [$files, $reverted] = $this->changedFiles($workspace);
         $testFiles = array_values(array_filter($files, fn (string $f) => str_starts_with($f, 'tests/') && str_ends_with($f, '.php')));
 
-        $report = ['accepted' => false, 'reasons' => [], 'files' => $files, 'reverted' => $reverted, 'tests' => 0, 'targets' => []];
+        $report = ['accepted' => false, 'reasons' => [], 'notes' => [], 'files' => $files, 'reverted' => $reverted, 'tests' => 0, 'targets' => []];
 
         if ($testFiles === []) {
             $report['reasons'] = ['The agent wrote no test files.'];
@@ -87,7 +90,9 @@ class BuildVerifier
 
         // The whole suite, to catch new tests that break or lean on others.
         if ($reasons === []) {
-            $reasons = [...$reasons, ...$this->suiteRegressions($build, $workspace)];
+            $suite = $this->suiteRegressions($build, $workspace, $baseline);
+            $reasons = $suite['reasons'];
+            $report['notes'] = $suite['notes'];
         }
 
         $report['accepted'] = $reasons === [];
@@ -205,30 +210,88 @@ class BuildVerifier
     }
 
     /**
-     * Failures in the full suite that the base scan did not have.
+     * The tests that already fail on the unchanged base commit. A scan of that
+     * exact commit says so; otherwise the suite is run now, before anything
+     * is changed — a failure that was already there is not the build's.
      *
-     * @return list<string>
+     * @return array<string, true> failing test ids
      */
-    public function suiteRegressions(Build $build, Workspace $workspace): array
+    public function baselineFailures(Build $build, Workspace $workspace): array
+    {
+        $scan = $build->scan;
+
+        if ($scan !== null && $scan->status === ScanStatus::Completed && $scan->commit_sha === $build->base_sha) {
+            return $scan->tests()
+                ->whereIn('outcome', [TestOutcome::Failed, TestOutcome::Errored])
+                ->pluck('test_id')
+                ->flip()
+                ->map(fn () => true)
+                ->all();
+        }
+
+        $run = $this->runner->runFiles($workspace, [], 'base-suite', (int) config('scanner.timeout'));
+        $records = $this->reader->read($run['probe']);
+
+        if ($records === []) {
+            throw new RuntimeException('The suite does not run on the base commit, so nothing built on it can be verified: '.mb_substr(trim($run['output']), -1500));
+        }
+
+        $failing = [];
+
+        foreach ($records as $record) {
+            if ($record->outcome->isFailure()) {
+                $failing[$record->id] = true;
+            }
+        }
+
+        return $failing;
+    }
+
+    /**
+     * Failures in the full suite that the base did not have. Each is run once
+     * more on its own before it counts: one that passes then is flaky, noted
+     * rather than blamed on the change.
+     *
+     * @param  array<string, true>  $baseline
+     * @return array{reasons: list<string>, notes: list<string>}
+     */
+    public function suiteRegressions(Build $build, Workspace $workspace, array $baseline): array
     {
         $run = $this->runner->runFiles($workspace, [], 'build-suite', (int) config('scanner.timeout'));
         $records = $this->reader->read($run['probe']);
 
         if ($records === []) {
-            return ['The full suite did not run with the new tests in it: '.mb_substr(trim($run['output']), -1500)];
+            return ['reasons' => ['The full suite did not run with the change in it: '.mb_substr(trim($run['output']), -1500)], 'notes' => []];
         }
 
-        $failingBefore = $build->scan?->tests()
-            ->whereIn('outcome', [TestOutcome::Failed, TestOutcome::Errored])
-            ->pluck('test_id')
-            ->flip()
-            ->all() ?? [];
+        $new = array_values(array_filter($records, fn (TestRecord $t) => $t->outcome->isFailure() && ! isset($baseline[$t->id])));
 
-        $broken = array_filter($records, fn (TestRecord $t) => $t->outcome->isFailure() && ! isset($failingBefore[$t->id]));
+        if ($new === []) {
+            return ['reasons' => [], 'notes' => []];
+        }
 
-        return array_values(array_map(
-            fn (TestRecord $t) => "The full suite has a new failure: {$t->name} ({$t->file})".($t->message ? ' — '.mb_substr($t->message, 0, 300) : ''),
-            array_slice($broken, 0, 10),
-        ));
+        $files = array_values(array_unique(array_filter(array_map(fn (TestRecord $t) => $t->file, $new))));
+        $again = [];
+
+        foreach ($this->reader->read($this->runner->runFiles($workspace, $files, 'build-recheck', (int) config('scanner.timeout'))['probe']) as $record) {
+            $again[$record->id] = $record->outcome;
+        }
+
+        $reasons = [];
+        $notes = [];
+
+        foreach ($new as $test) {
+            $retry = $again[$test->id] ?? null;
+
+            if ($retry !== null && ! $retry->isFailure()) {
+                $notes[] = "Flaky: {$test->name} ({$test->file}) failed in the full suite and passed when run again.";
+
+                continue;
+            }
+
+            $reasons[] = "The full suite has a new failure: {$test->name} ({$test->file})".($test->message ? ' — '.mb_substr($test->message, 0, 300) : '');
+        }
+
+        return ['reasons' => array_slice($reasons, 0, 10), 'notes' => $notes];
     }
 }

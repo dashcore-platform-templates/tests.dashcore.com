@@ -62,11 +62,16 @@ class TestkitInstaller
                 return $this->reject($build, ["{$app->name} already has dashcore/testkit {$installed}."]);
             }
 
+            // What already fails before anything is installed.
+            $baseline = $this->verifier->baselineFailures($build, $workspace);
+
             $build->update(['status' => BuildStatus::Writing]);
             $notes = $this->install($workspace, $path, $version, $installed === null);
 
             $build->update(['status' => BuildStatus::Verifying, 'notes' => $notes ?: null]);
-            $reasons = $this->verify($build, $workspace);
+            [$reasons, $flaky] = $this->verify($build, $workspace, $baseline);
+            $notes = [...$notes, ...$flaky];
+            $build->update(['notes' => $notes ?: null]);
 
             if ($reasons !== []) {
                 return $this->reject($build, $reasons);
@@ -201,15 +206,16 @@ class TestkitInstaller
     }
 
     /**
-     * @return list<string> reasons not to propose it
+     * @param  array<string, true>  $baseline
+     * @return array{0: list<string>, 1: list<string>} reasons not to propose it, and notes
      */
-    private function verify(Build $build, Workspace $workspace): array
+    private function verify(Build $build, Workspace $workspace, array $baseline): array
     {
-        $baseline = $this->runner->runFiles($workspace, ['tests/Feature/FleetBaselineTest.php'], 'baseline', 1800);
-        $records = $this->reader->read($baseline['probe']);
+        $run = $this->runner->runFiles($workspace, ['tests/Feature/FleetBaselineTest.php'], 'baseline', 1800);
+        $records = $this->reader->read($run['probe']);
 
         if ($records === []) {
-            return ['The baseline test did not run: '.mb_substr(trim($baseline['output']), -1500)];
+            return [['The baseline test did not run: '.mb_substr(trim($run['output']), -1500)], []];
         }
 
         $reasons = [];
@@ -220,7 +226,13 @@ class TestkitInstaller
             }
         }
 
-        return $reasons === [] ? $this->verifier->suiteRegressions($build, $workspace) : $reasons;
+        if ($reasons !== []) {
+            return [$reasons, []];
+        }
+
+        $suite = $this->verifier->suiteRegressions($build, $workspace, $baseline);
+
+        return [$suite['reasons'], $suite['notes']];
     }
 
     /**
