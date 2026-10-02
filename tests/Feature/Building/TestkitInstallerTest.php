@@ -154,7 +154,8 @@ class TestkitInstallerTest extends TestCase
         $this->assertSame(3, $build->pr_number);
 
         Process::assertRan(fn ($p) => str_ends_with($p->command[0], '/testkit/bin/vendor-into') && $p->command[2] === 'v0.1.3');
-        Process::assertRan(fn ($p) => in_array('dashcore/testkit:^0.1', $p->command, true) && in_array('--dev', $p->command, true));
+        Process::assertRan(fn ($p) => in_array('dashcore/testkit:^0.1', $p->command, true) && in_array('--dev', $p->command, true) && in_array('--no-scripts', $p->command, true));
+        Process::assertRan(fn ($p) => array_slice($p->command, 1, 2) === ['artisan', 'package:discover']);
 
         $this->assertSame(
             ['composer.json', 'composer.lock', 'config/testkit.php', 'packages/dashcore/testkit/src/Testkit.php', 'tests/Feature/FleetBaselineTest.php'],
