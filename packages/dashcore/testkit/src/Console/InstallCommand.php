@@ -16,7 +16,7 @@ class InstallCommand extends Command
 
     public function handle(): int
     {
-        $pest = is_file(base_path('vendor/bin/pest'));
+        $pest = $this->pestBindsFeatureTests();
         $target = base_path('tests/Feature/FleetBaselineTest.php');
         $config = config_path('testkit.php');
 
@@ -41,5 +41,21 @@ class InstallCommand extends Command
         $this->call('config:clear');
 
         return $this->call('testkit:baseline');
+    }
+
+    /**
+     * A Pest-style test only works where tests/Pest.php gives Feature tests a
+     * TestCase to run in; otherwise it runs with no application at all. A
+     * class-based test works under either runner, so it is the safe default.
+     */
+    private function pestBindsFeatureTests(): bool
+    {
+        $file = base_path('tests/Pest.php');
+
+        if (! is_file(base_path('vendor/bin/pest')) || ! is_file($file)) {
+            return false;
+        }
+
+        return (bool) preg_match('/->in\(\s*[\'"]Feature[\'"]/', (string) file_get_contents($file));
     }
 }
