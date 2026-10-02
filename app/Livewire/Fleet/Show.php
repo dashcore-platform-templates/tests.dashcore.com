@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Fleet;
 
+use App\Building\BuildRequester;
 use App\Enums\SurfaceChange;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
@@ -75,6 +76,47 @@ class Show extends Component
             : 'Scan queued.');
 
         unset($this->app, $this->latestScan);
+    }
+
+    public function build(BuildRequester $requester, ?int $surfaceId = null): void
+    {
+        abort_unless($this->canManage, 403);
+
+        $lead = $surfaceId === null ? null : $this->app->surfaces()->find($surfaceId);
+        $build = $requester->request($this->app, auth()->user(), $lead);
+
+        $this->dispatch('fleet-notice', message: match (true) {
+            $build !== null => 'Build queued for '.count($build->targets).' '.str('surface')->plural(count($build->targets)).'. An agent will write the tests; a PR opens only if they pass verification.',
+            $this->app->builds()->get()->contains(fn ($b) => $b->status->isActive()) => 'A build is already running for this app.',
+            default => 'Nothing to build: every open surface is already covered by a build or a PR waiting on review.',
+        });
+
+        unset($this->builds, $this->heldTargets);
+    }
+
+    #[Computed]
+    public function builds(): Collection
+    {
+        return $this->app->builds()->latest('id')->limit(10)->get();
+    }
+
+    /**
+     * Surfaces a running build or a PR waiting on review already covers.
+     *
+     * @return array<int, int> surface id => build id
+     */
+    #[Computed]
+    public function heldTargets(): array
+    {
+        $held = [];
+
+        foreach ($this->app->builds()->holdingTargets()->get() as $build) {
+            foreach ($build->targets as $id) {
+                $held[(int) $id] = $build->id;
+            }
+        }
+
+        return $held;
     }
 
     #[Computed]

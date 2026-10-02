@@ -103,6 +103,17 @@ surfaces (routes, Livewire components/actions, and every public method under
   `route:list --json --except-vendor`); `Analyzer` marks each Tested (passing
   test with ≥1 assertion reached it), Weak (only failing/risky/assertion-free
   tests did) or Missing.
+- **Mutation** — after the suite, tested methods (incl. Volt class actions) get
+  their body swapped for a trivial default (`Mutation\Mutator`) and their proving
+  tests re-run; survivors become Weak (`VerdictReason::MutantSurvived`). Budgeted
+  per scan; verdicts are reused while the method's body hash is unchanged.
+- **Ratchet** — each scan diffs against the previous one (`SurfaceChange`):
+  lost coverage and new-untested surfaces are regressions.
+- **Builds** — `app/Building`: `BuildPlanner` picks a batch of open surfaces,
+  `AgentRunner` runs Claude Code headless in a worktree branch (tests/ and
+  database/factories/ only), `BuildVerifier` re-checks everything itself
+  (reach, mutation, full suite), `Publisher` commits, pushes and opens a PR.
+  `tests:build [keys] [--surface=] [--now]`; `tests:sync-builds` follows PRs.
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, starts the `scans` worker on demand,

@@ -35,6 +35,11 @@ class FleetApp extends Model
         return $this->hasMany(Scan::class);
     }
 
+    public function builds(): HasMany
+    {
+        return $this->hasMany(Build::class);
+    }
+
     public function surfaces(): HasMany
     {
         return $this->hasMany(Surface::class);

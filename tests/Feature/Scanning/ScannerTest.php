@@ -51,7 +51,7 @@ class ScannerTest extends TestCase
         $test = $this;
 
         // The workspace is the sample app fixture: no git, no composer, no database.
-        $this->app->bind(Workspace::class, fn ($app, array $params) => new class($params['app'], $params['scan'], $test) extends Workspace
+        $this->app->bind(Workspace::class, fn ($app, array $params) => new class($params['app'], $params['for'], $test) extends Workspace
         {
             public function __construct(FleetApp $app, Scan $scan, private readonly ScannerTest $test)
             {
@@ -65,12 +65,12 @@ class ScannerTest extends TestCase
                 return ['ref' => 'origin/main', 'sha' => str_repeat('a', 40), 'subject' => 'Add reports'];
             }
 
-            public function prepare(string $sha): void
+            public function prepare(string $sha, ?string $branch = null): void
             {
                 $this->notes[] = 'npm run build failed, so views that load Vite assets may fail: x';
             }
 
-            public function cleanup(): void
+            public function cleanup(bool $keepBranch = false): void
             {
                 $this->test->cleanedUp = true;
             }

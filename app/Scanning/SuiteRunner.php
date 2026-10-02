@@ -53,17 +53,23 @@ class SuiteRunner
     }
 
     /**
-     * Only the given test files, without coverage — for checking a mutant
-     * against the tests that reach it.
+     * Only the given test files (all of them when empty) — for checking a
+     * mutant against the tests that reach it, or a build's new tests.
+     * Coverage only when asked: it is what makes a run slow.
      *
      * @param  list<string>  $files  paths relative to the app
      * @return array{exit_code: ?int, timed_out: bool, probe: string, output: string}
      */
-    public function runFiles(Workspace $workspace, array $files, string $name, int $timeout): array
+    public function runFiles(Workspace $workspace, array $files, string $name, int $timeout, bool $coverage = false): array
     {
         $probe = $workspace->runDir.'/'.$name.'.ndjson';
+        $xdebug = $coverage ? (string) config('scanner.xdebug') : null;
 
-        $result = $this->execute($workspace, $this->framework($workspace), $probe, $files, $timeout, null);
+        if ($xdebug !== null && ! is_file($xdebug)) {
+            throw new RuntimeException("Xdebug was not found at {$xdebug}. Set SCANNER_XDEBUG.");
+        }
+
+        $result = $this->execute($workspace, $this->framework($workspace), $probe, $files, $timeout, $xdebug);
         file_put_contents($workspace->runDir.'/'.$name.'.log', $result['output']);
 
         return [

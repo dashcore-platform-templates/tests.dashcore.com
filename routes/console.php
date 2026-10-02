@@ -14,12 +14,20 @@ Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 // Every scannable app, every night, from its default branch.
 Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping();
 
-// Scans run on their own worker, started here when there is work and gone
-// when there is none, so the host needs no extra launch agent. The lock
-// outlives the longest night of scans so a second worker never starts.
-Schedule::command('queue:work scans --queue=scans --stop-when-empty --tries=1 --sleep=3')
+// Scans and builds run on their own worker — scans first — started here when
+// there is work and gone when there is none, so the host needs no extra
+// launch agent. The lock outlives the longest night so a second never starts.
+Schedule::command('queue:work scans --queue=scans,builds --stop-when-empty --tries=1 --sleep=3')
     ->everyMinute()
     ->withoutOverlapping(720)
     ->runInBackground();
+
+// One build per app with gaps and nothing already waiting on review, after
+// the scans it plans from. Off unless SCANNER_BUILD_NIGHTLY is set.
+Schedule::command('tests:build')->dailyAt('03:00')->withoutOverlapping()
+    ->when(fn () => (bool) config('scanner.build.nightly'));
+
+// Follow the PRs builds opened: merged, closed, or still waiting.
+Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();
 
 Schedule::command('tests:prune')->dailyAt('05:00')->withoutOverlapping();

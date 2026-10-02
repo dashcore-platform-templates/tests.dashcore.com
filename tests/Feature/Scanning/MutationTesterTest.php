@@ -50,7 +50,7 @@ class MutationTesterTest extends TestCase
         {
             public function __construct(private readonly MutationTesterTest $test) {}
 
-            public function runFiles(Workspace $workspace, array $files, string $name, int $timeout): array
+            public function runFiles(Workspace $workspace, array $files, string $name, int $timeout, bool $coverage = false): array
             {
                 return $this->test->fakeRun($workspace, $files, $name);
             }

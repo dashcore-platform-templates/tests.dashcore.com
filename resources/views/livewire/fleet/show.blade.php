@@ -4,7 +4,7 @@
     $current = $app->latestScan;
 @endphp
 
-<div @if ($current?->status->isActive()) wire:poll.10s @endif>
+<div @if ($current?->status->isActive() || $this->builds->contains(fn ($b) => $b->status->isActive())) wire:poll.10s @endif>
     {{-- Notices --}}
     <div
         x-data="{ message: null, timer: null }"
@@ -35,6 +35,17 @@
         <div class="flex items-center gap-3">
             @if ($current)
                 <a href="{{ route('scans.show', $current) }}" wire:navigate><x-scan-status :scan="$current" /></a>
+            @endif
+            @if ($this->canManage && $app->isScannable() && $scan && ($scan->surfaces_missing + $scan->surfaces_weak) > 0)
+                <button
+                    wire:click="build"
+                    wire:loading.attr="disabled"
+                    wire:target="build"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-800 text-surface-200 text-sm font-medium hover:bg-surface-700 transition-colors disabled:opacity-50"
+                >
+                    <x-spinner wire:loading wire:target="build" />
+                    Write tests for gaps
+                </button>
             @endif
             @if ($this->canManage && $app->isScannable())
                 <button
@@ -213,6 +224,20 @@
                                     </p>
                                 @endif
                             </div>
+                            @if (isset($this->heldTargets[$surface->id]))
+                                <a href="{{ route('builds.show', $this->heldTargets[$surface->id]) }}" wire:navigate class="shrink-0 text-xs text-accent-400 hover:text-accent-500">In build #{{ $this->heldTargets[$surface->id] }}</a>
+                            @elseif ($this->canManage && $app->isScannable() && in_array($surface->status?->value, ['missing', 'weak'], true))
+                                <button
+                                    type="button"
+                                    wire:click="build({{ $surface->id }})"
+                                    wire:loading.attr="disabled"
+                                    wire:target="build({{ $surface->id }})"
+                                    class="shrink-0 inline-flex items-center gap-1 text-xs text-surface-400 hover:text-accent-400 disabled:opacity-50"
+                                >
+                                    <x-spinner class="h-3 w-3" wire:loading wire:target="build({{ $surface->id }})" />
+                                    Write a test
+                                </button>
+                            @endif
                             @if ($result && $result->tests_count > 0)
                                 <button type="button" x-on:click="open = ! open" class="shrink-0 text-xs text-accent-400 hover:text-accent-500" x-bind:aria-expanded="open">
                                     {{ $result->tests_count }} {{ \Illuminate\Support\Str::plural('test', $result->tests_count) }}
@@ -260,6 +285,31 @@
                 </ul>
             </div>
         @endif
+    @endif
+
+    {{-- Builds --}}
+    @if ($this->builds->isNotEmpty())
+        <div class="card-os overflow-x-auto mb-6">
+            <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-surface-200 uppercase tracking-wider">Test builds</h2>
+            <table class="min-w-full divide-y divide-surface-800">
+                <tbody class="divide-y divide-surface-800">
+                    @foreach ($this->builds as $b)
+                        <tr wire:key="build-{{ $b->id }}">
+                            <td class="px-4 py-2 whitespace-nowrap"><a href="{{ route('builds.show', $b) }}" wire:navigate><x-build-status :build="$b" /></a></td>
+                            <td class="px-4 py-2 text-sm text-surface-300">{{ $b->targets_proven }}/{{ count($b->targets) }} proven</td>
+                            <td class="px-4 py-2 text-sm">
+                                @if ($b->pr_url)
+                                    <a href="{{ $b->pr_url }}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-500">PR #{{ $b->pr_number }}</a>
+                                @elseif ($b->status->value === 'ready')
+                                    <span class="font-mono text-xs text-surface-400">{{ $b->branch }}</span>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-xs text-surface-500 text-right whitespace-nowrap">{{ $b->created_at->diffForHumans() }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
     @endif
 
     {{-- History --}}

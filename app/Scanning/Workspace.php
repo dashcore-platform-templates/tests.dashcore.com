@@ -2,6 +2,7 @@
 
 namespace App\Scanning;
 
+use App\Models\Build;
 use App\Models\FleetApp;
 use App\Models\Scan;
 use DOMDocument;
@@ -35,19 +36,31 @@ class Workspace
     /** @var list<string> */
     public array $notes = [];
 
+    /** The branch the worktree was created on, for a build; null for a scan. */
+    public ?string $branch = null;
+
+    /** Hashes of the files this workspace rewrote, so they are not mistaken for an agent's changes. */
+    public array $rewritten = [];
+
     private bool $worktreeAdded = false;
 
     private bool $databaseCreated = false;
 
+    /**
+     * A scan and a build of the same app can run at once, so each gets its own
+     * worktree directory and its own database.
+     */
     public function __construct(
         private readonly FleetApp $app,
-        private readonly Scan $scan,
+        Scan|Build $for,
     ) {
+        $kind = $for instanceof Build ? 'build' : 'scan';
         $base = rtrim((string) config('scanner.workspace'), '/').'/'.$app->key;
-        $this->path = $base.'/worktrees/'.$scan->id;
-        $this->runDir = $base.'/runs/'.$scan->id;
+
+        $this->path = $base.'/worktrees/'.$kind.'-'.$for->id;
+        $this->runDir = $base.'/'.($kind === 'build' ? 'builds' : 'runs').'/'.$for->id;
         $this->database = Str::of((string) config('scanner.database.prefix'))
-            ->append($app->key)
+            ->append($app->key, $kind === 'build' ? '_build' : '')
             ->lower()
             ->replaceMatches('/[^a-z0-9_]/', '_')
             ->limit(63, '')
@@ -81,7 +94,11 @@ class Workspace
         throw new RuntimeException('No default branch could be resolved in '.$repo.'.');
     }
 
-    public function prepare(string $sha): void
+    /**
+     * Check $sha out into the worktree — detached for a scan, on a new $branch
+     * for a build — and make it ready to run its suite.
+     */
+    public function prepare(string $sha, ?string $branch = null): void
     {
         $repo = (string) $this->app->local_path;
 
@@ -92,7 +109,14 @@ class Workspace
             $this->removeWorktree();
         }
 
-        $this->mustRun(Process::path($repo)->timeout(300), ['git', 'worktree', 'add', '--detach', $this->path, $sha], 'git worktree add');
+        $this->mustRun(
+            Process::path($repo)->timeout(300),
+            $branch === null
+                ? ['git', 'worktree', 'add', '--detach', $this->path, $sha]
+                : ['git', 'worktree', 'add', '-b', $branch, $this->path, $sha],
+            'git worktree add',
+        );
+        $this->branch = $branch;
         $this->worktreeAdded = true;
         $this->path = (string) realpath($this->path);
 
@@ -102,10 +126,18 @@ class Workspace
         $this->pointPhpunitAtDatabase();
     }
 
-    public function cleanup(): void
+    /**
+     * Remove the worktree and the scratch database. A build's branch is
+     * deleted with it unless $keepBranch — once pushed, the remote holds it.
+     */
+    public function cleanup(bool $keepBranch = false): void
     {
         if ($this->worktreeAdded) {
             $this->removeWorktree();
+        }
+
+        if ($this->branch !== null && ! $keepBranch) {
+            Process::path((string) $this->app->local_path)->run(['git', 'branch', '-D', $this->branch]);
         }
 
         if ($this->databaseCreated) {
@@ -140,7 +172,16 @@ class Workspace
             'MAIL_MAILER' => 'array',
             'NIGHTWATCH_ENABLED' => 'false',
             'XDEBUG_MODE' => 'coverage',
+            'PATH' => $this->path(),
         ];
+    }
+
+    private function path(): string
+    {
+        $extra = trim((string) config('scanner.path'), ': ');
+        $current = (string) getenv('PATH');
+
+        return $extra === '' ? $current : $extra.':'.$current;
     }
 
     /**
@@ -163,9 +204,10 @@ class Workspace
         $example = $this->path.'/.env.example';
         $env = is_file($example) ? (string) file_get_contents($example) : '';
 
+        // Process-level settings stay out of the app's own .env.
         $values = [
             'APP_KEY' => 'base64:'.base64_encode(random_bytes(32)),
-            ...$this->environment(),
+            ...array_diff_key($this->environment(), array_flip(['PATH', 'XDEBUG_MODE'])),
         ];
 
         foreach ($values as $key => $value) {
@@ -175,6 +217,7 @@ class Workspace
         }
 
         file_put_contents($this->path.'/.env', $env);
+        $this->rewritten['.env'] = sha1($env);
     }
 
     /**
@@ -280,6 +323,7 @@ class Workspace
         }
 
         $dom->save($file);
+        $this->rewritten[basename($file)] = sha1_file($file);
     }
 
     private function removeWorktree(): void

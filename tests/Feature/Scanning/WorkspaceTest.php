@@ -113,6 +113,7 @@ class WorkspaceTest extends TestCase
             $this->assertStringContainsString('DB_CONNECTION=pgsql', $env);
             $this->assertStringNotContainsString('re_live_secret', $env, 'the live .env never reaches a scan');
             $this->assertStringNotContainsString('LIVEKEY', $env);
+            $this->assertStringNotContainsString('PATH=', $env, 'process settings stay out of the app\'s .env');
 
             $xml = simplexml_load_file($workspace->path.'/phpunit.xml');
             $this->assertNotFalse($xml, 'the committed phpunit.xml is used, not the half-edited one');
@@ -134,6 +135,35 @@ class WorkspaceTest extends TestCase
         $this->assertStringNotContainsString($workspace->path, $this->git('worktree', 'list'));
         $this->assertFalse($this->databaseExists());
         $this->assertSame('<phpunit><!-- half edited', file_get_contents($this->repo.'/phpunit.xml'), 'the live checkout is untouched');
+    }
+
+    public function test_configured_directories_go_in_front_of_path(): void
+    {
+        config(['scanner.path' => '/opt/node/bin']);
+
+        $this->assertStringStartsWith('/opt/node/bin:', (new Workspace($this->fleetApp, $this->scan))->environment()['PATH']);
+    }
+
+    public function test_a_build_gets_its_own_branch_directory_and_database(): void
+    {
+        $build = $this->fleetApp->builds()->create(['status' => 'queued', 'targets' => []]);
+        $workspace = new Workspace($this->fleetApp, $build);
+
+        $this->assertStringContainsString('/worktrees/build-'.$build->id, $workspace->path);
+        $this->assertSame('tests_scan_unit_demo_build', $workspace->database);
+
+        $workspace->prepare($workspace->resolveRevision()['sha'], 'tests/auto-1');
+
+        try {
+            $this->assertSame('tests/auto-1', trim(Process::path($workspace->path)->run(['git', 'branch', '--show-current'])->output()));
+            $this->assertArrayHasKey('phpunit.xml', $workspace->rewritten);
+            $this->assertArrayHasKey('.env', $workspace->rewritten);
+        } finally {
+            $workspace->cleanup();
+            DB::connection('scanner_admin')->statement('DROP DATABASE IF EXISTS "tests_scan_unit_demo_build" WITH (FORCE)');
+        }
+
+        $this->assertStringNotContainsString('tests/auto-1', $this->git('branch', '--list'), 'the branch goes with the worktree');
     }
 
     public function test_an_app_without_a_phpunit_config_cannot_be_scanned(): void

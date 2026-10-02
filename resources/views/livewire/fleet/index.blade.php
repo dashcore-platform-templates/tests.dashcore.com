@@ -126,6 +126,9 @@
                                     @if ($done->tests_failed > 0)
                                         <span class="ml-1 text-xs text-red-400">{{ $done->tests_failed }} failing</span>
                                     @endif
+                                    @if ($app->open_prs_count > 0)
+                                        <div class="text-xs text-accent-400">{{ $app->open_prs_count }} test {{ \Illuminate\Support\Str::plural('PR', $app->open_prs_count) }} to review</div>
+                                    @endif
                                 @else
                                     <span class="text-sm text-surface-500">—</span>
                                 @endif

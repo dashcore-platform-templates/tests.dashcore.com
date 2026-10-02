@@ -56,6 +56,11 @@ return [
 
     'composer' => env('SCANNER_COMPOSER', 'composer'),
 
+    // Directories put in front of PATH for everything a workspace runs. The
+    // fleet scheduler runs with a minimal PATH, so node, npm and claude
+    // (usually under nvm) must be named here to be found at night.
+    'path' => env('SCANNER_PATH'),
+
     'npm' => env('SCANNER_NPM', 'npm'),
 
     'timeout' => (int) env('SCANNER_TIMEOUT', 7200),
@@ -94,6 +99,28 @@ return [
         'budget' => (int) env('SCANNER_MUTANTS_PER_SCAN', 40),
         'timeout' => (int) env('SCANNER_MUTANT_TIMEOUT', 600),
         'recheck_days' => (int) env('SCANNER_MUTATION_RECHECK_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Test builds
+    |--------------------------------------------------------------------------
+    |
+    | A build hands up to `targets` open surfaces of one app to Claude Code,
+    | running headless in a worktree branch, then verifies the tests itself
+    | and opens a PR for review when they hold up. `publish` false keeps the
+    | branch local instead of pushing it. `nightly` queues one build per app
+    | each night for apps with no build PR already waiting on review.
+    |
+    */
+
+    'build' => [
+        'claude' => env('SCANNER_CLAUDE', 'claude'),
+        'model' => env('SCANNER_BUILD_MODEL'),
+        'targets' => (int) env('SCANNER_BUILD_TARGETS', 6),
+        'timeout' => (int) env('SCANNER_BUILD_TIMEOUT', 3600),
+        'publish' => (bool) env('SCANNER_BUILD_PUBLISH', true),
+        'nightly' => (bool) env('SCANNER_BUILD_NIGHTLY', false),
     ],
 
     /*

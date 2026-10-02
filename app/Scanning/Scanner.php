@@ -47,7 +47,7 @@ class Scanner
                 throw new RuntimeException("There is no checkout of {$app->host} under the scanner root on this machine.");
             }
 
-            $workspace = app(Workspace::class, ['app' => $app, 'scan' => $scan]);
+            $workspace = app(Workspace::class, ['app' => $app, 'for' => $scan]);
             $revision = $workspace->resolveRevision();
 
             $scan->update([

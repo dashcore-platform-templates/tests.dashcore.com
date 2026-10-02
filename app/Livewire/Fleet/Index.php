@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Fleet;
 
+use App\Enums\BuildStatus;
 use App\Models\FleetApp;
 use App\Scanning\FleetSync;
 use App\Scanning\ScanRequester;
@@ -67,6 +68,7 @@ class Index extends Component
     {
         return FleetApp::query()
             ->with(['latestScan', 'latestCompletedScan'])
+            ->withCount(['builds as open_prs_count' => fn ($q) => $q->where('status', BuildStatus::Opened)])
             ->orderBy('group')
             ->orderBy('name')
             ->get();
