@@ -1,0 +1,146 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```bash
+# Development
+composer run dev                    # Runs server + queue + pail logs + vite concurrently
+npm run dev                         # Vite dev server only
+npm run build                       # Production build
+
+# Testing (uses SQLite in-memory, BCRYPT_ROUNDS=4 — see phpunit.xml)
+php artisan test --compact                          # Run all tests
+php artisan test --compact tests/Feature/           # Run a directory
+php artisan test --compact --filter=ExampleTest     # Run by name
+
+# Linting (run before finalizing changes)
+vendor/bin/pint --dirty --format agent
+
+# Artisan (always pass --no-interaction)
+php artisan make:model ModelName --no-interaction
+php artisan make:test TestName --pest --no-interaction
+php artisan make:test TestName --pest --unit --no-interaction
+php artisan migrate --no-interaction
+```
+
+## DashCore Operational Rules
+
+1. **Data Safety:** Multi-step database logic MUST be wrapped in Transactions.
+2. **Branding:** Use "DashCore" only. No "Elite" or other legacy terms.
+3. **UI Standard:** Every Livewire action must have `wire:loading` feedback (no dead space).
+
+## Architecture
+
+**Stack:** Laravel 13 + Livewire 4.3 + Volt 1.7 + Tailwind CSS v4 + PostgreSQL
+
+### Routing — No Controllers
+
+Most routes render views directly with `Route::view()` or `Volt::route()`. There are almost no traditional controllers — pages are Volt single-file components containing both PHP logic and Blade templates. Auth routes use `Volt::route()` in `routes/auth.php`; app routes use `Route::view()` in `routes/web.php`.
+
+### Volt Single-File Components
+
+Auth pages and profile forms are Volt components in `resources/views/livewire/pages/auth/` and `resources/views/livewire/profile/`. Each file contains an anonymous PHP class at the top (with layout attribute, properties, methods) followed by the Blade template. VoltServiceProvider mounts both `resources/views/livewire` and `resources/views/pages` as Volt directories.
+
+To test Volt components:
+```php
+Volt::test('pages.auth.login')
+    ->set('form.email', $user->email)
+    ->set('form.password', 'password')
+    ->call('login')
+    ->assertRedirect(route('dashboard'));
+```
+
+### Role System
+
+`App\Enums\UserRole` is a backed string enum with three values: `owner`, `admin`, `member` (default). The `User` model casts the `role` column to this enum and provides `isOwner()`, `isAdmin()`, `isMember()` helper methods. Two middleware classes enforce access: `EnsureUserIsOwner` and `EnsureUserIsAdmin` (both abort 403 on failure). `UserFactory` has `->owner()` and `->admin()` state methods for tests.
+
+### Layouts
+
+- `<x-app-layout>` — Authenticated pages. Wraps content with the sidebar navigation. Uses `@persist('main-nav')` to avoid re-mounting navigation during Livewire SPA navigations.
+- `<x-guest-layout>` — Public/auth pages. Centered, minimal, no sidebar.
+
+### Theme System
+
+CSS custom properties defined in `resources/css/app.css` with two modes applied via `body.theme-dark` / `body.theme-light`:
+
+- **Surface tokens** (`surface-50` through `surface-950`) — backgrounds, text, borders
+- **Accent tokens** (`accent-400/500/600`) — interactive elements (cyan/blue)
+- **Status tokens** — `success-500`, `warning-500`
+- **Card class** — `.card-os` for glassmorphism (backdrop-blur, semi-transparent bg)
+
+Theme preference is stored in `localStorage('app-theme')` and applied before first paint via an inline script in the layout. The navigation component includes the toggle button.
+
+### Livewire Patterns Used in This Codebase
+
+- **Form objects** — `app/Livewire/Forms/LoginForm.php` extends `Livewire\Form` with `#[Validate]` attributes on properties
+- **Invokable actions** — `app/Livewire/Actions/Logout.php` implements `__invoke()`, can be injected into any Volt component
+- **Events** — Components dispatch events like `profile-updated` for Alpine.js listeners (e.g., `action-message` component shows success toasts)
+- **SPA navigation** — Links use `wire:navigate` for instant page transitions
+
+## NavigationRegistry Contract
+
+Packages register navigation items via `App\Services\NavigationRegistry`, a singleton defined in `AppServiceProvider`. The navigation component (`resources/views/livewire/layout/navigation.blade.php`) reads from the registry — `items()` returns a Collection sorted by `order` then grouped by `group`. `hasItems()` is used by the dashboard to detect empty state.
+
+### How packages register nav items
+
+In a package's service provider:
+
+```php
+private function registerNavigation(): void
+{
+    if (! class_exists(\App\Services\NavigationRegistry::class)) {
+        return;
+    }
+
+    $this->app->booted(function () {
+        $registry = app(\App\Services\NavigationRegistry::class);
+        $registry->register('Sales', 'Contacts', 'crm.contacts.index', 'users', 1);
+    });
+}
+```
+
+**Parameters:** `register(string $group, string $label, string $route, ?string $icon, int $order)`
+
+- **group** — Dropdown group name in the sidebar (e.g., "Sales", "Finance", "HR")
+- **label** — Display text for the nav item
+- **route** — Named route (must exist — the nav checks with `Route::has()`)
+- **icon** — Heroicon name (e.g., `users`, `chart-bar-square`, `currency-dollar`)
+- **order** — Sort position within the group (lower = first)
+
+The `class_exists` guard ensures the package doesn't break if installed in a non-DashCore Laravel app. The `booted()` callback defers registration until all providers have loaded.
+
+## Customization Rules
+
+### Never modify vendor
+
+Files inside `vendor/` are managed by Composer. Never edit them directly. Instead:
+
+- **Override views:** Publish package views with `php artisan vendor:publish --tag={slug}-views`, then edit the copies in `resources/views/vendor/{slug}/`
+- **Override config:** Publish package config with `php artisan vendor:publish --tag={slug}-config`, then edit `config/{slug}.php`
+- **Extend models:** Create an app-level model in `app/Models/` that extends the package model, then update the package config to point to your model (e.g., `'user_model' => \App\Models\CustomUser::class`)
+
+### Where custom code lives
+
+| What | Where | Notes |
+|------|-------|-------|
+| Custom pages | `app/Livewire/` + `resources/views/livewire/` | Standard Livewire components |
+| Custom routes | `routes/web.php` | Packages own their own route files |
+| Custom models | `app/Models/` | Extend package models if needed |
+| Published views | `resources/views/vendor/{slug}/` | Owned by the app, not updated by package updates |
+| Published config | `config/{slug}.php` | Review manually on package updates |
+
+### Patterns to follow
+
+- Use the `components.layouts.app` layout for authenticated pages (matches the navigation)
+- Register custom nav items via `NavigationRegistry` in `AppServiceProvider::boot()` if needed
+- Follow existing package patterns — Livewire components with `wire:loading`, database transactions for multi-step operations
+- Use Tailwind utility classes with the existing theme tokens (`surface-*`, `accent-*`)
+
+## When to Load Additional Context
+
+- How to install packages → read `README.md` (Installing Packages section)
+- Package architecture and structure → read the DashCore Portal's `PACKAGES.md`
+- Customization protocol and package vs. custom decisions → read the DashCore Portal's `CUSTOMIZATION.md`
+- General Laravel questions → use `search-docs` tool (Boost MCP)
