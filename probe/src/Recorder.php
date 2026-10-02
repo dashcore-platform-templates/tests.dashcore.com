@@ -108,6 +108,13 @@ final class Recorder
             $this->current[$key] = array_values(array_unique($this->current[$key]));
         }
 
+        // Code under test may call set_time_limit(); it would then hold for the
+        // rest of the suite, which runs far slower with coverage on. Restore
+        // the command line's default of no limit after every test.
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(0);
+        }
+
         file_put_contents($this->out, json_encode($this->current, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE)."\n", FILE_APPEND | LOCK_EX);
 
         $this->current = null;

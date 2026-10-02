@@ -43,6 +43,13 @@ class SuiteRunner
             throw new RuntimeException('The suite produced no test results (exit '.($result['exit_code'] ?? 'timeout').'). '.Str::limit(trim($output), 3000, '…', preserveWords: false));
         }
 
+        // PHPUnit writes the JUnit report when the run ends. Without it the
+        // suite died part way, and the tests it never reached would read as
+        // untested surfaces — a scan built on that is wrong, not partial.
+        if (! $this->finished($junit) || $result['timed_out']) {
+            throw new RuntimeException('The suite stopped before it finished ('.($result['timed_out'] ? 'timed out' : 'exit '.$result['exit_code']).'), so its results would understate coverage. The end of its output: '.Str::limit(trim(mb_substr(trim($output), -2500)), 2500, ''));
+        }
+
         return [
             'framework' => $framework,
             'exit_code' => $result['exit_code'],
@@ -78,6 +85,19 @@ class SuiteRunner
             'probe' => $probe,
             'output' => $result['output'],
         ];
+    }
+
+    private function finished(string $junit): bool
+    {
+        if (! is_file($junit) || filesize($junit) === 0) {
+            return false;
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $xml = simplexml_load_file($junit);
+        libxml_use_internal_errors($previous);
+
+        return $xml !== false && $xml->getName() === 'testsuites';
     }
 
     /**

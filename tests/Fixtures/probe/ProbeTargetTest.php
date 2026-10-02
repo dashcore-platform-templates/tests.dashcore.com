@@ -43,6 +43,18 @@ class ProbeTargetTest extends TestCase
         User::factory()->make()->isOwner();
     }
 
+    public function test_sets_a_time_limit_like_code_under_test_can(): void
+    {
+        set_time_limit(330);
+
+        $this->assertTrue(true);
+    }
+
+    public function test_a_time_limit_set_by_an_earlier_test_is_gone(): void
+    {
+        $this->assertSame('0', ini_get('max_execution_time'));
+    }
+
     public function test_fails(): void
     {
         $this->assertSame(1, 2, 'deliberately failing');
