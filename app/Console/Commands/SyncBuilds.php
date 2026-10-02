@@ -9,7 +9,8 @@ use Illuminate\Support\Facades\Process;
 
 /**
  * Follows the PRs builds opened. A merged PR shows up as coverage on the next
- * scan; a closed one frees its targets for another build.
+ * scan; a closed one — or a local branch that was deleted — frees its targets
+ * for another build.
  */
 class SyncBuilds extends Command
 {
@@ -32,6 +33,26 @@ class SyncBuilds extends Command
             if ($status !== null) {
                 $build->update(['status' => $status]);
                 $this->components->twoColumnDetail("#{$build->id} {$build->fleetApp->key}", $status->label());
+            }
+        });
+
+        // A build kept on a local branch holds its targets until the branch is
+        // merged by hand or deleted; once it is gone, they are free again.
+        Build::query()->with('fleetApp')->where('status', BuildStatus::Ready)->whereNotNull('branch')->each(function (Build $build) {
+            $repo = $build->fleetApp?->local_path;
+
+            if ($repo === null || ! is_dir($repo)) {
+                return;
+            }
+
+            $exists = Process::path($repo)->run(['git', 'rev-parse', '--verify', '--quiet', 'refs/heads/'.$build->branch])->successful();
+
+            if (! $exists) {
+                $build->update([
+                    'status' => BuildStatus::Closed,
+                    'notes' => [...($build->notes ?? []), "Branch {$build->branch} is gone, so its targets are free for another build."],
+                ]);
+                $this->components->twoColumnDetail("#{$build->id} {$build->fleetApp->key}", 'branch gone');
             }
         });
 

@@ -15,7 +15,7 @@
             @endif
         </p>
         <p class="text-xs text-surface-500 mt-1">
-            Requested {{ $scan->created_at->diffForHumans() }}{{ $scan->requestedBy ? ' by '.$scan->requestedBy->name : ' by the schedule' }}
+            Requested {{ $scan->created_at->diffForHumans() }}{{ $scan->requestedBy ? ' by '.$scan->requestedBy->name : ' from the command line or the schedule' }}
             @if ($scan->durationSeconds() !== null) · ran {{ \Carbon\CarbonInterval::seconds($scan->durationSeconds())->cascade()->forHumans(short: true) }}@endif
             @if ($scan->test_database) · database <span class="font-mono">{{ $scan->test_database }}</span>@endif
         </p>

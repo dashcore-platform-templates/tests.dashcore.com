@@ -66,12 +66,18 @@ class Index extends Component
     #[Computed]
     public function apps(): Collection
     {
+        // Worst first: what needs attention leads. Apps not scanned yet follow,
+        // by name.
         return FleetApp::query()
             ->with(['latestScan', 'latestCompletedScan'])
             ->withCount(['builds as open_prs_count' => fn ($q) => $q->where('status', BuildStatus::Opened)])
-            ->orderBy('group')
-            ->orderBy('name')
-            ->get();
+            ->get()
+            ->sortBy(fn (FleetApp $app) => [
+                $app->latestCompletedScan === null ? 1 : 0,
+                $app->latestCompletedScan === null ? 0 : (float) $app->latestCompletedScan->score,
+                $app->name,
+            ])
+            ->values();
     }
 
     #[Computed]

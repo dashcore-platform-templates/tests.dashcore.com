@@ -243,4 +243,15 @@ class FleetPagesTest extends TestCase
             ->test(Show::class, ['appKey' => 'finance'])
             ->assertSee('This is the first scan');
     }
+
+    public function test_the_matrix_puts_the_weakest_apps_first_and_unscanned_ones_last(): void
+    {
+        Scan::factory()->completed(90)->for(FleetApp::factory()->create(['name' => 'Strong']))->create();
+        Scan::factory()->completed(40)->for(FleetApp::factory()->create(['name' => 'Weak']))->create();
+        FleetApp::factory()->create(['name' => 'Alpha']);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Index::class)
+            ->assertSeeInOrder(['Weak', 'Strong', 'Alpha']);
+    }
 }

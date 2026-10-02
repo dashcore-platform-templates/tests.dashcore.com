@@ -148,4 +148,23 @@ class PublisherTest extends TestCase
         $this->assertSame(BuildStatus::Closed, $closed->fresh()->status);
         $this->assertSame(BuildStatus::Opened, $waiting->fresh()->status);
     }
+
+    public function test_a_local_build_whose_branch_was_deleted_frees_its_targets(): void
+    {
+        $repo = realpath(sys_get_temp_dir());
+        $this->build->fleetApp->update(['local_path' => $repo]);
+        $gone = $this->build->fleetApp->builds()->create(['status' => BuildStatus::Ready, 'targets' => [5], 'branch' => 'tests/auto-1-gone']);
+        $kept = $this->build->fleetApp->builds()->create(['status' => BuildStatus::Ready, 'targets' => [6], 'branch' => 'tests/auto-2-kept']);
+
+        Process::fake([
+            '*refs/heads/tests/auto-1-gone*' => Process::result(exitCode: 1),
+            '*refs/heads/tests/auto-2-kept*' => Process::result(str_repeat('a', 40)),
+        ]);
+
+        $this->artisan('tests:sync-builds')->expectsOutputToContain('branch gone')->assertSuccessful();
+
+        $this->assertSame(BuildStatus::Closed, $gone->fresh()->status);
+        $this->assertStringContainsString('is gone', $gone->fresh()->notes[0]);
+        $this->assertSame(BuildStatus::Ready, $kept->fresh()->status);
+    }
 }

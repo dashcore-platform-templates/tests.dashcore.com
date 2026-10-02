@@ -24,7 +24,7 @@
             @endif
         </p>
         <p class="text-xs text-surface-500 mt-1">
-            Requested {{ $build->created_at->diffForHumans() }}{{ $build->requestedBy ? ' by '.$build->requestedBy->name : ' by the schedule' }}
+            Requested {{ $build->created_at->diffForHumans() }}{{ $build->requestedBy ? ' by '.$build->requestedBy->name : ' from the command line or the schedule' }}
             @if ($build->base_sha) · from <span class="font-mono">{{ substr($build->base_sha, 0, 7) }}</span> on {{ $build->base_ref }}@endif
             @if ($build->branch) · branch <span class="font-mono">{{ $build->branch }}</span>@endif
         </p>
