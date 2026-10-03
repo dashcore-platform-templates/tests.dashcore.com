@@ -1,0 +1,9 @@
+{
+    "name": "dashcore-proving-ground-runner",
+    "private": true,
+    "type": "module",
+    "description": "Drives one Proving Ground journey through a real browser and reports each step as a JSON line.",
+    "dependencies": {
+        "playwright": "^1.63.0"
+    }
+}

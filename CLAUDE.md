@@ -129,6 +129,21 @@ surfaces (routes, Livewire components/actions, and every public method under
   tick's background processes when it ends. Scratch space is
   `storage/scanner.noindex` (Spotlight must not index it). Big suites need
   `SCANNER_TIMEOUT=14400`.
+- **Proving Ground** — `app/Simulation`, page `/proving-ground`: a never-ending
+  simulation. Fake personas walk scripted `Journey`s (sign in, add a lead, win a
+  deal…) through the real UI of the local `*.fakecompany.com` apps, whose data
+  they are free to grow — never a real app. A journey is a `Script` of plain-
+  language steps (`visit`, `fill`, `select`, `click`, `see`, `gone`);
+  `simulator/run.mjs` (Node + Playwright, `npm install --prefix simulator`)
+  walks it in headless Chromium and streams one JSON line per step, with a
+  screenshot, which `Runner` writes back as it arrives. Targets, personas and
+  journey weights live in `config/simulation.php`; the fake apps' seeders give
+  every persona the password `password`. The page's switch only sets a flag:
+  the worker is `tests:simulate` (`--once`, `--journey=`), kept alive by the
+  launchd agent `com.dashcore.simulation-tests`, and like the queue workers it
+  is never started from the schedule. It exits every `max_runs` so launchd
+  restarts it on fresh code. Screenshots live in `storage/simulation.noindex`,
+  kept for the newest `keep_runs` runs.
 
 ## NavigationRegistry Contract
 
