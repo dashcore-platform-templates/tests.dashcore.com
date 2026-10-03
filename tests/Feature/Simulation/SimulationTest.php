@@ -6,8 +6,11 @@ use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Journeys\Sales\CloseWonDeal;
+use App\Simulation\Pulse\Pulse;
 use App\Simulation\Simulation;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use InvalidArgumentException;
 use Tests\TestCase;
@@ -84,7 +87,8 @@ class SimulationTest extends TestCase
             $people[$persona->name] = true;
         }
 
-        $this->assertEqualsCanonicalizing(array_column(config('simulation.targets.sales.personas'), 'name'), array_keys($people));
+        $reps = collect(config('simulation.targets.sales.personas'))->where('role', 'Sales rep')->pluck('name')->all();
+        $this->assertEqualsCanonicalizing($reps, array_keys($people));
     }
 
     public function test_runs_a_dead_worker_left_running_are_marked_stopped(): void
@@ -121,5 +125,57 @@ class SimulationTest extends TestCase
         $this->assertDirectoryExists($this->simulation->screenshotDirectory($newest));
 
         File::deleteDirectory($root);
+    }
+
+    public function test_a_journey_is_walked_only_by_personas_in_its_roles(): void
+    {
+        for ($i = 0; $i < 20; $i++) {
+            [, $persona] = $this->simulation->pick('sales.assign-lead');
+            $this->assertSame('Owner', $persona->role);
+
+            [, $persona] = $this->simulation->pick('sales.capture-lead');
+            $this->assertSame('Sales rep', $persona->role);
+        }
+    }
+
+    public function test_a_role_nobody_has_is_refused(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('has no personas in the role Auditor');
+
+        $this->simulation->persona('sales', ['Auditor']);
+    }
+
+    public function test_the_pulse_reads_each_target_in_its_own_timezone_and_reports_one_it_cannot_read(): void
+    {
+        $this->travelTo(Carbon::parse('2026-10-03 04:00:00', 'UTC'));
+        config([
+            'simulation.targets.sales.pulse' => FakePulse::class,
+            'simulation.targets.sales.database' => config('database.connections.pgsql.database'),
+            'simulation.targets.sales.timezone' => 'America/Los_Angeles',
+            'simulation.targets.broken' => ['name' => 'Broken', 'pulse' => FakePulse::class, 'database' => 'no_such_database_here'],
+        ]);
+
+        $pulse = $this->simulation->pulse();
+
+        $this->assertSame([['label' => 'Today starts', 'value' => '2026-10-02 00:00:00', 'hint' => 'America/Los_Angeles']], $pulse['sales']['metrics']);
+        $this->assertNull($pulse['sales']['error']);
+        $this->assertSame('Broken', $pulse['broken']['name']);
+        $this->assertSame([], $pulse['broken']['metrics']);
+        $this->assertNotNull($pulse['broken']['error']);
+    }
+}
+
+/**
+ * Reports the start of the target's day, to show which timezone it was given;
+ * touching the database proves the connection works.
+ */
+class FakePulse implements Pulse
+{
+    public function read(ConnectionInterface $db, Carbon $now, ?Carbon $since): array
+    {
+        $db->select('select 1');
+
+        return [['label' => 'Today starts', 'value' => $now->copy()->startOfDay()->format('Y-m-d H:i:s'), 'hint' => $now->timezoneName]];
     }
 }

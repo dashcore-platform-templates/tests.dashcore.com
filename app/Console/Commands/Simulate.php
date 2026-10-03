@@ -6,6 +6,7 @@ use App\Enums\SimulationStatus;
 use App\Simulation\Runner;
 use App\Simulation\Simulation;
 use Illuminate\Console\Command;
+use Illuminate\Console\View\TaskResult;
 use Illuminate\Support\Sleep;
 use Symfony\Component\Console\Command\SignalableCommandInterface;
 
@@ -51,7 +52,7 @@ class Simulate extends Command implements SignalableCommandInterface
             $this->components->task("{$persona->name}: {$journey->name()}", function () use ($runner, $journey, $persona, &$run) {
                 $run = $runner->run($journey, $persona);
 
-                return $run->status === SimulationStatus::Passed;
+                return ($run->status === SimulationStatus::Passed ? TaskResult::Success : TaskResult::Failure)->value;
             });
 
             if ($run->error) {

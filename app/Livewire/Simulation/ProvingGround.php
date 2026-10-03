@@ -164,6 +164,17 @@ class ProvingGround extends Component
     }
 
     /**
+     * The fake company's vital signs, per app.
+     *
+     * @return array<string, array{name: string, metrics: list<array{label: string, value: string, hint: ?string}>, error: ?string}>
+     */
+    #[Computed]
+    public function pulse(): array
+    {
+        return app(Simulation::class)->pulse();
+    }
+
+    /**
      * Worst first: kind by how much it hurts, then most recently seen.
      *
      * @return Collection<int, SimulationFinding>

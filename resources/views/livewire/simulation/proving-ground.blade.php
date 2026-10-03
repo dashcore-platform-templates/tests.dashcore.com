@@ -101,6 +101,31 @@
         </div>
     </div>
 
+    {{-- Business pulse --}}
+    @foreach ($this->pulse as $key => $pulse)
+        <div class="card-os mb-6" wire:key="pulse-{{ $key }}">
+            <div class="flex items-center justify-between border-b border-surface-800 px-4 py-3">
+                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Business pulse · {{ $pulse['name'] }}</p>
+                <p class="text-[11px] text-surface-500">read from the app's own database</p>
+            </div>
+            @if ($pulse['error'])
+                <p class="px-4 py-3 text-sm text-warning-500">Could not read {{ $pulse['name'] }}: {{ $pulse['error'] }}</p>
+            @else
+                <dl class="grid grid-cols-2 divide-surface-800 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x">
+                    @foreach ($pulse['metrics'] as $metric)
+                        <div class="px-4 py-3">
+                            <dt class="text-xs text-surface-500">{{ $metric['label'] }}</dt>
+                            <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ $metric['value'] }}</dd>
+                            @if ($metric['hint'])
+                                <dd class="text-[11px] text-surface-500">{{ $metric['hint'] }}</dd>
+                            @endif
+                        </div>
+                    @endforeach
+                </dl>
+            @endif
+        </div>
+    @endforeach
+
     @if (! $run)
         <div class="card-os p-10 text-center">
             <p class="text-sm text-surface-300">Nothing has run yet.</p>

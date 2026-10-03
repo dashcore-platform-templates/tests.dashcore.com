@@ -21,6 +21,16 @@ abstract class Journey
     abstract public function script(Persona $persona, Generator $faker): Script;
 
     /**
+     * The persona roles (config/simulation.php) that do this work.
+     *
+     * @return list<string>
+     */
+    public function roles(): array
+    {
+        return ['Sales rep'];
+    }
+
+    /**
      * Every journey starts by signing in through the app's own login form.
      */
     protected function signIn(Script $script, Persona $persona): Script

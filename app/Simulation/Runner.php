@@ -21,6 +21,9 @@ class Runner
 {
     private const CONSOLE_LIMIT = 20;
 
+    /** @var array<string, string> what the journey has remembered so far */
+    private array $remembered = [];
+
     public function __construct(
         private Simulation $simulation,
         private Findings $findings,
@@ -69,6 +72,7 @@ class Runner
         $buffer = '';
         $finished = null;
         $stderr = '';
+        $this->remembered = [];
 
         try {
             $result = Process::path(base_path('simulator'))
@@ -160,6 +164,11 @@ class Runner
 
                 return null;
 
+            case 'remember':
+                $this->remember($run, (string) ($event['name'] ?? ''), (string) ($event['value'] ?? ''));
+
+                return null;
+
             case 'error':
                 $run->update(['error' => Str::limit((string) ($event['text'] ?? 'The browser failed.'), 2000)]);
 
@@ -170,6 +179,30 @@ class Runner
         }
 
         return null;
+    }
+
+    /**
+     * Something the journey picked off the page: fill it into the labels
+     * still waiting for it, so the feed names the real record.
+     */
+    private function remember(SimulationRun $run, string $name, string $value): void
+    {
+        if ($name === '') {
+            return;
+        }
+
+        $this->remembered[$name] = $value;
+
+        SimulationStep::query()
+            ->where('simulation_run_id', $run->id)
+            ->where('label', 'like', '%{'.$name.'}%')
+            ->get()
+            ->each(fn (SimulationStep $step) => $step->update(['label' => Str::limit($this->interpolate($step->label), 250)]));
+    }
+
+    private function interpolate(string $text): string
+    {
+        return preg_replace_callback('/\{([a-z_]+)\}/', fn (array $m) => $this->remembered[$m[1]] ?? $m[0], $text);
     }
 
     private function finish(SimulationRun $run, ?SimulationStatus $finished): SimulationRun
@@ -185,6 +218,7 @@ class Runner
 
             $run->fill([
                 'status' => $status,
+                'summary' => $run->summary === null ? null : Str::limit($this->interpolate($run->summary), 250),
                 'error' => $status === SimulationStatus::Failed ? ($run->error ?? 'The browser stopped without reporting a result.') : null,
                 'finished_at' => now(),
                 'duration_ms' => (int) $run->started_at->diffInMilliseconds(now()),

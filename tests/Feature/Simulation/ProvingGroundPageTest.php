@@ -10,8 +10,11 @@ use App\Models\SimulationFinding;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Models\User;
+use App\Simulation\Pulse\Pulse;
 use App\Simulation\Simulation;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -242,5 +245,32 @@ class ProvingGroundPageTest extends TestCase
         SimulationStep::factory()->for($run, 'run')->create(['position' => 0, 'label' => 'Maya marks the deal won', 'feedback' => false, 'livewire_requests' => 1]);
 
         Livewire::test(ProvingGround::class)->assertSee('no feedback');
+    }
+
+    public function test_the_business_pulse_shows_each_apps_numbers_or_why_it_could_not_read_them(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->app->bind('test.pulse', fn () => new class implements Pulse
+        {
+            public function read(ConnectionInterface $db, Carbon $now, ?Carbon $since): array
+            {
+                $db->select('select 1');
+
+                return [['label' => 'Open pipeline', 'value' => '$574,500', 'hint' => '65 open deals']];
+            }
+        });
+
+        config([
+            'simulation.targets' => [
+                'sales' => ['name' => 'Sales', 'pulse' => 'test.pulse', 'database' => config('database.connections.pgsql.database')],
+                'finance' => ['name' => 'Finance', 'pulse' => 'test.pulse', 'database' => 'no_such_database_here'],
+            ],
+        ]);
+
+        Livewire::test(ProvingGround::class)
+            ->assertSee('Business pulse · Sales')
+            ->assertSee(['Open pipeline', '$574,500', '65 open deals'])
+            ->assertSee('Could not read Finance');
     }
 }

@@ -5,9 +5,14 @@ namespace App\Simulation;
 use App\Enums\SimulationStatus;
 use App\Models\Setting;
 use App\Models\SimulationRun;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Throwable;
 
 /**
  * The Proving Ground's state: whether it is on, whether a worker is alive to
@@ -102,23 +107,82 @@ class Simulation
             $journey = $this->draw($journeys);
         }
 
-        return [$journey, $this->persona($journey->target())];
+        return [$journey, $this->persona($journey->target(), $journey->roles())];
     }
 
-    public function persona(string $target): Persona
+    /**
+     * @param  list<string>|null  $roles  only personas in one of these roles
+     */
+    public function persona(string $target, ?array $roles = null): Persona
     {
         $config = config("simulation.targets.{$target}")
             ?? throw new InvalidArgumentException("No simulation target \"{$target}\".");
 
-        $personas = array_values($config['personas'] ?? []);
+        $personas = array_values(array_filter(
+            $config['personas'] ?? [],
+            fn (array $persona) => $roles === null || in_array($persona['role'] ?? null, $roles, true),
+        ));
 
         if ($personas === []) {
-            throw new InvalidArgumentException("Simulation target \"{$target}\" has no personas.");
+            throw new InvalidArgumentException("Simulation target \"{$target}\" has no personas".($roles ? ' in the role '.implode(' or ', $roles) : '').'.');
         }
 
         $persona = $personas[random_int(0, count($personas) - 1)];
 
         return new Persona($persona['name'], $persona['email'], (string) $config['password'], $persona['role'] ?? 'User');
+    }
+
+    /**
+     * Each target's vital signs, read from its own database. A target that
+     * cannot be read reports why instead of failing the page.
+     *
+     * @return array<string, array{name: string, metrics: list<array{label: string, value: string, hint: ?string}>, error: ?string}>
+     */
+    public function pulse(): array
+    {
+        $since = $this->onSince();
+
+        return Cache::remember('simulation.pulse.'.($since?->timestamp ?? 'day'), 10, function () use ($since) {
+            $pulses = [];
+
+            foreach (config('simulation.targets', []) as $key => $target) {
+                if (empty($target['pulse']) || empty($target['database'])) {
+                    continue;
+                }
+
+                try {
+                    $timezone = $target['timezone'] ?? config('app.timezone');
+                    $metrics = app($target['pulse'])->read(
+                        $this->targetDatabase($key, $target['database']),
+                        now($timezone),
+                        $since?->copy()->setTimezone($timezone),
+                    );
+                    $pulses[$key] = ['name' => $target['name'] ?? $key, 'metrics' => $metrics, 'error' => null];
+                } catch (Throwable $e) {
+                    report($e);
+                    $pulses[$key] = ['name' => $target['name'] ?? $key, 'metrics' => [], 'error' => Str::limit($e->getMessage(), 300)];
+                }
+            }
+
+            return $pulses;
+        });
+    }
+
+    /**
+     * A connection to a target's database on this app's own server.
+     */
+    private function targetDatabase(string $key, string $database): ConnectionInterface
+    {
+        $name = "simulation_{$key}";
+
+        if (config("database.connections.{$name}") === null) {
+            config(["database.connections.{$name}" => [
+                ...config('database.connections.'.config('database.default')),
+                'database' => $database,
+            ]]);
+        }
+
+        return DB::connection($name);
     }
 
     public function screenshotDirectory(SimulationRun $run): string

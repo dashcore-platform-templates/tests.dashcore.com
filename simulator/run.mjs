@@ -9,11 +9,17 @@
 // Step kinds:
 //   visit  { path }                   open a page
 //   fill   { target, value }          type into a field, then leave it (wire:model.blur)
-//   select { target, value }          pick an option by value
+//   select { target, value | option } pick an option by value, or by its visible text
 //   click  { target, confirm? }       click; confirm: true accepts the browser confirm() it opens
 //   see    { text }                   wait until the text is on the page
 //   gone   { target }                 wait until the element has left the page
 //   press  { key }                    press a key on the focused element
+//   remember { target, as }           keep the element's text (or a field's
+//                                     value) as {as} for later steps
+//
+// Any string in a step may use {name} for something remembered earlier, so a
+// journey can pick an existing record ("the first lead that needs a touch")
+// and keep working on it.
 
 import { chromium } from 'playwright';
 import { readFileSync } from 'node:fs';
@@ -87,6 +93,10 @@ const feedbackState = (page) =>
 
 const LOADING_DELAY_MS = 250;
 
+const remembered = {};
+const fill = (value) =>
+    typeof value === 'string' ? value.replace(/\{([a-z_]+)\}/g, (match, name) => remembered[name] ?? match) : value;
+
 const browser = await chromium.launch({ headless: true });
 let status = 'passed';
 
@@ -139,7 +149,8 @@ try {
 
     emit({ event: 'started' });
 
-    for (const [index, step] of journey.steps.entries()) {
+    for (const [index, rawStep] of journey.steps.entries()) {
+        const step = Object.fromEntries(Object.entries(rawStep).map(([key, value]) => [key, fill(value)]));
         position = index;
         emit({ event: 'step', position, status: 'running' });
         const started = Date.now();
@@ -162,8 +173,22 @@ try {
                     break;
                 }
                 case 'select':
-                    await page.locator(step.target).first().selectOption(String(step.value));
+                    await page
+                        .locator(step.target)
+                        .first()
+                        .selectOption(step.option !== undefined ? { label: String(step.option) } : String(step.value));
                     break;
+                case 'remember': {
+                    const element = page.locator(step.target).first();
+                    const isField = await element.evaluate((el) => ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+                    const text = (isField ? await element.inputValue() : await element.innerText()).trim().replace(/\s+/g, ' ');
+                    if (text === '') {
+                        throw new Error(`Nothing to remember in ${step.target}`);
+                    }
+                    remembered[step.as] = text.slice(0, 200);
+                    emit({ event: 'remember', position, name: step.as, value: remembered[step.as] });
+                    break;
+                }
                 case 'click':
                     if (step.confirm) {
                         page.once('dialog', (dialog) => dialog.accept().catch(() => {}));
@@ -184,7 +209,15 @@ try {
             }
             await settle(page);
         } catch (e) {
-            error = String(e?.message ?? e).split('\n').slice(0, 6).join('\n');
+            // Playwright's message, without terminal colours, cut to what it
+            // was waiting for: its first line and the first lines of its log.
+            error = String(e?.message ?? e)
+                .replace(/\u001b\[[0-9;]*m/g, '')
+                .split('\n')
+                .filter((line) => line.trim() !== '' && line.trim() !== 'Call log:')
+                .slice(0, 3)
+                .map((line) => line.trim().replace(/^- /, ''))
+                .join('\n');
         }
 
         const ms = Date.now() - started;

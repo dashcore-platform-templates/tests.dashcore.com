@@ -2,7 +2,6 @@
 
 namespace App\Simulation\Journeys\Sales;
 
-use App\Simulation\Journey;
 use App\Simulation\Persona;
 use App\Simulation\Script;
 use Faker\Generator;
@@ -11,7 +10,7 @@ use Faker\Generator;
  * The whole sales loop: a new lead, a call logged, a deal opened from the
  * lead, and the deal marked won.
  */
-class CloseWonDeal extends Journey
+class CloseWonDeal extends SalesJourney
 {
     public function key(): string
     {
@@ -23,9 +22,10 @@ class CloseWonDeal extends Journey
         return 'Lead to won deal';
     }
 
-    public function target(): string
+    /** "won" or "lost": how the deal ends. */
+    protected function outcome(): string
     {
-        return 'sales';
+        return 'won';
     }
 
     public function script(Persona $persona, Generator $faker): Script
@@ -33,30 +33,16 @@ class CloseWonDeal extends Journey
         $who = $persona->firstName();
         $lead = $this->prospect($faker);
         $amount = $faker->numberBetween(20, 600) * 100;
-        $call = 'Discovery call: '.$faker->sentence(8);
-        $money = '$'.number_format($amount);
+        $button = ucfirst($this->outcome());
 
-        return $this->signIn(new Script, $persona)
-            ->visit('/leads', "{$who} opens the leads list")
-            ->click('role=button[name="Add lead"]', "{$who} starts a new lead")
-            ->fill('#newName', $lead['name'], "{$who} types the name {$lead['name']}")
-            ->fill('#newEmail', $lead['email'], "{$who} types the email {$lead['email']}")
-            ->fill('#newCompany', $lead['company'], "{$who} types the company {$lead['company']}")
-            ->click('form[wire\:submit\.prevent="createLead"] button[type=submit]', "{$who} saves the lead")
-            ->see('Lead added.', "{$who} sees the lead was added")
-            ->fill('#leadSearch', $lead['email'], "{$who} searches for {$lead['name']}")
-            ->click("a:has-text(\"{$lead['name']}\")", "{$who} opens {$lead['name']}")
-            ->see($lead['email'], "{$who} is on {$lead['name']}'s page")
-            ->click('role=button[name="Call"]', "{$who} picks Call to log a touch")
-            ->fill('form[wire\:submit\.prevent="logActivity"] textarea', $call, "{$who} writes up the call")
-            ->click('form[wire\:submit\.prevent="logActivity"] button[type=submit]', "{$who} logs the call")
-            ->see($call, "{$who} sees the call in the timeline")
-            ->click('role=button[name="Create deal"]', "{$who} opens a deal from the lead")
-            ->fill('#convertAmount', (string) $amount, "{$who} prices it at {$money}")
-            ->click('form[wire\:submit\.prevent="convertToDeal"] button[type=submit]', "{$who} creates the deal")
-            ->see('Opportunity', "{$who} sees the new deal on the lead")
-            ->click('role=button[name="Won" s]', "{$who} marks the deal won", confirm: true)
-            ->gone('role=button[name="Won" s]', "{$who} sees the deal closed as won")
-            ->summary("{$who} won a {$money} deal with {$lead['company']}");
+        $script = $this->saveLead($this->addLead($this->signIn(new Script, $persona), $who, $lead), $who);
+        $script = $this->openLead($script, $who, $lead);
+        $script = $this->logActivity($script, $who, 'call', 'Discovery call: '.$faker->sentence(8));
+        $script = $this->createDeal($script, $who, $amount);
+
+        return $script
+            ->click("role=button[name=\"{$button}\" s]", "{$who} marks the deal {$this->outcome()}", confirm: true)
+            ->gone("role=button[name=\"{$button}\" s]", "{$who} sees the deal closed as {$this->outcome()}")
+            ->summary("{$who} {$this->outcome()} a $".number_format($amount)." deal with {$lead['company']}");
     }
 }
