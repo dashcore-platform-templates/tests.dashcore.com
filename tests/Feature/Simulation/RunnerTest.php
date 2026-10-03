@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Enums\FindingKind;
 use App\Enums\SimulationStatus;
+use App\Models\SimulationFinding;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Persona;
 use App\Simulation\Runner;
@@ -139,5 +141,22 @@ class RunnerTest extends TestCase
         Process::fake(['*' => Process::result(output: implode("\n", ['Debugger attached.', ...$this->passingOutput($steps)]))]);
 
         $this->assertSame(SimulationStatus::Passed, app(Runner::class)->run(new CaptureLead, $this->persona())->status);
+    }
+
+    public function test_livewire_timing_and_loading_feedback_are_kept_and_become_findings(): void
+    {
+        Process::fake(['*' => Process::result(output: implode("\n", [
+            json_encode(['event' => 'step', 'position' => 0, 'status' => 'passed', 'ms' => 100, 'livewire_requests' => 0, 'livewire_ms' => null, 'feedback' => null]),
+            json_encode(['event' => 'step', 'position' => 1, 'status' => 'passed', 'ms' => 300, 'livewire_requests' => 1, 'livewire_ms' => 140, 'feedback' => false]),
+            json_encode(['event' => 'finished', 'status' => 'failed']),
+        ]))]);
+
+        $run = app(Runner::class)->run(new CaptureLead, $this->persona());
+        $step = $run->steps()->where('position', 1)->first();
+
+        $this->assertSame([1, 140, false], [$step->livewire_requests, $step->livewire_ms, $step->feedback]);
+        $this->assertNull($run->steps()->where('position', 0)->first()->feedback);
+        $this->assertSame(1, $run->fresh()->findings_count);
+        $this->assertSame(FindingKind::DeadSpace, SimulationFinding::sole()->kind);
     }
 }

@@ -70,7 +70,8 @@
     @endif
 
     {{-- Totals --}}
-    <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
+    @php $findingCounts = $this->findingCounts; @endphp
+    <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 mb-6">
         <div class="card-os p-4">
             <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Journeys</p>
             <p class="mt-1 font-mono text-2xl font-semibold text-surface-100">{{ number_format($totals['runs']) }}</p>
@@ -90,6 +91,13 @@
             <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Avg journey</p>
             <p class="mt-1 font-mono text-2xl font-semibold text-surface-100">{{ $totals['avg_seconds'] === null ? '—' : $totals['avg_seconds'].'s' }}</p>
             <p class="text-xs text-surface-500 mt-1">from login to done</p>
+        </div>
+        <div class="card-os p-4">
+            <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Open findings</p>
+            <p class="mt-1 font-mono text-2xl font-semibold {{ $findingCounts['open'] > 0 ? 'text-warning-500' : 'text-surface-100' }}">{{ number_format($findingCounts['open']) }}</p>
+            <p class="text-xs mt-1 {{ $findingCounts['regressions'] > 0 ? 'text-red-400' : 'text-surface-500' }}">
+                {{ $findingCounts['regressions'] > 0 ? $findingCounts['regressions'].' came back after a fix' : number_format($findingCounts['resolved']).' resolved' }}
+            </p>
         </div>
     </div>
 
@@ -178,7 +186,12 @@
                                 @disabled($item->screenshot === null)
                                 class="flex w-full items-start gap-2.5 px-4 py-1.5 text-left transition-colors {{ $active ? 'bg-accent-500/10' : 'hover:bg-surface-800/40' }} disabled:cursor-default">
                                 <span class="mt-1.5 h-2 w-2 shrink-0 rounded-full {{ $dot($item->status) }}" aria-hidden="true"></span>
-                                <span class="min-w-0 flex-1 text-xs {{ $item->status->value === 'pending' || $item->status->value === 'skipped' ? 'text-surface-500' : 'text-surface-200' }}">{{ $item->label }}</span>
+                                <span class="min-w-0 flex-1 text-xs {{ $item->status->value === 'pending' || $item->status->value === 'skipped' ? 'text-surface-500' : 'text-surface-200' }}">
+                                    {{ $item->label }}
+                                    @if ($item->feedback === false)
+                                        <span class="ml-1 whitespace-nowrap rounded bg-warning-500/15 px-1 py-px text-[10px] font-medium text-warning-500" title="The click went to the server and nothing on the page showed it was working">no feedback</span>
+                                    @endif
+                                </span>
                                 @if ($item->duration_ms !== null)
                                     <span class="shrink-0 font-mono text-[11px] {{ $item->duration_ms > 3000 ? 'text-warning-500' : 'text-surface-500' }}">{{ number_format($item->duration_ms / 1000, 1) }}s</span>
                                 @endif
@@ -194,6 +207,85 @@
             </div>
         </div>
     @endif
+
+    {{-- Findings --}}
+    @php
+        $kindClasses = [
+            'breaks' => 'bg-red-500/15 text-red-400',
+            'server_error' => 'bg-red-500/15 text-red-400',
+            'console_error' => 'bg-warning-500/15 text-warning-500',
+            'dead_space' => 'bg-warning-500/15 text-warning-500',
+            'slow' => 'bg-surface-800 text-surface-300',
+        ];
+    @endphp
+    <div class="card-os mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-surface-800 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Findings</p>
+            <div class="flex gap-1">
+                @foreach (\App\Enums\FindingStatus::cases() as $tab)
+                    <button type="button" wire:click="showFindings('{{ $tab->value }}')" wire:loading.attr="disabled" wire:target="showFindings('{{ $tab->value }}')"
+                        class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50 {{ $findingsTab === $tab->value ? 'bg-surface-800 text-surface-100' : 'text-surface-400 hover:text-surface-200' }}">
+                        {{ $tab->label() }} <span class="font-mono text-surface-500">{{ $findingCounts[$tab->value] }}</span>
+                    </button>
+                @endforeach
+            </div>
+        </div>
+        @if ($this->findings->isEmpty())
+            <p class="px-4 py-6 text-center text-sm text-surface-500">
+                {{ $findingsTab === 'open' ? 'Nothing open. Breaks, server and browser errors, clicks with no loading feedback and slow steps show up here.' : 'None.' }}
+            </p>
+        @else
+            <ul class="divide-y divide-surface-800">
+                @foreach ($this->findings as $finding)
+                    <li wire:key="finding-{{ $finding->id }}" class="px-4 py-3">
+                        <div class="flex flex-wrap items-start gap-3">
+                            <span class="mt-0.5 inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium {{ $kindClasses[$finding->kind->value] }}">{{ $finding->kind->label() }}</span>
+                            <div class="min-w-0 flex-1">
+                                <p class="text-sm text-surface-100">
+                                    {{ $finding->title }}
+                                    @if ($finding->isRegression())
+                                        <span class="ml-1 text-xs font-medium text-red-400">came back</span>
+                                    @endif
+                                </p>
+                                <p class="text-xs text-surface-500 mt-0.5">
+                                    {{ config("simulation.targets.{$finding->target}.name", $finding->target) }}
+                                    · seen {{ number_format($finding->occurrences) }}× · last {{ $finding->last_seen_at->diffForHumans() }}
+                                    @if ($finding->status->value === 'resolved' && $finding->resolved_at) · resolved {{ $finding->resolved_at->diffForHumans() }} @endif
+                                </p>
+                                @if ($finding->detail)
+                                    <p class="mt-1 whitespace-pre-line text-xs text-surface-400">{{ \Illuminate\Support\Str::limit($finding->detail, 400) }}</p>
+                                @endif
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                @if ($finding->last_run_id)
+                                    <button type="button" wire:click="replayFinding({{ $finding->id }})" wire:loading.attr="disabled" wire:target="replayFinding({{ $finding->id }})"
+                                        class="inline-flex items-center gap-1.5 rounded-md bg-surface-800 px-2.5 py-1 text-xs font-medium text-surface-200 hover:bg-surface-700 transition-colors disabled:opacity-50">
+                                        <x-spinner wire:loading wire:target="replayFinding({{ $finding->id }})" class="h-3 w-3" />
+                                        Replay
+                                    </button>
+                                @endif
+                                @if ($this->canManage)
+                                    @if ($finding->status->value === 'open')
+                                        <button type="button" wire:click="ignoreFinding({{ $finding->id }})" wire:loading.attr="disabled" wire:target="ignoreFinding({{ $finding->id }})"
+                                            class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors disabled:opacity-50">
+                                            <x-spinner wire:loading wire:target="ignoreFinding({{ $finding->id }})" class="h-3 w-3" />
+                                            Ignore
+                                        </button>
+                                    @else
+                                        <button type="button" wire:click="reopenFinding({{ $finding->id }})" wire:loading.attr="disabled" wire:target="reopenFinding({{ $finding->id }})"
+                                            class="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-surface-400 hover:bg-surface-800 hover:text-surface-200 transition-colors disabled:opacity-50">
+                                            <x-spinner wire:loading wire:target="reopenFinding({{ $finding->id }})" class="h-3 w-3" />
+                                            Reopen
+                                        </button>
+                                    @endif
+                                @endif
+                            </div>
+                        </div>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </div>
 
     {{-- Feed --}}
     <div class="card-os">
@@ -217,6 +309,9 @@
                                     {{ $item->personaFirstName() }} couldn't finish “{{ $item->journey_name }}”: {{ \Illuminate\Support\Str::limit($item->error, 140) }}
                                 @endif
                             </span>
+                            @if ($item->findings_count > 0)
+                                <span class="shrink-0 rounded-full bg-warning-500/15 px-2 py-0.5 text-[11px] font-medium text-warning-500">{{ $item->findings_count }} {{ \Illuminate\Support\Str::plural('finding', $item->findings_count) }}</span>
+                            @endif
                             <x-spinner wire:loading wire:target="watch({{ $item->id }})" class="h-3 w-3 text-surface-400" />
                             <span class="shrink-0 font-mono text-xs text-surface-500">{{ $item->duration_ms ? number_format($item->duration_ms / 1000, 1).'s' : '—' }}</span>
                         </button>

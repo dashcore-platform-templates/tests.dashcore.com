@@ -2,7 +2,9 @@
 
 namespace App\Livewire\Simulation;
 
+use App\Enums\FindingStatus;
 use App\Enums\SimulationStatus;
+use App\Models\SimulationFinding;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Services\PermissionService;
@@ -25,6 +27,9 @@ class ProvingGround extends Component
     /** The step being looked at; null follows the newest. */
     public ?int $stepPosition = null;
 
+    /** Which findings are listed: open, resolved or ignored. */
+    public string $findingsTab = 'open';
+
     public function toggle(Simulation $simulation): void
     {
         $this->authorizeFull();
@@ -43,6 +48,48 @@ class ProvingGround extends Component
     public function showStep(int $position): void
     {
         $this->stepPosition = $position;
+    }
+
+    /**
+     * Replay the last run that hit a finding, on the step where it did.
+     */
+    public function replayFinding(int $findingId): void
+    {
+        $finding = SimulationFinding::query()->findOrFail($findingId);
+
+        if ($finding->last_run_id === null) {
+            return;
+        }
+
+        $this->runId = $finding->last_run_id;
+        $this->stepPosition = $finding->last_position;
+    }
+
+    public function ignoreFinding(int $findingId): void
+    {
+        $this->authorizeFull();
+
+        SimulationFinding::query()->whereKey($findingId)->update(['status' => FindingStatus::Ignored]);
+
+        unset($this->findings, $this->findingCounts);
+    }
+
+    public function reopenFinding(int $findingId): void
+    {
+        $this->authorizeFull();
+
+        SimulationFinding::query()->whereKey($findingId)->update([
+            'status' => FindingStatus::Open,
+            'resolved_at' => null,
+            'clean_runs' => 0,
+        ]);
+
+        unset($this->findings, $this->findingCounts);
+    }
+
+    public function showFindings(string $tab): void
+    {
+        $this->findingsTab = FindingStatus::tryFrom($tab)?->value ?? FindingStatus::Open->value;
     }
 
     public function follow(): void
@@ -114,6 +161,42 @@ class ProvingGround extends Component
         return $run->status === SimulationStatus::Failed
             ? ($run->failedStep() ?? $run->latestScreenshotStep())
             : $run->latestScreenshotStep();
+    }
+
+    /**
+     * Worst first: kind by how much it hurts, then most recently seen.
+     *
+     * @return Collection<int, SimulationFinding>
+     */
+    #[Computed]
+    public function findings(): Collection
+    {
+        return SimulationFinding::query()
+            ->where('status', FindingStatus::tryFrom($this->findingsTab) ?? FindingStatus::Open)
+            ->latest('last_seen_at')
+            ->limit(100)
+            ->get()
+            ->sortBy(fn (SimulationFinding $finding) => [$finding->kind->rank(), -$finding->last_seen_at->getTimestamp()])
+            ->values();
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    #[Computed]
+    public function findingCounts(): array
+    {
+        $counts = SimulationFinding::query()
+            ->selectRaw('status, count(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->all();
+
+        return [
+            ...array_fill_keys(array_column(FindingStatus::cases(), 'value'), 0),
+            ...array_map('intval', $counts),
+            'regressions' => SimulationFinding::query()->where('status', FindingStatus::Open)->whereNotNull('reopened_at')->count(),
+        ];
     }
 
     /**

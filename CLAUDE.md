@@ -143,7 +143,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   launchd agent `com.dashcore.simulation-tests`, and like the queue workers it
   is never started from the schedule. It exits every `max_runs` so launchd
   restarts it on fresh code. Screenshots live in `storage/simulation.noindex`,
-  kept for the newest `keep_runs` runs.
+  kept for the newest `keep_runs` runs. After each run `Findings` turns failed
+  steps, 5xx responses, browser errors, slow steps and clicks with no loading
+  feedback (the runner watches `wire:loading` elements during the click's
+  Livewire request) into findings, grouped by fingerprint; one is resolved
+  after `resolve_after` clean runs that could have hit it, and reopened —
+  flagged "came back" — if it returns.
 
 ## NavigationRegistry Contract
 

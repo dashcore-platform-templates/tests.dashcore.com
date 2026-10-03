@@ -21,7 +21,10 @@ class Runner
 {
     private const CONSOLE_LIMIT = 20;
 
-    public function __construct(private Simulation $simulation) {}
+    public function __construct(
+        private Simulation $simulation,
+        private Findings $findings,
+    ) {}
 
     public function run(Journey $journey, Persona $persona): SimulationRun
     {
@@ -128,7 +131,9 @@ class Runner
                     'url' => $event['url'] ?? null,
                     'screenshot' => $event['screenshot'] ?? null,
                     'error' => $event['error'] ?? null,
-                ], fn ($value) => $value !== null));
+                    'livewire_requests' => $event['livewire_requests'] ?? null,
+                    'livewire_ms' => $event['livewire_ms'] ?? null,
+                ], fn ($value) => $value !== null) + (array_key_exists('feedback', $event) ? ['feedback' => $event['feedback']] : []));
 
                 $run->current_step = (int) $event['position'];
 
@@ -169,7 +174,7 @@ class Runner
 
     private function finish(SimulationRun $run, ?SimulationStatus $finished): SimulationRun
     {
-        return DB::transaction(function () use ($run, $finished) {
+        $run = DB::transaction(function () use ($run, $finished) {
             $status = $finished === SimulationStatus::Passed && $run->steps_passed === $run->steps_total
                 ? SimulationStatus::Passed
                 : SimulationStatus::Failed;
@@ -187,5 +192,9 @@ class Runner
 
             return $run;
         });
+
+        $this->findings->record($run->setRelation('steps', $run->steps()->get()));
+
+        return $run;
     }
 }
