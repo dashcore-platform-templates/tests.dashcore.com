@@ -61,6 +61,7 @@ class CodeInventory
     {
         $classes = $this->classes($root);
         $parents = array_map(fn (array $c) => $c['parent'], $classes);
+        $componentOnly = $this->componentOnlyTraits($classes, $parents);
         $surfaces = [];
 
         foreach ($classes as $fqcn => $class) {
@@ -69,6 +70,23 @@ class CodeInventory
 
             if (! $isComponent && $kind === null) {
                 continue;
+            }
+
+            // Its methods are listed as actions of each component using it.
+            if (isset($componentOnly[$fqcn])) {
+                continue;
+            }
+
+            if ($isComponent) {
+                $class['methods'] = array_map(fn (array $m) => [...$m, 'path' => $class['path']], $class['methods']);
+                $own = array_column($class['methods'], 'name');
+
+                foreach ($this->traitMethods($class['traits'], $classes) as $method) {
+                    if (! in_array($method['name'], $own, true)) {
+                        $class['methods'][] = $method;
+                        $own[] = $method['name'];
+                    }
+                }
             }
 
             if ($isComponent && ! $class['abstract']) {
@@ -94,7 +112,7 @@ class CodeInventory
                     kind: $isComponent ? SurfaceKind::Action : $kind,
                     identifier: $fqcn.'::'.$method['name'],
                     label: ($isComponent ? $this->componentName($class['path']).'@' : $this->short($fqcn).'::').$method['name'],
-                    file: $class['path'],
+                    file: $method['path'] ?? $class['path'],
                     startLine: $method['start'],
                     endLine: $method['end'],
                     match: $isComponent ? [$fqcn.'@'.$method['name'], $this->componentName($class['path']).'@'.$method['name']] : [],
@@ -107,7 +125,7 @@ class CodeInventory
     }
 
     /**
-     * @return array<string, array{path: string, parent: ?string, abstract: bool, methods: list<array{name: string, start: int, end: int, relation: bool, hash: string}>}>
+     * @return array<string, array{path: string, parent: ?string, abstract: bool, trait: bool, traits: list<string>, methods: list<array{name: string, start: int, end: int, relation: bool, hash: string}>}>
      */
     private function classes(string $root): array
     {
@@ -150,6 +168,11 @@ class CodeInventory
                     'path' => $path,
                     'parent' => $node instanceof Class_ ? $node->extends?->toString() : null,
                     'abstract' => $node instanceof Class_ && $node->isAbstract(),
+                    'trait' => $node instanceof Trait_,
+                    'traits' => array_values(array_map(
+                        fn (Node\Name $name) => $name->toString(),
+                        array_merge(...array_map(fn (Node\Stmt\TraitUse $use) => $use->traits, $node->getTraitUses())),
+                    )),
                     'methods' => $this->methods($node, $source),
                 ];
             }
@@ -212,6 +235,73 @@ class CodeInventory
         }
 
         return false;
+    }
+
+    /**
+     * The public methods traits give a class, traits of traits included, each
+     * carrying the trait's file so its lines prove it.
+     *
+     * @param  list<string>  $traits
+     * @param  array<string, array<string, mixed>>  $classes
+     * @param  array<string, true>  $seen
+     * @return list<array{name: string, start: int, end: int, relation: bool, hash: string, path: string}>
+     */
+    private function traitMethods(array $traits, array $classes, array $seen = []): array
+    {
+        $methods = [];
+
+        foreach ($traits as $trait) {
+            if (isset($seen[$trait]) || ! isset($classes[$trait])) {
+                continue;
+            }
+
+            $seen[$trait] = true;
+
+            foreach ($classes[$trait]['methods'] as $method) {
+                $methods[] = [...$method, 'path' => $classes[$trait]['path']];
+            }
+
+            array_push($methods, ...$this->traitMethods($classes[$trait]['traits'], $classes, $seen));
+        }
+
+        return $methods;
+    }
+
+    /**
+     * Traits used only by Livewire components (directly or through another
+     * trait): they are listed through those components, as actions.
+     *
+     * @param  array<string, array<string, mixed>>  $classes
+     * @param  array<string, ?string>  $parents
+     * @return array<string, true>
+     */
+    private function componentOnlyTraits(array $classes, array $parents): array
+    {
+        $users = [];
+
+        foreach ($classes as $fqcn => $class) {
+            if ($class['trait']) {
+                continue;
+            }
+
+            $isComponent = $this->extendsComponent($fqcn, $parents);
+            $pending = $class['traits'];
+            $seen = [];
+
+            while ($pending !== []) {
+                $trait = array_shift($pending);
+
+                if (isset($seen[$trait]) || ! isset($classes[$trait])) {
+                    continue;
+                }
+
+                $seen[$trait] = true;
+                $users[$trait][] = $isComponent;
+                array_push($pending, ...$classes[$trait]['traits']);
+            }
+        }
+
+        return array_map(fn () => true, array_filter($users, fn (array $isComponent) => ! in_array(false, $isComponent, true)));
     }
 
     /**

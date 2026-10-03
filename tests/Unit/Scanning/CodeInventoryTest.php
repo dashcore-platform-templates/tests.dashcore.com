@@ -73,6 +73,33 @@ class CodeInventoryTest extends TestCase
         $this->assertSame('settings.ai-settings', $this->surfaces['App\Livewire\Settings\AiSettings']->label);
     }
 
+    public function test_a_components_actions_include_the_ones_its_traits_give_it(): void
+    {
+        $saveNotes = $this->surfaces['App\Livewire\Settings\Index::saveNotes'];
+
+        $this->assertSame(SurfaceKind::Action, $saveNotes->kind);
+        $this->assertSame('settings@saveNotes', $saveNotes->label);
+        $this->assertSame(['App\Livewire\Settings\Index@saveNotes', 'settings@saveNotes'], $saveNotes->match);
+        $this->assertSame('app/Livewire/Concerns/HasNotes.php', $saveNotes->file, 'its lines are the trait\'s');
+        $this->assertSame(18, $saveNotes->startLine);
+
+        $this->assertSame('settings@undo', $this->surfaces['App\Livewire\Settings\Index::undo']->label, 'a trait of a trait counts too');
+        $this->assertSame('app/Livewire/Settings/Index.php', $this->surfaces['App\Livewire\Settings\Index::save']->file, 'the component\'s own method wins');
+        $this->assertArrayNotHasKey('App\Livewire\Settings\Index::mountHasNotes', $this->surfaces, 'a trait\'s lifecycle hook is not an action');
+    }
+
+    public function test_a_trait_only_components_use_is_listed_through_them_not_on_its_own(): void
+    {
+        $this->assertArrayNotHasKey('App\Livewire\Concerns\HasNotes::saveNotes', $this->surfaces);
+        $this->assertArrayNotHasKey('App\Livewire\Concerns\KeepsHistory::undo', $this->surfaces);
+    }
+
+    public function test_a_trait_other_classes_use_keeps_its_own_surfaces(): void
+    {
+        $this->assertSame('FormatsMoney::money', $this->surfaces['App\Concerns\FormatsMoney::money']->label);
+        $this->assertArrayNotHasKey('App\Services\Pricing::money', $this->surfaces, 'not repeated on every class that uses it');
+    }
+
     public function test_a_file_that_does_not_parse_is_reported_not_fatal(): void
     {
         $this->assertCount(1, $this->inventory->errors);

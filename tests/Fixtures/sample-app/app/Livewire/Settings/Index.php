@@ -2,10 +2,13 @@
 
 namespace App\Livewire\Settings;
 
+use App\Livewire\Concerns\HasNotes;
 use Livewire\Component;
 
 class Index extends Component
 {
+    use HasNotes;
+
     public string $name = '';
 
     public function mount(): void
