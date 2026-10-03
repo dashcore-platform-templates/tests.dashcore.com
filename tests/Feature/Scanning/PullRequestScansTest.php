@@ -123,4 +123,32 @@ class PullRequestScansTest extends TestCase
         Queue::assertPushed(RunScan::class, fn (RunScan $job) => $job->scan->is($scan) && $job->delay !== null);
         Process::assertRan(fn ($p) => in_array('description=Waiting for main to be scanned first', $p->command, true));
     }
+
+    public function test_conflicts_and_outages_read_as_what_they_are(): void
+    {
+        $conflict = Scan::factory()->for($this->fleetApp)->create(['kind' => 'pull_request', 'pr_number' => 20, 'pr_head_sha' => str_repeat('7', 40), 'status' => ScanStatus::Failed, 'error' => 'Pull request #20 has no merge ref: it conflicts with its base, or it was closed.']);
+        $waiting = Scan::factory()->for($this->fleetApp)->create(['kind' => 'pull_request', 'pr_number' => 21, 'pr_head_sha' => str_repeat('8', 40), 'notes' => ['GitHub could not be reached; trying again shortly.']]);
+
+        app(PullRequestStatus::class)->publish($conflict);
+        app(PullRequestStatus::class)->publish($waiting);
+
+        Process::assertRan(fn ($p) => in_array('description=Conflicts with main — resolve them to be scanned', $p->command, true));
+        Process::assertRan(fn ($p) => in_array('description=Waiting for GitHub', $p->command, true));
+    }
+
+    public function test_a_head_whose_scan_broke_is_tried_again_at_most_three_times_half_an_hour_apart(): void
+    {
+        $head = ['kind' => 'pull_request', 'pr_number' => 12, 'pr_head_sha' => str_repeat('1', 40), 'status' => ScanStatus::Failed, 'error' => 'ssh: connect to host github.com port 22'];
+
+        Scan::factory()->for($this->fleetApp)->create([...$head, 'finished_at' => now()->subMinutes(5)]);
+        $this->artisan('tests:scan-prs')->expectsOutputToContain('nothing new');
+
+        $this->travel(31)->minutes();
+        $this->artisan('tests:scan-prs')->expectsOutputToContain('queued #12');
+
+        $this->fleetApp->pullRequestScans()->where('status', ScanStatus::Queued)->update(['status' => ScanStatus::Failed, 'error' => 'again', 'finished_at' => now()->subHour()]);
+        Scan::factory()->for($this->fleetApp)->create([...$head, 'finished_at' => now()->subHour()]);
+        $this->artisan('tests:scan-prs')->expectsOutputToContain('nothing new');
+        $this->assertSame(3, $this->fleetApp->pullRequestScans()->count());
+    }
 }
