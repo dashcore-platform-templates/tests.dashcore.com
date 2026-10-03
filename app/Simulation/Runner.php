@@ -2,6 +2,7 @@
 
 namespace App\Simulation;
 
+use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
@@ -31,6 +32,7 @@ class Runner
         private Simulation $simulation,
         private Findings $findings,
         private LiveCoverage $coverage,
+        private Trials $trials,
     ) {}
 
     public function run(Journey $journey, Persona $persona): SimulationRun
@@ -43,6 +45,7 @@ class Runner
                 'journey' => $journey->key(),
                 'journey_name' => $journey->name(),
                 'target' => $journey->target(),
+                'trial' => $journey instanceof StoredJourney && $journey->record->status === JourneyStatus::Trial,
                 'persona_name' => $persona->name,
                 'persona_email' => $persona->email,
                 'status' => SimulationStatus::Running,
@@ -56,6 +59,7 @@ class Runner
                     'position' => $position,
                     'label' => Str::limit($step['label'], 250),
                     'action' => $step['do'],
+                    'target' => Str::limit((string) ($step['target'] ?? $step['path'] ?? $step['text'] ?? ''), 490, '') ?: null,
                     'status' => SimulationStatus::Pending,
                 ]);
             }
@@ -111,7 +115,7 @@ class Runner
             $run->error = 'The journey took longer than '.config('simulation.run_timeout').' seconds and was stopped.';
         }
 
-        return $this->finish($run, $finished);
+        return $this->finish($run, $finished, $journey);
     }
 
     /**
@@ -214,7 +218,7 @@ class Runner
         return preg_replace_callback('/\{([a-z_]+)\}/', fn (array $m) => $this->remembered[$m[1]] ?? $m[0], $text);
     }
 
-    private function finish(SimulationRun $run, ?SimulationStatus $finished): SimulationRun
+    private function finish(SimulationRun $run, ?SimulationStatus $finished, Journey $journey): SimulationRun
     {
         $run = DB::transaction(function () use ($run, $finished) {
             $status = $finished === SimulationStatus::Passed && $run->steps_passed === $run->steps_total
@@ -237,8 +241,17 @@ class Runner
             return $run;
         });
 
-        $this->findings->record($run->setRelation('steps', $run->steps()->get()));
+        // A journey on trial may fail because it was drafted wrong; its
+        // failures are the trial's business, not findings about the app.
+        if (! $run->trial) {
+            $this->findings->record($run->setRelation('steps', $run->steps()->get()));
+        }
+
         $this->coverage->record($run);
+
+        if ($journey instanceof StoredJourney) {
+            $this->trials->afterRun($journey->record->refresh(), $run);
+        }
 
         return $run;
     }

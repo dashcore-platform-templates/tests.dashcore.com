@@ -50,7 +50,7 @@ class Findings
             $hits[$kind->value.'|'.$fingerprint] ??= [
                 'kind' => $kind,
                 'fingerprint' => $fingerprint,
-                'journey' => $kind->isStepScoped() ? $run->journey : null,
+                'journey' => $kind->isStepScoped() || $kind->isElementScoped() ? $run->journey : null,
                 'position' => $kind->isStepScoped() ? $step?->position : null,
                 'step_position' => $step?->position,
                 'title' => Str::limit($title, 250),
@@ -69,7 +69,7 @@ class Findings
             }
 
             if ($step->feedback === false) {
-                $add(FindingKind::DeadSpace, $here, "Nothing shows it is working when {$doing}", sprintf(
+                $add(FindingKind::DeadSpace, $this->element($run, $step), "Nothing shows it is working when {$doing}", sprintf(
                     'The click went to the server (%d request%s, %s ms) and no wire:loading state changed while it was in flight.',
                     $step->livewire_requests,
                     $step->livewire_requests === 1 ? '' : 's',
@@ -78,7 +78,7 @@ class Findings
             }
 
             if ($step->status === SimulationStatus::Passed && $slowMs > 0 && $step->duration_ms > $slowMs) {
-                $add(FindingKind::Slow, $here, "Slow when {$doing}", sprintf('Took %.1fs; the limit is %.1fs.', $step->duration_ms / 1000, $slowMs / 1000), $step);
+                $add(FindingKind::Slow, $this->element($run, $step), "Slow when {$doing}", sprintf('Took %.1fs; the limit is %.1fs.', $step->duration_ms / 1000, $slowMs / 1000), $step);
             }
 
             foreach ($step->console ?? [] as $entry) {
@@ -144,26 +144,30 @@ class Findings
 
     /**
      * A finding this run could have hit but did not counts a clean run;
-     * enough in a row resolve it. A step finding only counts when the run got
-     * past that step, and an app-wide one only when the run passed.
+     * enough in a row resolve it. A broken step only counts when the same
+     * journey got past it, an element finding when any journey used that
+     * element cleanly, and an app-wide one when the run passed.
      *
      * @param  list<string>  $hitKeys
      */
     private function creditCleanRuns(SimulationRun $run, array $hitKeys): void
     {
-        $passedPositions = $run->steps->where('status', SimulationStatus::Passed)->pluck('position')->all();
+        $passed = $run->steps->where('status', SimulationStatus::Passed);
+        $passedPositions = $passed->pluck('position')->all();
+        $passedElements = $passed->map(fn (SimulationStep $step) => $this->element($run, $step))->all();
         $resolveAfter = max(1, (int) config('simulation.findings.resolve_after'));
 
         SimulationFinding::query()
             ->where('status', FindingStatus::Open)
             ->where('target', $run->target)
-            ->where(fn ($q) => $q->whereNull('journey')->orWhere('journey', $run->journey))
             ->lockForUpdate()
             ->get()
             ->reject(fn (SimulationFinding $finding) => in_array($finding->kind->value.'|'.$finding->fingerprint, $hitKeys, true))
-            ->filter(fn (SimulationFinding $finding) => $finding->kind->isStepScoped()
-                ? in_array($finding->position, $passedPositions, true)
-                : $run->status === SimulationStatus::Passed)
+            ->filter(fn (SimulationFinding $finding) => match (true) {
+                $finding->kind->isStepScoped() => $finding->journey === $run->journey && in_array($finding->position, $passedPositions, true),
+                $finding->kind->isElementScoped() => in_array($finding->fingerprint, $passedElements, true),
+                default => $run->status === SimulationStatus::Passed,
+            })
             ->each(function (SimulationFinding $finding) use ($resolveAfter) {
                 $finding->clean_runs++;
 
@@ -186,6 +190,15 @@ class Findings
         $label = Str::after($step->label, $run->personaFirstName().' ');
 
         return "someone {$label}";
+    }
+
+    /**
+     * Which element a step acted on, on which page: the same for every
+     * journey that does the same thing there.
+     */
+    private function element(SimulationRun $run, SimulationStep $step): string
+    {
+        return implode('|', [$run->target, $this->normalisePath((string) $step->url), $step->action, (string) $step->target]);
     }
 
     private function normalisePath(string $url): string

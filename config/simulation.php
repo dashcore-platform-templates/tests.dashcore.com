@@ -72,6 +72,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Exploring and trials
+    |--------------------------------------------------------------------------
+    |
+    | The explorer is Claude Code, headless and read only, drafting journeys
+    | from a target's source (`tests:explore`). A draft goes on trial at
+    | trials.weight; trials.passes passes in a row make it active, and
+    | trials.failures failures hold it back for a person to look at.
+    |
+    */
+
+    'explore' => [
+        'claude' => env('SIMULATION_CLAUDE', env('SCANNER_CLAUDE', 'claude')),
+        'model' => env('SIMULATION_EXPLORE_MODEL'),
+        'budget_usd' => (float) env('SIMULATION_EXPLORE_BUDGET_USD', 3),
+        'timeout' => (int) env('SIMULATION_EXPLORE_TIMEOUT', 1800),
+        'drafts' => (int) env('SIMULATION_EXPLORE_DRAFTS', 3),
+    ],
+
+    'trials' => [
+        'passes' => (int) env('SIMULATION_TRIAL_PASSES', 3),
+        'failures' => (int) env('SIMULATION_TRIAL_FAILURES', 2),
+        'weight' => (int) env('SIMULATION_TRIAL_WEIGHT', 4),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Targets
     |--------------------------------------------------------------------------
     |
@@ -87,6 +113,8 @@ return [
         'sales' => [
             'name' => 'Sales',
             'base_url' => env('SIMULATION_SALES_URL', 'http://sales.fakecompany.com.test'),
+            // Its source, for the explorer to read.
+            'checkout' => env('SIMULATION_SALES_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/sales.fakecompany.com' : null),
             // Its database, on this app's own Postgres server, read by the
             // pulse panel — never written.
             'database' => env('SIMULATION_SALES_DATABASE', 'sales_fakecompany_com'),

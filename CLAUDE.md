@@ -160,7 +160,17 @@ surfaces (routes, Livewire components/actions, and every public method under
   screen — `LiveCoverage` keeps a per-target tally (`simulation_reach`) and
   maps it onto the target's fleet app surfaces (`fleet_app`, default the
   target key); the fleet page marks those surfaces "live". Calls that map to
-  no surface are listed as gaps in the scan's own inventory.
+  no surface are listed as gaps in the scan's own inventory. The explorer
+  (`tests:explore [target] [--focus=] [--now]`, or the page's Explore button;
+  queued as `RunExploration` on the builds queue) runs Claude Code headless
+  and read-only (Read/Glob/Grep, `--max-budget-usd`) over the target's
+  `checkout`, aimed at the live coverage gaps, and drafts journeys as data
+  (`simulation_journeys`, walked by `StoredJourney`; fake data as `[[tokens]]`).
+  `DraftValidator` turns unsound drafts away; the rest go on trial (`Trials`):
+  `trials.passes` passes in a row make one active, `trials.failures` failures
+  hold it for review. Trial runs file no findings. Breaks are findings about a
+  journey's step; dead space and slow steps are about an element on a page
+  (page + action + selector), the same finding whichever journey hits it.
 
 ## NavigationRegistry Contract
 

@@ -3,14 +3,17 @@
 namespace Tests\Feature\Simulation;
 
 use App\Enums\FindingKind;
+use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationFinding;
+use App\Models\SimulationJourney;
 use App\Models\SimulationReach;
 use App\Simulation\Journeys\Sales\AssignLead;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Journeys\Sales\FollowUpLead;
 use App\Simulation\Persona;
 use App\Simulation\Runner;
+use App\Simulation\StoredJourney;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
@@ -75,6 +78,7 @@ class RunnerTest extends TestCase
         $this->assertStringStartsWith('Maya added lead ', $run->summary);
         $this->assertSame(0, $run->steps()->whereNot('status', SimulationStatus::Passed->value)->count());
         $this->assertSame('000.jpg', $run->steps()->first()->screenshot);
+        $this->assertSame(['/login', '#email'], $run->steps()->limit(2)->pluck('target')->all());
         $this->assertDirectoryExists($this->shots.'/'.$run->id);
     }
 
@@ -211,5 +215,34 @@ class RunnerTest extends TestCase
             'mounts' => ['pages.auth.login'],
         ], $run->fresh()->reached);
         $this->assertSame(4, SimulationReach::count());
+    }
+
+    public function test_a_journey_on_trial_runs_as_a_trial_files_no_findings_and_counts_toward_its_trial(): void
+    {
+        $record = SimulationJourney::factory()->create(['status' => JourneyStatus::Trial]);
+        Process::fake(['*' => Process::result(output: implode("\n", [
+            json_encode(['event' => 'step', 'position' => 0, 'status' => 'failed', 'error' => 'Timeout']),
+            json_encode(['event' => 'finished', 'status' => 'failed']),
+        ]))]);
+
+        $run = app(Runner::class)->run(new StoredJourney($record), $this->persona());
+
+        $this->assertTrue($run->trial);
+        $this->assertSame(0, SimulationFinding::count());
+        $this->assertSame([1, $run->id], [$record->fresh()->trial_failures, $record->fresh()->last_run_id]);
+    }
+
+    public function test_an_active_drafted_journey_files_findings_like_any_other(): void
+    {
+        $record = SimulationJourney::factory()->create(['status' => JourneyStatus::Active]);
+        Process::fake(['*' => Process::result(output: implode("\n", [
+            json_encode(['event' => 'step', 'position' => 0, 'status' => 'failed', 'error' => 'Timeout']),
+            json_encode(['event' => 'finished', 'status' => 'failed']),
+        ]))]);
+
+        $run = app(Runner::class)->run(new StoredJourney($record), $this->persona());
+
+        $this->assertFalse($run->trial);
+        $this->assertSame(1, SimulationFinding::count());
     }
 }
