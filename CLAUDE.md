@@ -171,6 +171,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   hold it for review. Trial runs file no findings. Breaks are findings about a
   journey's step; dead space and slow steps are about an element on a page
   (page + action + selector), the same finding whichever journey hits it.
+  The worker keeps "people at once" journeys in flight (page control, up to
+  `Simulation::MAX_CONCURRENCY`): `Runner::start()` returns a `RunSession`
+  the worker polls, `finish()` closes it. After each run `Monitor` reads the
+  target's new `storage/logs/laravel.log` errors and new `failed_jobs` rows
+  into findings (starting from "now" on first look; they resolve after
+  `resolve_monitored_after` quiet runs), and the "Under load" panel compares
+  step and Livewire latency now with the first 15 minutes after switching on,
+  next to each target's queue, failed jobs and database size.
 
 ## NavigationRegistry Contract
 

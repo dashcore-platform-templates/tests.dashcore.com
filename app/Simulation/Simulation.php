@@ -29,6 +29,11 @@ class Simulation
 
     private const HEARTBEAT = 'simulation.heartbeat';
 
+    private const CONCURRENCY = 'simulation.concurrency';
+
+    /** The most people the page lets run at once on one machine. */
+    public const MAX_CONCURRENCY = 6;
+
     // A worker beats at least every few seconds while idle and between steps;
     // one silent for longer than this is gone, or stuck.
     private const HEARTBEAT_GRACE_SECONDS = 45;
@@ -57,6 +62,19 @@ class Simulation
         $since = Setting::get(self::ON_SINCE);
 
         return $this->isOn() && $since ? Carbon::parse($since) : null;
+    }
+
+    /**
+     * How many journeys run at once: people working side by side.
+     */
+    public function concurrency(): int
+    {
+        return max(1, min(self::MAX_CONCURRENCY, (int) Setting::get(self::CONCURRENCY, config('simulation.concurrency', 1))));
+    }
+
+    public function setConcurrency(int $people): void
+    {
+        Setting::set(self::CONCURRENCY, max(1, min(self::MAX_CONCURRENCY, $people)));
     }
 
     public function heartbeat(): void
@@ -187,9 +205,50 @@ class Simulation
     }
 
     /**
+     * How the apps hold up under the simulation: throughput, and step and
+     * Livewire latency over the last quarter hour against the first quarter
+     * hour after the switch went on — a soak shows up as the gap widening.
+     *
+     * @return array{in_flight: int, per_hour: int, now: array{p50: ?int, p95: ?int, livewire_p95: ?int}, start: ?array{p50: ?int, p95: ?int, livewire_p95: ?int}}
+     */
+    public function load(): array
+    {
+        $since = $this->onSince();
+        $window = 15;
+
+        $latency = function (Carbon $from, Carbon $to): array {
+            $row = DB::table('simulation_steps')
+                ->where('status', SimulationStatus::Passed->value)
+                ->whereIn('action', ['visit', 'click'])
+                ->whereBetween('updated_at', [$from, $to])
+                ->selectRaw('percentile_cont(0.5) within group (order by duration_ms) as p50')
+                ->selectRaw('percentile_cont(0.95) within group (order by duration_ms) as p95')
+                ->selectRaw('percentile_cont(0.95) within group (order by livewire_ms) filter (where livewire_ms is not null) as livewire_p95')
+                ->first();
+
+            return [
+                'p50' => $row?->p50 === null ? null : (int) round($row->p50),
+                'p95' => $row?->p95 === null ? null : (int) round($row->p95),
+                'livewire_p95' => $row?->livewire_p95 === null ? null : (int) round($row->livewire_p95),
+            ];
+        };
+
+        $start = $since && $since->diffInMinutes(now()) >= 2 * $window
+            ? $latency($since, $since->copy()->addMinutes($window))
+            : null;
+
+        return [
+            'in_flight' => SimulationRun::query()->where('status', SimulationStatus::Running)->count(),
+            'per_hour' => SimulationRun::query()->whereNot('status', SimulationStatus::Running)->where('finished_at', '>=', now()->subHour())->count(),
+            'now' => $latency(now()->subMinutes($window), now()),
+            'start' => $start,
+        ];
+    }
+
+    /**
      * A connection to a target's database on this app's own server.
      */
-    private function targetDatabase(string $key, string $database): ConnectionInterface
+    public function targetDatabase(string $key, string $database): ConnectionInterface
     {
         $name = "simulation_{$key}";
 

@@ -4,6 +4,7 @@ namespace Tests\Feature\Simulation;
 
 use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
+use App\Models\SimulationStep;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Journeys\Sales\CloseWonDeal;
 use App\Simulation\Pulse\Pulse;
@@ -163,6 +164,42 @@ class SimulationTest extends TestCase
         $this->assertSame('Broken', $pulse['broken']['name']);
         $this->assertSame([], $pulse['broken']['metrics']);
         $this->assertNotNull($pulse['broken']['error']);
+    }
+
+    public function test_people_at_once_is_kept_between_one_and_the_most_the_machine_takes(): void
+    {
+        config(['simulation.concurrency' => 2]);
+        $this->assertSame(2, $this->simulation->concurrency());
+
+        $this->simulation->setConcurrency(99);
+        $this->assertSame(Simulation::MAX_CONCURRENCY, $this->simulation->concurrency());
+
+        $this->simulation->setConcurrency(0);
+        $this->assertSame(1, $this->simulation->concurrency());
+    }
+
+    public function test_load_compares_the_last_quarter_hour_with_the_first_after_switching_on(): void
+    {
+        $this->travelTo(now()->startOfMinute());
+        $this->simulation->turnOn();
+
+        $step = fn (int $ms, ?int $livewire = null) => SimulationStep::factory()->create(['action' => 'click', 'duration_ms' => $ms, 'livewire_ms' => $livewire]);
+        foreach ([100, 200, 300] as $ms) {
+            $step($ms, 50);
+        }
+
+        $this->travel(40)->minutes();
+        foreach ([400, 500, 600, 700] as $ms) {
+            $step($ms, 150);
+        }
+        SimulationRun::factory()->running()->create();
+
+        $load = $this->simulation->load();
+
+        $this->assertSame(1, $load['in_flight']);
+        $this->assertSame(550, $load['now']['p50']);
+        $this->assertSame(150, $load['now']['livewire_p95']);
+        $this->assertSame(200, $load['start']['p50']);
     }
 }
 

@@ -358,4 +358,22 @@ class ProvingGroundPageTest extends TestCase
         Livewire::test(ProvingGround::class)->call('retireJourney', $journey->id)->assertSee('Bring back');
         $this->assertSame(JourneyStatus::Retired, $journey->fresh()->status);
     }
+
+    public function test_under_load_shows_people_at_work_and_an_admin_sets_how_many(): void
+    {
+        $this->actingAs(User::factory()->admin()->create());
+        config(['simulation.targets.sales.database' => null]);
+        SimulationRun::factory()->running()->create();
+
+        Livewire::test(ProvingGround::class)
+            ->assertSee(['Under load', 'People at once', 'journeys running now'])
+            ->call('setPeople', 4)
+            ->assertSet('people', 4);
+
+        $this->assertSame(4, app(Simulation::class)->concurrency());
+
+        $this->actingAs(User::factory()->create());
+        Livewire::test(ProvingGround::class)->call('setPeople', 6)->assertForbidden();
+        $this->assertSame(4, app(Simulation::class)->concurrency());
+    }
 }

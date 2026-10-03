@@ -42,8 +42,13 @@ return [
     // Run records older than this are deleted outright.
     'keep_days' => (int) env('SIMULATION_KEEP_DAYS', 14),
 
-    // Seconds between journeys, so a person watching can follow along.
+    // Seconds before a finished journey's place is taken by the next one, so
+    // a person watching can follow along.
     'pause' => (int) env('SIMULATION_PAUSE', 4),
+
+    // How many journeys run at once until someone changes it on the page —
+    // people working side by side, each in their own browser. Up to 6.
+    'concurrency' => (int) env('SIMULATION_CONCURRENCY', 1),
 
     'step_timeout_ms' => (int) env('SIMULATION_STEP_TIMEOUT_MS', 15000),
 
@@ -68,6 +73,10 @@ return [
     'findings' => [
         'slow_ms' => (int) env('SIMULATION_SLOW_MS', 3000),
         'resolve_after' => (int) env('SIMULATION_RESOLVE_AFTER', 3),
+        // Errors seen in an app's log or failed jobs are not tied to a run,
+        // so they need a longer quiet spell — this many passed runs on that
+        // app without them — to count as resolved.
+        'resolve_monitored_after' => (int) env('SIMULATION_RESOLVE_MONITORED_AFTER', 20),
     ],
 
     /*

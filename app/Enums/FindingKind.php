@@ -10,6 +10,8 @@ enum FindingKind: string
 {
     case Breaks = 'breaks';
     case ServerError = 'server_error';
+    case LogError = 'log_error';
+    case FailedJob = 'failed_job';
     case ConsoleError = 'console_error';
     case DeadSpace = 'dead_space';
     case Slow = 'slow';
@@ -19,6 +21,8 @@ enum FindingKind: string
         return match ($this) {
             self::Breaks => 'Journey breaks',
             self::ServerError => 'Server error',
+            self::LogError => 'Logged error',
+            self::FailedJob => 'Failed job',
             self::ConsoleError => 'Browser error',
             self::DeadSpace => 'No loading feedback',
             self::Slow => 'Slow step',
@@ -37,6 +41,16 @@ enum FindingKind: string
     public function isStepScoped(): bool
     {
         return $this === self::Breaks;
+    }
+
+    /**
+     * Whether the finding comes from watching the app's server side (its log,
+     * its failed jobs) rather than from a run. It cannot be pinned to a run,
+     * so it needs a longer quiet spell to count as resolved.
+     */
+    public function isMonitored(): bool
+    {
+        return in_array($this, [self::LogError, self::FailedJob], true);
     }
 
     /**
