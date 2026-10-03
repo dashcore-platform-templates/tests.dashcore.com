@@ -19,9 +19,12 @@ Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping();
 // this schedule as a periodic launchd job, and launchd ends every process the
 // tick started when the tick ends, so a worker started here dies mid-scan.
 
-// One build per app with gaps and nothing already waiting on review, after
-// the scans it plans from. Off unless SCANNER_BUILD_NIGHTLY is set.
-Schedule::command('tests:build')->dailyAt('03:00')->withoutOverlapping()
+// A build for each app with gaps and nothing already running or waiting on
+// review — so at most one PR per app waits for a person. Hourly rather than
+// once a night: a single missed tick of a daily schedule loses a whole day,
+// and a reviewed PR is followed by the next one within the hour. Off unless
+// SCANNER_BUILD_NIGHTLY is set.
+Schedule::command('tests:build')->hourlyAt(20)->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.build.nightly'));
 
 // Every new push to an open PR is scanned and reported as a commit status.
