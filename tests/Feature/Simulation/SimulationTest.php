@@ -5,8 +5,10 @@ namespace Tests\Feature\Simulation;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
+use App\Simulation\Journeys\Finance\RecordExpense;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Journeys\Sales\CloseWonDeal;
+use App\Simulation\Persona;
 use App\Simulation\Pulse\Pulse;
 use App\Simulation\Simulation;
 use Illuminate\Database\ConnectionInterface;
@@ -200,6 +202,28 @@ class SimulationTest extends TestCase
         $this->assertSame(550, $load['now']['p50']);
         $this->assertSame(150, $load['now']['livewire_p95']);
         $this->assertSame(200, $load['start']['p50']);
+    }
+
+    public function test_a_target_on_another_server_gets_its_own_connection_settings(): void
+    {
+        config(['simulation.targets.finance.connection' => ['driver' => 'mysql', 'host' => '10.0.0.9', 'port' => '3307', 'username' => 'root', 'password' => '']]);
+
+        $this->simulation->targetDatabase('finance', 'finance_fakecompany_com');
+
+        $connection = config('database.connections.simulation_finance');
+        $this->assertSame(['mysql', '10.0.0.9', '3307', 'finance_fakecompany_com'], [$connection['driver'], $connection['host'], $connection['port'], $connection['database']]);
+        $this->assertSame(config('database.connections.mysql.charset'), $connection['charset']);
+    }
+
+    public function test_each_target_signs_in_through_its_own_login_form(): void
+    {
+        $persona = new Persona('Omar Haddad', 'omar@example.test', 'secret', 'Bookkeeper');
+
+        $finance = (new RecordExpense)->script($persona, fake())->steps();
+        $sales = (new CaptureLead)->script($persona, fake())->steps();
+
+        $this->assertSame(['input[name="email"]', 'input[name="password"]', 'button[data-test="login-button"]', 'Overview'], [$finance[1]['target'], $finance[2]['target'], $finance[3]['target'], $finance[4]['text']]);
+        $this->assertSame(['#email', '#password', 'Dashboard'], [$sales[1]['target'], $sales[2]['target'], $sales[4]['text']]);
     }
 }
 

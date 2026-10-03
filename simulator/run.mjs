@@ -56,24 +56,40 @@ const LIVEWIRE_UPDATE = /\/livewire[^/]*\/update(\?|$)/;
 let livewire = { requests: 0, slowest_ms: 0 };
 const livewireStarted = new Map();
 
-// Counts visible loading feedback: any change to an element carrying a
-// wire:loading directive (Livewire shows, hides, disables or restyles it
-// while a request is in flight). Livewire's own data-loading marker on the
-// clicked element is not counted — it changes nothing a person can see
-// unless the app styles it.
+// Counts visible loading feedback while a request is in flight:
+// - any change to an element carrying a wire:loading directive (Livewire
+//   shows, hides, disables or restyles it);
+// - Flux's own loading state: data-flux-loading, or data-loading on a button
+//   that carries Flux's spinner;
+// - Livewire disabling a form's submit button during wire:submit, which is
+//   how Flux shows its submit spinner and dims a plain button.
+// Livewire's bare data-loading marker on any other element is not counted —
+// it changes nothing a person can see unless the app styles it.
 const watchLoadingFeedback = () => {
     window.__pgFeedback = 0;
     const hasLoadingDirective = (el) =>
         el.nodeType === 1 && Array.from(el.attributes).some((a) => a.name.startsWith('wire:loading'));
+    const visible = (record) => {
+        const el = record.target;
+        if (el.nodeType !== 1) {
+            return false;
+        }
+        if (hasLoadingDirective(el)) {
+            return true;
+        }
+        if (record.attributeName === 'data-flux-loading') {
+            return true;
+        }
+        if (record.attributeName === 'data-loading' && el.querySelector('[data-flux-loading-indicator]')) {
+            return true;
+        }
+        return record.attributeName === 'disabled' && el.matches('button[type=submit], input[type=submit]') && el.closest('form') !== null;
+    };
     new MutationObserver((records) => {
-        if (records.some((r) => hasLoadingDirective(r.target))) {
+        if (records.some(visible)) {
             window.__pgFeedback++;
         }
-    }).observe(document, {
-        attributes: true,
-        subtree: true,
-        attributeFilter: ['style', 'class', 'disabled', 'hidden', 'aria-busy', 'readonly'],
-    });
+    }).observe(document, { attributes: true, subtree: true });
 };
 
 // The feedback count, which page it belongs to (a full page load starts a new

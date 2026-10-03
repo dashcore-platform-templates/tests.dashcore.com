@@ -8,6 +8,7 @@ use App\Enums\SurfaceStatus;
 use App\Models\SimulationExploration;
 use App\Models\SimulationJourney;
 use App\Simulation\LiveCoverage;
+use App\Simulation\Simulation;
 use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
@@ -72,7 +73,7 @@ class Explorer
         try {
             $result = Process::path($checkout)
                 ->timeout((int) config('simulation.explore.timeout'))
-                ->env(array_filter(['PATH' => config('scanner.path') ? config('scanner.path').':'.getenv('PATH') : null]))
+                ->env([...app(Simulation::class)->targetEnvironment(), ...array_filter(['PATH' => config('scanner.path') ? config('scanner.path').':'.getenv('PATH') : null])])
                 ->run($command);
         } catch (ProcessTimedOutException) {
             throw new \RuntimeException('The explorer ran past '.config('simulation.explore.timeout').' seconds and was stopped.');
