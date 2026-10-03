@@ -81,6 +81,7 @@ class SimulationTest extends TestCase
     public function test_draws_follow_the_weights_and_reach_every_persona(): void
     {
         config(['simulation.journeys' => [CaptureLead::class => 1, CloseWonDeal::class => 0]]);
+        config(['simulation.targets' => ['sales' => config('simulation.targets.sales')]]);
 
         $people = [];
 
@@ -224,6 +225,31 @@ class SimulationTest extends TestCase
 
         $this->assertSame(['input[name="email"]', 'input[name="password"]', 'button[data-test="login-button"]', 'Overview'], [$finance[1]['target'], $finance[2]['target'], $finance[3]['target'], $finance[4]['text']]);
         $this->assertSame(['#email', '#password', 'Dashboard'], [$sales[1]['target'], $sales[2]['target'], $sales[4]['text']]);
+    }
+
+    public function test_a_target_with_a_tour_gets_a_walk_round_its_pages(): void
+    {
+        config(['simulation.targets.hr' => [
+            'name' => 'HR',
+            'password' => 'secret',
+            'personas' => [['name' => 'Hana Ito', 'email' => 'hana@example.test', 'role' => 'HR manager']],
+            'tour' => ['weight' => 2, 'pages' => [
+                ['path' => '/employees', 'see' => 'Employees', 'name' => 'the employees'],
+                ['path' => '/time-off', 'see' => 'Time off'],
+            ]],
+        ]]);
+
+        $entry = $this->simulation->journeys()['hr.tour'];
+        [$journey, $persona] = $this->simulation->pick('hr.tour');
+        $steps = $journey->script($persona, fake())->steps();
+
+        $this->assertSame(2, $entry['weight']);
+        $this->assertSame('Look around HR', $journey->name());
+        $this->assertSame('Hana Ito', $persona->name);
+        $this->assertSame(['do' => 'visit', 'label' => 'Hana opens the employees', 'path' => '/employees'], $steps[5]);
+        $this->assertSame(['do' => 'see', 'label' => 'Hana sees /time-off', 'text' => 'Time off'], $steps[8]);
+        $this->assertSame('Hana looked around HR — 2 pages', $journey->script($persona, fake())->getSummary());
+        $this->assertArrayNotHasKey('sales.tour', $this->simulation->journeys(), 'no tour configured, no tour');
     }
 }
 

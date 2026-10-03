@@ -31,6 +31,8 @@ class ExplorePrompt
 
         $gapList = $gaps === [] ? '(no scan of this app to compare with — use your judgement)' : implode("\n", array_map(fn ($g) => "- {$g}", array_slice($gaps, 0, 60)));
         $focusLine = $focus ? "\nThe person who asked for this exploration wants you to focus on: {$focus}\n" : '';
+        $notes = (array) ($config['explore_notes'] ?? []);
+        $focusLine .= $notes === [] ? '' : "\nAbout this app in particular:\n".implode("\n", array_map(fn ($n) => "- {$n}", $notes))."\n";
 
         return <<<PROMPT
         You are exploring the {$config['name']} app of a fake company, to draft new end-to-end journeys for a never-ending browser simulation. The app's source is the current directory (read it with Read, Glob and Grep; you cannot change anything). It runs at {$config['base_url']}. Fake people sign in and work through it in a real headless Chromium, one journey after another; every journey you draft is first put on trial and must pass several times in a row before it joins the rotation.

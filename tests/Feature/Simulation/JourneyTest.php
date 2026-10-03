@@ -116,6 +116,8 @@ class JourneyTest extends TestCase
 
     public function test_journey_keys_are_unique(): void
     {
-        $this->assertCount(count(config('simulation.journeys')), app(Simulation::class)->journeys());
+        $fromCode = array_filter(app(Simulation::class)->journeys(), fn (array $entry) => isset(config('simulation.journeys')[$entry['journey']::class]));
+
+        $this->assertCount(count(config('simulation.journeys')), $fromCode);
     }
 }

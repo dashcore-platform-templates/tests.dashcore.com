@@ -15,6 +15,7 @@ use App\Simulation\Journeys\Sales\OpenOpportunity;
 use App\Simulation\Journeys\Sales\ReviewPipeline;
 use App\Simulation\Pulse\FinancePulse;
 use App\Simulation\Pulse\SalesPulse;
+use App\Simulation\Pulse\TablePulse;
 
 return [
 
@@ -63,6 +64,10 @@ return [
     // The worker exits after this many runs and launchd starts a fresh one,
     // so it picks up new code and never grows without bound.
     'max_runs' => (int) env('SIMULATION_MAX_RUNS', 200),
+
+    // …or after this many seconds, whichever comes first — an idle worker
+    // (switch off) runs nothing, so without a clock it would never restart.
+    'max_seconds' => (int) env('SIMULATION_MAX_SECONDS', 3600),
 
     /*
     |--------------------------------------------------------------------------
@@ -176,6 +181,89 @@ return [
                 ['name' => 'Lena Park', 'email' => 'lena.park@example.com', 'role' => 'Bookkeeper', 'app_role' => 'editor'],
             ],
             'prepare' => ['migrate --force', 'db:seed --force', 'db:seed --class=WhatChangedDemoSeeder --force'],
+        ],
+
+        'hr' => [
+            'name' => 'HR',
+            'base_url' => env('SIMULATION_HR_URL', 'http://hr.fakecompany.com.test'),
+            'checkout' => env('SIMULATION_HR_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/hr.fakecompany.com' : null),
+            'database' => env('SIMULATION_HR_DATABASE', 'hr_fakecompany_com'),
+            'timezone' => env('SIMULATION_HR_TIMEZONE', 'America/Los_Angeles'),
+            'login' => ['email' => 'input[name="email"]', 'password' => 'input[name="password"]', 'submit' => 'button[data-test="login-button"]', 'landed' => 'Dashboard'],
+            'password' => env('SIMULATION_HR_PASSWORD', 'password'),
+            // Read only for now: the fake HR app mails through Resend for real
+            // and its people have @dashcore.com addresses, so requesting or
+            // approving time off, inviting or assigning training would reach
+            // real inboxes. The tour changes nothing; signing in sends nothing.
+            'explore_off' => 'the fake HR app sends real email (MAIL_MAILER=resend) to @dashcore.com addresses; switch it to log first.',
+            'personas' => [
+                ['name' => 'Jane Holloway', 'email' => 'jane@dashcore.com', 'role' => 'HR manager'],
+                ['name' => 'Marcus Reyes', 'email' => 'marcus@dashcore.com', 'role' => 'Manager'],
+            ],
+            // Every module is off on a fresh install (Pennant, per company);
+            // switch them on for the fake company before touring.
+            'tour' => [
+                // Managers are refused the employee list (403) by design.
+                'roles' => ['HR manager'],
+                'pages' => [
+                    ['path' => '/employees', 'see' => 'Employees', 'name' => 'the employees'],
+                    ['path' => '/pto', 'see' => 'PTO & Leave', 'name' => 'PTO and leave'],
+                    ['path' => '/time', 'see' => 'Time & Attendance', 'name' => 'time and attendance'],
+                    ['path' => '/timesheets', 'see' => 'Timesheets', 'name' => 'the timesheets'],
+                    ['path' => '/reports', 'see' => 'Reports', 'name' => 'the reports'],
+                ],
+            ],
+            'pulse' => TablePulse::class,
+            'pulse_metrics' => [
+                ['label' => 'Active employees', 'table' => 'employees', 'where' => ['employment_status' => 'active']],
+                ['label' => 'Time off waiting', 'table' => 'time_off_requests', 'where' => ['status' => 'submitted']],
+                ['label' => 'Timesheets to approve', 'table' => 'timesheets', 'where' => ['status' => 'submitted']],
+                ['label' => 'Onboardings', 'table' => 'employee_onboardings'],
+                ['label' => 'Time entries', 'table' => 'time_entries'],
+            ],
+            'prepare' => ['migrate --force', 'db:seed --force'],
+        ],
+
+        'marketing' => [
+            'name' => 'Marketing',
+            'base_url' => env('SIMULATION_MARKETING_URL', 'http://marketing.fakecompany.com.test'),
+            'checkout' => env('SIMULATION_MARKETING_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/marketing.fakecompany.com' : null),
+            'database' => env('SIMULATION_MARKETING_DATABASE', 'marketing_fakecompany_com'),
+            'timezone' => env('SIMULATION_MARKETING_TIMEZONE', 'America/Los_Angeles'),
+            // Plain Blade forms, no Livewire.
+            'login' => ['email' => 'input[name="email"]', 'password' => 'input[name="password"]', 'submit' => 'form button[type="submit"]', 'landed' => 'Scoreboard'],
+            'password' => env('SIMULATION_MARKETING_PASSWORD', 'password'),
+            // Its seeder makes one owner account with a real address; the
+            // simulation's team is its own.
+            'personas' => [
+                ['name' => 'Rae Owens', 'email' => 'rae.owens@example.com', 'role' => 'Marketing lead', 'app_role' => 'owner'],
+                ['name' => 'Sol Mendez', 'email' => 'sol.mendez@example.com', 'role' => 'Supervisor', 'app_role' => 'supervisor'],
+                ['name' => 'Mara Quinn', 'email' => 'mara.quinn@example.com', 'role' => 'Marketer', 'app_role' => 'member'],
+            ],
+            'explore_notes' => [
+                'It is server-rendered Blade with controllers and plain forms — no Livewire, so no wire: selectors; use ids, name attributes and button text.',
+                'Never push to Buffer, generate with the AI studio or autopilot, connect Instagram, text through Twilio (quick reels, quick story), upload files, sync ads, refresh the news feed or send a test email.',
+                'Never use the admin pages to invite, impersonate or delete users.',
+            ],
+            'tour' => [
+                'pages' => [
+                    ['path' => '/game-plan', 'see' => 'The Action Plan', 'name' => 'the action plan'],
+                    ['path' => '/goals', 'see' => 'aiming at', 'name' => 'the goals'],
+                    ['path' => '/pipeline', 'see' => 'From lead to paying customer', 'name' => 'the pipeline'],
+                    ['path' => '/calendar', 'see' => 'week by week', 'name' => 'the calendar'],
+                    ['path' => '/performance', 'see' => 'The numbers', 'name' => 'the performance numbers'],
+                    ['path' => '/library', 'see' => 'Everything', 'name' => 'the library'],
+                ],
+            ],
+            'pulse' => TablePulse::class,
+            'pulse_metrics' => [
+                ['label' => 'Leads', 'table' => 'leads'],
+                ['label' => 'Customers', 'table' => 'leads', 'where' => ['stage' => 'customer']],
+                ['label' => 'Campaigns', 'table' => 'campaigns'],
+                ['label' => 'Assets', 'table' => 'assets'],
+                ['label' => 'Plan slots', 'table' => 'plan_slots'],
+            ],
+            'prepare' => ['migrate --force', 'db:seed --force'],
         ],
     ],
 

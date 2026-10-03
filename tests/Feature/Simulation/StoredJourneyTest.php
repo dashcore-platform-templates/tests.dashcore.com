@@ -59,7 +59,7 @@ class StoredJourneyTest extends TestCase
         SimulationJourney::factory()->create(['key' => 'sales.proven', 'status' => JourneyStatus::Active, 'weight' => 2]);
         SimulationJourney::factory()->create(['key' => 'sales.held', 'status' => JourneyStatus::Held]);
         SimulationJourney::factory()->create(['key' => 'sales.retired', 'status' => JourneyStatus::Retired]);
-        SimulationJourney::factory()->create(['key' => 'hr.elsewhere', 'target' => 'hr', 'status' => JourneyStatus::Active]);
+        SimulationJourney::factory()->create(['key' => 'nowhere.elsewhere', 'target' => 'nowhere', 'status' => JourneyStatus::Active]);
 
         $journeys = app(Simulation::class)->journeys();
 
@@ -68,7 +68,7 @@ class StoredJourneyTest extends TestCase
         $this->assertInstanceOf(StoredJourney::class, $journeys['sales.proven']['journey']);
         $this->assertArrayNotHasKey('sales.held', $journeys);
         $this->assertArrayNotHasKey('sales.retired', $journeys);
-        $this->assertArrayNotHasKey('hr.elsewhere', $journeys);
+        $this->assertArrayNotHasKey('nowhere.elsewhere', $journeys);
     }
 
     public function test_a_trial_is_won_by_passes_in_a_row_and_lost_by_failures(): void
