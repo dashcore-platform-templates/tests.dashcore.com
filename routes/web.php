@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\SimulationRun;
+use App\Simulation\Simulation;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -30,6 +32,15 @@ Route::middleware(['auth', 'verified', 'permission:fleet-tests'])->group(functio
     Route::view('fleet/{key}', 'fleet.show')->name('fleet.show');
     Route::view('scans/{scan}', 'scans.show')->whereNumber('scan')->name('scans.show');
     Route::view('builds/{build}', 'builds.show')->whereNumber('build')->name('builds.show');
+
+    Route::view('proving-ground', 'simulation.index')->name('simulation.index');
+    Route::get('proving-ground/runs/{run}/{file}', function (SimulationRun $run, string $file, Simulation $simulation) {
+        $path = $simulation->screenshotDirectory($run).'/'.$file;
+
+        abort_if($run->screenshots_pruned || ! is_file($path), 404);
+
+        return response()->file($path, ['Cache-Control' => 'private, max-age=86400, immutable']);
+    })->where('file', '[0-9]{3}\\.jpg')->name('simulation.screenshot');
 });
 
 Volt::route('invitations/{token}', 'pages.invitations.accept')
