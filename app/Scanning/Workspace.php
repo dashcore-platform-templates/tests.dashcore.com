@@ -5,6 +5,8 @@ namespace App\Scanning;
 use App\Models\Build;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Scanning\Exceptions\GitHubUnreachable;
+use App\Scanning\Exceptions\PullRequestUnmergeable;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -81,7 +83,7 @@ class Workspace
     {
         $repo = (string) $this->app->local_path;
 
-        $fetch = Process::path($repo)->timeout(120)->run(['git', 'fetch', '--quiet', 'origin']);
+        $fetch = Process::path($repo)->timeout(120)->run(['git', 'fetch', '--quiet', $this->remote(), '+refs/heads/*:refs/remotes/origin/*']);
 
         if ($fetch->failed()) {
             $this->notes[] = 'git fetch failed, so the scan used the last fetched state: '.trim($fetch->errorOutput());
@@ -202,10 +204,16 @@ class Workspace
         $repo = (string) $this->app->local_path;
         $local = 'refs/remotes/origin/tests-pull/'.$number;
 
-        $fetch = Process::path($repo)->timeout(180)->run(['git', 'fetch', '--quiet', '--force', 'origin', "+refs/pull/{$number}/merge:{$local}"]);
+        $fetch = Process::path($repo)->timeout(180)->run(['git', 'fetch', '--quiet', '--force', $this->remote(), "+refs/pull/{$number}/merge:{$local}"]);
 
         if ($fetch->failed()) {
-            throw new RuntimeException("Pull request #{$number} has no merge ref — it may conflict with its base or be closed: ".Str::limit(trim($fetch->errorOutput()), 500));
+            $error = trim($fetch->errorOutput());
+
+            if (str_contains($error, "couldn't find remote ref")) {
+                throw new PullRequestUnmergeable("Pull request #{$number} has no merge ref: it conflicts with its base, or it was closed.");
+            }
+
+            throw new GitHubUnreachable("GitHub could not be reached to fetch pull request #{$number}: ".Str::limit($error, 300));
         }
 
         $sha = trim(Process::path($repo)->run(['git', 'rev-parse', '--verify', $local.'^{commit}'])->output());
@@ -217,6 +225,20 @@ class Workspace
         }
 
         return ['ref' => "pull/{$number}/merge", 'sha' => $sha, 'subject' => $subject, 'base' => $base];
+    }
+
+    /**
+     * Where to fetch from: the app's GitHub repository over HTTPS when it is
+     * known, whatever protocol the checkout's own origin uses — SSH to GitHub
+     * is not reachable from every network the host sits on.
+     */
+    public function remote(): string
+    {
+        $repo = $this->app->repo;
+
+        return $repo === null || $repo === ''
+            ? 'origin'
+            : rtrim((string) config('scanner.git_base'), '/').'/'.$repo.'.git';
     }
 
     /**

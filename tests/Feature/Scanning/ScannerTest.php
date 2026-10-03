@@ -11,6 +11,7 @@ use App\Enums\VerdictReason;
 use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Scanning\Exceptions\GitHubUnreachable;
 use App\Scanning\Inventory\DiscoveredSurface;
 use App\Scanning\Mutation\MutationTester;
 use App\Scanning\Scanner;
@@ -39,6 +40,8 @@ class ScannerTest extends TestCase
 
     /** @var list<string> identifiers the fake mutation tester was asked to check */
     public array $mutated = [];
+
+    public bool $githubDown = false;
 
     /** The main commit a pull request merges onto. */
     public string $prBase = '';
@@ -78,6 +81,10 @@ class ScannerTest extends TestCase
 
             public function resolvePullRequest(int $number): array
             {
+                if ($this->test->githubDown) {
+                    throw new GitHubUnreachable('connect to host github.com port 443: Operation timed out');
+                }
+
                 return ['ref' => "pull/{$number}/merge", 'sha' => str_repeat('c', 40), 'subject' => 'Add exports', 'base' => $this->test->prBase];
             }
 
@@ -432,5 +439,16 @@ class ScannerTest extends TestCase
         $this->assertSame($main->id, $pr->base_scan_id);
         $this->assertSame('pass', $pr->verdict);
         $this->assertStringContainsString('was never scanned, so this was compared with the latest main scan', implode("\n", $pr->notes));
+    }
+
+    public function test_a_pull_request_waits_out_a_github_outage_without_using_up_its_wait_for_main(): void
+    {
+        $this->githubDown = true;
+
+        $pr = $this->pullRequestScan();
+
+        $this->assertSame(ScanStatus::Queued, $pr->status);
+        $this->assertSame(0, $pr->deferrals);
+        $this->assertSame(['GitHub could not be reached; trying again shortly.'], $pr->notes);
     }
 }

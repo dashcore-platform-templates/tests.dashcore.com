@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Process;
  */
 class PullRequestScans
 {
+    private const ATTEMPTS = 3;
+
     public function __construct(private readonly PullRequestStatus $status) {}
 
     /**
@@ -61,9 +63,16 @@ class PullRequestScans
     public function queue(FleetApp $app, array $pr): ?Scan
     {
         $scan = DB::transaction(function () use ($app, $pr) {
-            $existing = $app->pullRequestScans()->where('pr_number', $pr['number'])->where('pr_head_sha', $pr['headRefOid'])->exists();
+            $scans = $app->pullRequestScans()->where('pr_number', $pr['number'])->where('pr_head_sha', $pr['headRefOid'])->get();
+            $failed = $scans->where('status', ScanStatus::Failed)->reject(fn (Scan $s) => $s->error === 'Superseded by a newer push.');
 
-            if ($existing) {
+            // A head already judged, or being judged, is done. One whose scan
+            // broke is tried again — at most three times, half an hour apart.
+            $settled = $scans->contains(fn (Scan $s) => $s->status !== ScanStatus::Failed);
+            $retry = ! $settled && $failed->count() > 0 && $failed->count() < self::ATTEMPTS
+                && $failed->max('finished_at')?->lt(now()->subMinutes(30));
+
+            if ($settled || ($failed->count() > 0 && ! $retry)) {
                 return null;
             }
 

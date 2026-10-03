@@ -45,7 +45,7 @@ class RunScan implements ShouldQueue
 
         $status->publish($scan);
 
-        // Still queued means it is waiting for its base to be scanned.
+        // Still queued means it is waiting: for its base to be scanned, or for GitHub.
         if ($scan->status === ScanStatus::Queued) {
             self::dispatch($scan)->delay(now()->addMinutes(10));
         }

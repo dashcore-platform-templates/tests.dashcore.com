@@ -13,6 +13,7 @@ use App\Models\Scan;
 use App\Models\Surface;
 use App\Scanning\Evidence\ProbeReader;
 use App\Scanning\Evidence\TestRecord;
+use App\Scanning\Exceptions\GitHubUnreachable;
 use App\Scanning\Inventory\Inventory;
 use App\Scanning\Mutation\MutationTester;
 use Illuminate\Support\Facades\DB;
@@ -53,7 +54,12 @@ class Scanner
             $base = null;
 
             if ($scan->isPullRequest()) {
-                $revision = $workspace->resolvePullRequest((int) $scan->pr_number);
+                try {
+                    $revision = $workspace->resolvePullRequest((int) $scan->pr_number);
+                } catch (GitHubUnreachable $e) {
+                    return $this->defer($scan, null, 'GitHub could not be reached; trying again shortly.');
+                }
+
                 $base = $this->baseFor($scan, $revision['base'], $workspace);
 
                 if ($base === null) {
@@ -478,15 +484,17 @@ class Scanner
     }
 
     /**
-     * Put a pull request scan back in the queue until its base is scanned.
+     * Put a pull request scan back in the queue: until its base is scanned
+     * (which counts toward max_deferrals), or until GitHub answers (which
+     * does not — an outage is not the PR's wait).
      */
-    private function defer(Scan $scan, string $baseSha): Scan
+    private function defer(Scan $scan, ?string $baseSha, ?string $why = null): Scan
     {
         $scan->update([
             'status' => ScanStatus::Queued,
             'started_at' => null,
-            'deferrals' => $scan->deferrals + 1,
-            'notes' => ['Waiting for main at '.substr($baseSha, 0, 7).' to be scanned, to compare with.'],
+            'deferrals' => (int) $scan->deferrals + ($baseSha === null ? 0 : 1),
+            'notes' => [$why ?? 'Waiting for main at '.substr((string) $baseSha, 0, 7).' to be scanned, to compare with.'],
         ]);
 
         return $scan->refresh();

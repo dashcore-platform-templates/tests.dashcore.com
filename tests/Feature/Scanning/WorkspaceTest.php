@@ -4,6 +4,8 @@ namespace Tests\Feature\Scanning;
 
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Scanning\Exceptions\GitHubUnreachable;
+use App\Scanning\Exceptions\PullRequestUnmergeable;
 use App\Scanning\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -38,6 +40,8 @@ class WorkspaceTest extends TestCase
             'scanner.database.prefix' => 'tests_scan_unit_',
             'scanner.workspace' => $root.'/_workspace',
             'scanner.composer' => 'true',
+            // Fetches go to a local "GitHub", never the real one.
+            'scanner.git_base' => $root,
         ]);
 
         $this->git('init', '--quiet', '--initial-branch=main');
@@ -58,7 +62,7 @@ class WorkspaceTest extends TestCase
         $this->git('add', '.');
         $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--quiet', '-m', 'Initial');
 
-        $this->fleetApp = FleetApp::factory()->create(['key' => 'demo', 'host' => 'demo.dashcore.com', 'local_path' => $this->repo]);
+        $this->fleetApp = FleetApp::factory()->create(['key' => 'demo', 'host' => 'demo.dashcore.com', 'repo' => 'origin', 'local_path' => $this->repo]);
         $this->scan = $this->fleetApp->scans()->create(['status' => 'queued']);
     }
 
@@ -142,8 +146,8 @@ class WorkspaceTest extends TestCase
     {
         $origin = $this->scannerRoot.'/origin.git';
         Process::run(['git', 'init', '--quiet', '--bare', $origin])->throw();
-        $this->git('remote', 'add', 'origin', $origin);
-        $this->git('push', '--quiet', 'origin', 'main');
+        $this->git('remote', 'add', 'origin', 'git@github.com:unreachable/over-ssh.git');
+        $this->git('push', '--quiet', $origin, 'main');
         $main = trim($this->git('rev-parse', 'HEAD'));
 
         // GitHub's merge ref: main merged with the PR's head.
@@ -153,7 +157,7 @@ class WorkspaceTest extends TestCase
         $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--quiet', '-m', 'Add exports');
         $this->git('checkout', '--quiet', 'main');
         $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'merge', '--quiet', '--no-ff', '--no-edit', 'feature');
-        $this->git('push', '--quiet', 'origin', 'HEAD:refs/pull/7/merge');
+        $this->git('push', '--quiet', $origin, 'HEAD:refs/pull/7/merge');
         $merge = trim($this->git('rev-parse', 'HEAD'));
         $this->git('reset', '--quiet', '--hard', $main);
 
@@ -165,9 +169,27 @@ class WorkspaceTest extends TestCase
         $this->assertSame('Add exports', $revision['subject']);
         $this->assertSame('tests_scan_unit_demo_pr7', (new Workspace($this->fleetApp, $scan))->database);
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Pull request #8 has no merge ref');
-        (new Workspace($this->fleetApp, $scan))->resolvePullRequest(8);
+        try {
+            (new Workspace($this->fleetApp, $scan))->resolvePullRequest(8);
+            $this->fail('expected no merge ref');
+        } catch (PullRequestUnmergeable $e) {
+            $this->assertStringContainsString('conflicts with its base, or it was closed', $e->getMessage());
+        }
+
+        $this->fleetApp->update(['repo' => 'nowhere']);
+        $this->expectException(GitHubUnreachable::class);
+        (new Workspace($this->fleetApp->fresh(), $scan))->resolvePullRequest(7);
+    }
+
+    public function test_apps_are_fetched_from_github_over_https_whatever_their_checkout_uses(): void
+    {
+        config(['scanner.git_base' => 'https://github.com']);
+        $this->fleetApp->update(['repo' => 'dashcoretech/demo.dashcore.com']);
+
+        $this->assertSame('https://github.com/dashcoretech/demo.dashcore.com.git', (new Workspace($this->fleetApp->fresh(), $this->scan))->remote());
+
+        $this->fleetApp->update(['repo' => null]);
+        $this->assertSame('origin', (new Workspace($this->fleetApp->fresh(), $this->scan))->remote());
     }
 
     public function test_configured_directories_go_in_front_of_path(): void

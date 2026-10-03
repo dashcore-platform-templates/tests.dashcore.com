@@ -59,6 +59,10 @@ return [
 
     'composer' => env('SCANNER_COMPOSER', 'composer'),
 
+    // Apps are fetched from here over HTTPS (authenticated by gh's git
+    // credential helper), not from their checkout's origin, which may be SSH.
+    'git_base' => env('SCANNER_GIT_BASE', 'https://github.com'),
+
     // Directories put in front of PATH for everything a workspace runs. The
     // fleet scheduler runs with a minimal PATH, so node, npm and claude
     // (usually under nvm) must be named here to be found at night.
