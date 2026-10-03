@@ -18,10 +18,11 @@ return [
     /*
     | Routes. Every app route must carry one of `guards` — or be listed in
     | `public`, which is the deliberate decision that anyone may reach it.
-    | Patterns match "METHOD uri" with * as a wildcard.
+    | Patterns match "METHOD uri" with * as a wildcard. An app's own
+    | middleware named Authenticate… (AuthenticateExtensionToken) is a guard.
     */
     'routes' => [
-        'guards' => ['auth', 'auth:*', 'Illuminate\Auth\Middleware\Authenticate', 'Illuminate\Auth\Middleware\Authenticate:*', 'signed', 'Illuminate\Routing\Middleware\ValidateSignature', 'Illuminate\Routing\Middleware\ValidateSignature:*', 'bridge.auth', 'guest', 'Illuminate\Auth\Middleware\RedirectIfAuthenticated'],
+        'guards' => ['auth', 'auth:*', 'auth.*', '*\Authenticate*', 'signed', 'Illuminate\Routing\Middleware\ValidateSignature', 'Illuminate\Routing\Middleware\ValidateSignature:*', 'bridge.auth', 'guest', 'Illuminate\Auth\Middleware\RedirectIfAuthenticated'],
         'public' => [],
     ],
 
