@@ -122,9 +122,13 @@ surfaces (routes, Livewire components/actions, and every public method under
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old
-  per-test detail. The `scans` worker (queues `scans,builds`) is the launchd
-  agent `~/Library/LaunchAgents/com.dashcore.queue-tests.plist` — never start it
-  from the schedule: launchd kills a tick's background processes when it ends.
+  per-test detail, and (with `SCANNER_BUILD_NIGHTLY=true`) queues one build per
+  app at 03:00. Two workers (queues `scans,builds`) are the launchd agents
+  `com.dashcore.queue-tests` and `com.dashcore.queue-tests-2` in
+  `~/Library/LaunchAgents` — never start one from the schedule: launchd kills a
+  tick's background processes when it ends. Scratch space is
+  `storage/scanner.noindex` (Spotlight must not index it). Big suites need
+  `SCANNER_TIMEOUT=14400`.
 
 ## NavigationRegistry Contract
 
