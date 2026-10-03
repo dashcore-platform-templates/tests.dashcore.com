@@ -8,6 +8,7 @@ use App\Enums\SurfaceChange;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
 use App\Enums\VerdictReason;
+use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
 use App\Scanning\Inventory\DiscoveredSurface;
@@ -17,6 +18,7 @@ use App\Scanning\SuiteRunner;
 use App\Scanning\Workspace;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 use Tests\Concerns\UsesFleetFixtures;
 use Tests\TestCase;
@@ -37,6 +39,9 @@ class ScannerTest extends TestCase
 
     /** @var list<string> identifiers the fake mutation tester was asked to check */
     public array $mutated = [];
+
+    /** The main commit a pull request merges onto. */
+    public string $prBase = '';
 
     /** @var list<array<string, mixed>> what a plain re-run of failing tests reports */
     public array $recheck = [];
@@ -69,6 +74,11 @@ class ScannerTest extends TestCase
             public function resolveRevision(): array
             {
                 return ['ref' => 'origin/main', 'sha' => str_repeat('a', 40), 'subject' => 'Add reports'];
+            }
+
+            public function resolvePullRequest(int $number): array
+            {
+                return ['ref' => "pull/{$number}/merge", 'sha' => str_repeat('c', 40), 'subject' => 'Add exports', 'base' => $this->test->prBase];
             }
 
             public function prepare(string $sha, ?string $branch = null): void
@@ -357,5 +367,70 @@ class ScannerTest extends TestCase
         $this->assertSame('passed', $scan->tests()->where('test_id', 'Perf::fast')->sole()->outcome->value);
         $this->assertSame(SurfaceStatus::Tested, $this->fleetApp->surfaces()->where('identifier', 'GET reports')->sole()->status, 'what it executed still counts');
         $this->assertContains('1 test(s) failed only under coverage and passed when run again without it (timing or flakiness): projects quickly', $scan->notes);
+    }
+
+    private function pullRequestScan(): Scan
+    {
+        $scan = $this->fleetApp->scans()->create([
+            'kind' => 'pull_request', 'status' => ScanStatus::Queued,
+            'pr_number' => 5, 'pr_head_sha' => str_repeat('d', 40), 'pr_url' => 'https://github.com/x/finance/pull/5',
+        ]);
+
+        return app(Scanner::class)->run($scan);
+    }
+
+    public function test_a_pull_request_is_judged_against_main_and_changes_nothing_in_the_record(): void
+    {
+        $this->probe = $this->provingEverything();
+        $main = $this->scan();
+        $this->prBase = $main->commit_sha;
+        $recordBefore = $this->fleetApp->surfaces()->orderBy('id')->get(['id', 'status', 'last_scan_id'])->toArray();
+
+        // The PR drops the test that reached the reports route and controller.
+        $this->probe = [['id' => 'T::jobs', 'file' => 'tests/T.php', 'status' => 'passed', 'assertions' => 1, 'lines' => ['app/Jobs/SendReport.php' => [11, 17]]]];
+        $this->mutated = [];
+
+        $pr = $this->pullRequestScan();
+
+        $this->assertSame(ScanStatus::Completed, $pr->status, (string) $pr->error);
+        $this->assertSame($main->id, $pr->base_scan_id);
+        $this->assertSame('fail', $pr->verdict);
+        $this->assertContains('Routes: GET /reports', $pr->verdict_detail['lost']);
+        $this->assertContains('Controllers: ReportController::index', $pr->verdict_detail['lost']);
+        $this->assertSame([], $this->mutated, 'a pull request waits for no new mutants');
+        $this->assertSame($recordBefore, $this->fleetApp->surfaces()->orderBy('id')->get(['id', 'status', 'last_scan_id'])->toArray(), 'the app\'s record is untouched');
+        $this->assertSame(0, $pr->surfaceResults()->count());
+        $this->assertTrue($this->fleetApp->fresh()->latestCompletedScan->is($main), 'a PR scan never stands in for main');
+        $this->assertSame('tests_scan_finance_pr5', $pr->test_database);
+    }
+
+    public function test_a_pull_request_whose_base_was_never_scanned_waits_for_it(): void
+    {
+        Queue::fake();
+        $this->probe = $this->provingEverything();
+        $this->scan();
+        $this->prBase = str_repeat('e', 40);
+
+        $pr = $this->pullRequestScan();
+
+        $this->assertSame(ScanStatus::Queued, $pr->status);
+        $this->assertSame(1, $pr->deferrals);
+        $this->assertStringContainsString('Waiting for main at eeeeeee', $pr->notes[0]);
+        Queue::assertPushed(RunScan::class, fn (RunScan $job) => ! $job->scan->isPullRequest());
+    }
+
+    public function test_after_waiting_long_enough_it_settles_for_the_latest_main_scan_and_says_so(): void
+    {
+        $this->probe = $this->provingEverything();
+        $main = $this->scan();
+        $this->prBase = str_repeat('e', 40);
+        config(['scanner.pull_requests.max_deferrals' => 0]);
+
+        $pr = $this->pullRequestScan();
+
+        $this->assertSame(ScanStatus::Completed, $pr->status, (string) $pr->error);
+        $this->assertSame($main->id, $pr->base_scan_id);
+        $this->assertSame('pass', $pr->verdict);
+        $this->assertStringContainsString('was never scanned, so this was compared with the latest main scan', implode("\n", $pr->notes));
     }
 }

@@ -114,6 +114,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   database/factories/ only), `BuildVerifier` re-checks everything itself
   (reach, mutation, full suite), `Publisher` commits, pushes and opens a PR.
   `tests:build [keys] [--surface=] [--now]`; `tests:sync-builds` follows PRs.
+- **Pull request scans** — `tests:scan-prs` (every 10 min, `SCANNER_PR_SCANS`)
+  queues a scan of each new open-PR head as GitHub would merge it
+  (`refs/pull/N/merge`), judged by `PullRequestVerdict` against a main scan of
+  the exact commit it merges onto (requested if missing; the PR waits). New
+  untested code, lost coverage or new failing tests fail the `tests/coverage`
+  commit status. PR scans never touch surfaces or the ratchet, skip new
+  mutants, use `tests_scan_{key}_pr{N}`, and run on queue `prs` (worker
+  `com.dashcore.queue-tests-prs`).
 - **Fleet baseline** — `dashcore/testkit` (repo `dashcoretech/testkit`, checkout
   `~/Herd/testkit`, vendored in `packages/`): route guards, Postgres, migration
   round trip, debug/env calls, Livewire loading feedback — ratchets recorded in

@@ -306,6 +306,46 @@
         @endif
     @endif
 
+    {{-- Pull requests --}}
+    @if ($this->pullRequests->isNotEmpty())
+        <div class="card-os overflow-x-auto mb-6">
+            <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-surface-200 uppercase tracking-wider">Pull requests</h2>
+            <table class="min-w-full divide-y divide-surface-800">
+                <tbody class="divide-y divide-surface-800">
+                    @foreach ($this->pullRequests as $pr)
+                        <tr wire:key="pr-{{ $pr->id }}">
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                <a href="{{ $pr->pr_url }}" target="_blank" rel="noopener" class="text-sm text-accent-400 hover:text-accent-500">#{{ $pr->pr_number }}</a>
+                                <span class="ml-1 font-mono text-xs text-surface-500">{{ substr((string) $pr->pr_head_sha, 0, 7) }}</span>
+                            </td>
+                            <td class="px-4 py-2 whitespace-nowrap">
+                                @if ($pr->status->value === 'completed')
+                                    <a href="{{ route('scans.show', $pr) }}" wire:navigate @class([
+                                        'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
+                                        'bg-success-500/15 text-success-500' => $pr->verdict === 'pass',
+                                        'bg-red-500/15 text-red-400' => $pr->verdict !== 'pass',
+                                    ])>{{ $pr->verdict === 'pass' ? 'Keeps the ratchet' : 'Blocked' }}</a>
+                                @else
+                                    <a href="{{ route('scans.show', $pr) }}" wire:navigate><x-scan-status :scan="$pr" /></a>
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-xs text-surface-400">
+                                @if ($pr->status->value === 'completed')
+                                    {{ app(\App\Scanning\PullRequestVerdict::class)->describe($pr->verdict_detail, $pr->score === null ? null : (float) $pr->score) }}
+                                @elseif ($pr->deferrals > 0 && $pr->status->value === 'queued')
+                                    Waiting for main to be scanned first
+                                @elseif ($pr->status->value === 'failed')
+                                    {{ \Illuminate\Support\Str::limit((string) $pr->error, 90) }}
+                                @endif
+                            </td>
+                            <td class="px-4 py-2 text-xs text-surface-500 text-right whitespace-nowrap">{{ $pr->created_at->diffForHumans() }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+
     {{-- Builds --}}
     @if ($this->builds->isNotEmpty())
         <div class="card-os overflow-x-auto mb-6">

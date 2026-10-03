@@ -49,7 +49,20 @@ class Scanner
             }
 
             $workspace = app(Workspace::class, ['app' => $app, 'for' => $scan]);
-            $revision = $workspace->resolveRevision();
+            $base = null;
+
+            if ($scan->isPullRequest()) {
+                $revision = $workspace->resolvePullRequest((int) $scan->pr_number);
+                $base = $this->baseFor($scan, $revision['base'], $workspace);
+
+                if ($base === null) {
+                    return $this->defer($scan, $revision['base']);
+                }
+
+                $scan->update(['base_scan_id' => $base->id]);
+            } else {
+                $revision = $workspace->resolveRevision();
+            }
 
             $scan->update([
                 'ref' => $revision['ref'],
@@ -81,10 +94,17 @@ class Scanner
 
             $analysis = $this->analyzer->analyse($surfaces, $tests);
 
-            $scan->update(['status' => ScanStatus::Mutating]);
-            [$analysis, $mutations] = $this->mutate($scan, $workspace, $analysis, $tests);
+            if ($base !== null) {
+                // Known mutation verdicts still apply (by unchanged code), but
+                // a PR waits for no new mutants.
+                [$analysis] = $this->mutate($scan, $workspace, $analysis, $tests, budget: 0);
+                $this->recordPullRequest($scan, $base, $analysis, $tests, $run['output'], [...$workspace->notes, ...$this->inventory->notes]);
+            } else {
+                $scan->update(['status' => ScanStatus::Mutating]);
+                [$analysis, $mutations] = $this->mutate($scan, $workspace, $analysis, $tests);
 
-            $this->record($scan, $analysis, $mutations, $tests, $run['output'], [...$workspace->notes, ...$this->inventory->notes]);
+                $this->record($scan, $analysis, $mutations, $tests, $run['output'], [...$workspace->notes, ...$this->inventory->notes]);
+            }
         } catch (Throwable $e) {
             report($e);
 
@@ -161,9 +181,9 @@ class Scanner
      * @param  list<TestRecord>  $tests
      * @return array{0: Analysis, 1: array<string, array{result: MutationResult, fresh: bool, hash: string}>}
      */
-    private function mutate(Scan $scan, Workspace $workspace, Analysis $analysis, array $tests): array
+    private function mutate(Scan $scan, Workspace $workspace, Analysis $analysis, array $tests, ?int $budget = null): array
     {
-        $budget = max(0, (int) config('scanner.mutation.budget'));
+        $budget = max(0, $budget ?? (int) config('scanner.mutation.budget'));
         $recheckBefore = now()->subDays(max(1, (int) config('scanner.mutation.recheck_days')));
         $index = [];
 
@@ -225,7 +245,7 @@ class Scanner
             }
         }
 
-        if (count($queue) > $budget) {
+        if (count($queue) > $budget && ! $scan->isPullRequest()) {
             $workspace->notes[] = sprintf('%d tested method(s) are still waiting for a mutation check; the budget is %d per scan.', count($queue) - $budget, $budget);
         }
 
@@ -308,49 +328,157 @@ class Scanner
             $existing->reject(fn (Surface $s, string $key) => isset($seen[$key]) || $s->removed_at !== null)
                 ->each(fn (Surface $s) => $s->update(['removed_at' => now(), 'status' => null, 'reason' => null]));
 
-            $testRows = array_map(fn (TestRecord $t) => [
-                'scan_id' => $scan->id,
-                'test_id' => $t->id,
-                'file' => $t->file,
-                'name' => Str::limit($t->name, 1000, ''),
-                'outcome' => $t->outcome->value,
-                'assertions' => $t->assertions,
-                'duration_ms' => $t->durationMs,
-                'surfaces_count' => $analysis->testSurfaceCounts[$t->id] ?? 0,
-                'message' => $t->message,
-            ], $tests);
+            $this->insertTests($scan, $analysis, $tests);
 
-            foreach (array_chunk($testRows, 500) as $chunk) {
-                DB::table('scan_tests')->insert($chunk);
-            }
-
-            $count = fn (TestOutcome ...$outcomes) => count(array_filter($tests, fn (TestRecord $t) => in_array($t->outcome, $outcomes, true)));
             $mutated = fn (MutationResult $r) => count(array_filter($mutations, fn (array $m) => $m['result'] === $r));
 
             $scan->update([
-                'status' => ScanStatus::Completed,
+                ...$this->summary($analysis, $tests),
                 'previous_scan_id' => $previous?->id,
-                'tests_total' => count($tests),
-                'tests_passed' => $count(TestOutcome::Passed),
-                'tests_failed' => $count(TestOutcome::Failed, TestOutcome::Errored),
-                'tests_skipped' => $count(TestOutcome::Skipped, TestOutcome::Incomplete),
-                'tests_risky' => $count(TestOutcome::Risky),
-                'assertions' => array_sum(array_map(fn (TestRecord $t) => $t->assertions, $tests)),
-                'surfaces_total' => count($analysis->results),
-                'surfaces_tested' => $analysis->count(SurfaceStatus::Tested),
-                'surfaces_weak' => $analysis->count(SurfaceStatus::Weak),
-                'surfaces_missing' => $analysis->count(SurfaceStatus::Missing),
                 'surfaces_new_untested' => $changes[SurfaceChange::NewUntested->value] ?? 0,
                 'surfaces_lost' => $changes[SurfaceChange::Lost->value] ?? 0,
                 'surfaces_gained' => $changes[SurfaceChange::Gained->value] ?? 0,
                 'mutants_killed' => $mutated(MutationResult::Killed),
                 'mutants_survived' => $mutated(MutationResult::Survived),
-                'score' => $analysis->score(),
                 'output' => Str::limit($output, 60000, ''),
                 'notes' => $notes ?: null,
-                'finished_at' => now(),
             ]);
         });
+    }
+
+    /**
+     * A pull request scan reports and changes nothing: no surface rows, no
+     * ratchet, no mutation verdicts — only its tests, its numbers, and its
+     * verdict against the main scan of the commit it merges onto.
+     *
+     * @param  list<TestRecord>  $tests
+     * @param  list<string>  $notes
+     */
+    private function recordPullRequest(Scan $scan, Scan $base, Analysis $analysis, array $tests, string $output, array $notes): void
+    {
+        $statuses = DB::table('scan_surfaces')
+            ->join('surfaces', 'surfaces.id', '=', 'scan_surfaces.surface_id')
+            ->where('scan_surfaces.scan_id', $base->id)
+            ->get(['surfaces.kind', 'surfaces.identifier', 'scan_surfaces.status'])
+            ->mapWithKeys(fn ($row) => [$row->kind.'|'.$row->identifier => SurfaceStatus::from($row->status)])
+            ->all();
+
+        $baseFailing = $base->tests()
+            ->whereIn('outcome', [TestOutcome::Failed, TestOutcome::Errored])
+            ->pluck('test_id')
+            ->mapWithKeys(fn (string $id) => [$id => true])
+            ->all();
+
+        $verdict = app(PullRequestVerdict::class)->judge($analysis, $statuses, $baseFailing, $tests);
+
+        DB::transaction(function () use ($scan, $analysis, $tests, $output, $notes, $verdict) {
+            $this->insertTests($scan, $analysis, $tests);
+
+            $scan->update([
+                ...$this->summary($analysis, $tests),
+                'verdict' => $verdict['pass'] ? 'pass' : 'fail',
+                'verdict_detail' => $verdict,
+                'output' => Str::limit($output, 60000, ''),
+                'notes' => $notes ?: null,
+            ]);
+        });
+    }
+
+    /**
+     * @param  list<TestRecord>  $tests
+     * @return array<string, mixed>
+     */
+    private function summary(Analysis $analysis, array $tests): array
+    {
+        $count = fn (TestOutcome ...$outcomes) => count(array_filter($tests, fn (TestRecord $t) => in_array($t->outcome, $outcomes, true)));
+
+        return [
+            'status' => ScanStatus::Completed,
+            'tests_total' => count($tests),
+            'tests_passed' => $count(TestOutcome::Passed),
+            'tests_failed' => $count(TestOutcome::Failed, TestOutcome::Errored),
+            'tests_skipped' => $count(TestOutcome::Skipped, TestOutcome::Incomplete),
+            'tests_risky' => $count(TestOutcome::Risky),
+            'assertions' => array_sum(array_map(fn (TestRecord $t) => $t->assertions, $tests)),
+            'surfaces_total' => count($analysis->results),
+            'surfaces_tested' => $analysis->count(SurfaceStatus::Tested),
+            'surfaces_weak' => $analysis->count(SurfaceStatus::Weak),
+            'surfaces_missing' => $analysis->count(SurfaceStatus::Missing),
+            'score' => $analysis->score(),
+            'finished_at' => now(),
+        ];
+    }
+
+    /**
+     * @param  list<TestRecord>  $tests
+     */
+    private function insertTests(Scan $scan, Analysis $analysis, array $tests): void
+    {
+        $rows = array_map(fn (TestRecord $t) => [
+            'scan_id' => $scan->id,
+            'test_id' => $t->id,
+            'file' => $t->file,
+            'name' => Str::limit($t->name, 1000, ''),
+            'outcome' => $t->outcome->value,
+            'assertions' => $t->assertions,
+            'duration_ms' => $t->durationMs,
+            'surfaces_count' => $analysis->testSurfaceCounts[$t->id] ?? 0,
+            'message' => $t->message,
+        ], $tests);
+
+        foreach (array_chunk($rows, 500) as $chunk) {
+            DB::table('scan_tests')->insert($chunk);
+        }
+    }
+
+    /**
+     * The main scan a pull request is judged against: the one of the exact
+     * commit it merges onto. If there is none yet, one is requested and the PR
+     * waits; after max_deferrals rounds it settles for the latest main scan,
+     * and says so — a verdict against nearby main beats no verdict.
+     */
+    private function baseFor(Scan $scan, string $baseSha, Workspace $workspace): ?Scan
+    {
+        $exact = Scan::query()->main()
+            ->where('fleet_app_id', $scan->fleet_app_id)
+            ->where('status', ScanStatus::Completed)
+            ->where('commit_sha', $baseSha)
+            ->whereHas('surfaceResults')
+            ->latest('id')
+            ->first();
+
+        if ($exact !== null) {
+            return $exact;
+        }
+
+        if ($scan->deferrals < (int) config('scanner.pull_requests.max_deferrals')) {
+            app(ScanRequester::class)->request($scan->fleetApp);
+
+            return null;
+        }
+
+        $latest = $scan->fleetApp->latestCompletedScan()->first();
+
+        if ($latest !== null) {
+            $workspace->notes[] = 'Main at '.substr($baseSha, 0, 7).' was never scanned, so this was compared with the latest main scan ('.substr((string) $latest->commit_sha, 0, 7).') instead.';
+        }
+
+        return $latest;
+    }
+
+    /**
+     * Put a pull request scan back in the queue until its base is scanned.
+     */
+    private function defer(Scan $scan, string $baseSha): Scan
+    {
+        $scan->update([
+            'status' => ScanStatus::Queued,
+            'started_at' => null,
+            'deferrals' => $scan->deferrals + 1,
+            'notes' => ['Waiting for main at '.substr($baseSha, 0, 7).' to be scanned, to compare with.'],
+        ]);
+
+        return $scan->refresh();
     }
 
     /**
@@ -360,6 +488,7 @@ class Scanner
     private function previousScan(Scan $scan): ?Scan
     {
         return Scan::query()
+            ->main()
             ->where('fleet_app_id', $scan->fleet_app_id)
             ->where('id', '<', $scan->id)
             ->where('status', ScanStatus::Completed)

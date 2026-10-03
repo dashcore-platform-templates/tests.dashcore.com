@@ -23,12 +23,15 @@ class PruneScans extends Command
         $pruned = 0;
 
         foreach (FleetApp::withTrashed()->pluck('id') as $appId) {
-            $old = DB::table('scans')
+            // Main and pull request scans are kept separately, so a busy week
+            // of PRs never prunes the main detail the ratchet compares with.
+            $old = collect(['main', 'pull_request'])->flatMap(fn (string $kind) => DB::table('scans')
                 ->where('fleet_app_id', $appId)
+                ->where('kind', $kind)
                 ->orderByDesc('id')
                 ->offset($keep)
                 ->limit(PHP_INT_MAX)
-                ->pluck('id');
+                ->pluck('id'));
 
             if ($old->isEmpty()) {
                 continue;
