@@ -154,7 +154,13 @@ surfaces (routes, Livewire components/actions, and every public method under
   names the persona roles that do it (`roles()`, default `Sales rep`; the
   owner hands out leads and reviews the pipeline). The page's business pulse
   reads each target's own database (`database`, read only, in its
-  `timezone`) through a `Pulse` class (`App\Simulation\Pulse`).
+  `timezone`) through a `Pulse` class (`App\Simulation\Pulse`). Live
+  coverage: the runner reports what each step reached — pages, Livewire calls
+  (`name@method`, read from the update request's snapshot) and components on
+  screen — `LiveCoverage` keeps a per-target tally (`simulation_reach`) and
+  maps it onto the target's fleet app surfaces (`fleet_app`, default the
+  target key); the fleet page marks those surfaces "live". Calls that map to
+  no surface are listed as gaps in the scan's own inventory.
 
 ## NavigationRegistry Contract
 

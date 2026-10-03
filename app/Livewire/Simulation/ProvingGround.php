@@ -8,6 +8,7 @@ use App\Models\SimulationFinding;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Services\PermissionService;
+use App\Simulation\LiveCoverage;
 use App\Simulation\Simulation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -172,6 +173,25 @@ class ProvingGround extends Component
     public function pulse(): array
     {
         return app(Simulation::class)->pulse();
+    }
+
+    /**
+     * Per app, which of its surfaces journeys reach — and which of those no
+     * test proves.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    #[Computed]
+    public function coverage(): array
+    {
+        $coverage = app(LiveCoverage::class);
+
+        return collect(array_keys(config('simulation.targets', [])))
+            ->mapWithKeys(fn (string $target) => [$target => [
+                'name' => config("simulation.targets.{$target}.name", $target),
+                ...$coverage->forTarget($target),
+            ]])
+            ->all();
     }
 
     /**

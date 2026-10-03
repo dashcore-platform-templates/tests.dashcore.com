@@ -93,6 +93,44 @@ const feedbackState = (page) =>
 
 const LOADING_DELAY_MS = 250;
 
+// What the current step reached, in the scanner's own terms: pages loaded
+// ("GET /leads/281"), Livewire actions called ("leads.show@logActivity") and
+// Livewire components on screen ("leads.show"). Mapped onto the app's
+// surfaces on the PHP side.
+let reached = { pages: new Set(), calls: new Set(), mounts: new Set() };
+
+const pageOf = (request) => {
+    const url = new URL(request.url());
+    return `${request.method()} ${url.pathname}`;
+};
+
+const livewireCalls = (request) => {
+    try {
+        const body = JSON.parse(request.postData() ?? '{}');
+        return (body.components ?? []).flatMap((component) => {
+            const name = JSON.parse(component.snapshot ?? '{}')?.memo?.name;
+            return name ? (component.calls ?? []).map((call) => `${name}@${call.method}`) : [];
+        });
+    } catch {
+        return [];
+    }
+};
+
+const mountedComponents = (page) =>
+    page
+        .evaluate(() =>
+            Array.from(document.querySelectorAll('[wire\\:snapshot]'))
+                .map((el) => {
+                    try {
+                        return JSON.parse(el.getAttribute('wire:snapshot'))?.memo?.name ?? null;
+                    } catch {
+                        return null;
+                    }
+                })
+                .filter(Boolean),
+        )
+        .catch(() => []);
+
 const remembered = {};
 const fill = (value) =>
     typeof value === 'string' ? value.replace(/\{([a-z_]+)\}/g, (match, name) => remembered[name] ?? match) : value;
@@ -121,6 +159,12 @@ try {
         if (LIVEWIRE_UPDATE.test(request.url())) {
             livewire.requests++;
             livewireStarted.set(request, Date.now());
+            livewireCalls(request).forEach((call) => reached.calls.add(call));
+        } else if (request.isNavigationRequest() || request.headers()['x-livewire-navigate'] !== undefined) {
+            // A full page load, or wire:navigate fetching the next page.
+            if (request.frame() === page.mainFrame() || request.headers()['x-livewire-navigate'] !== undefined) {
+                reached.pages.add(pageOf(request));
+            }
         }
     });
     const done = (request) => {
@@ -158,6 +202,7 @@ try {
         // yet is not mistaken for a page at rest.
         lastActivity = started;
         livewire = { requests: 0, slowest_ms: 0 };
+        reached = { pages: new Set(), calls: new Set(), mounts: new Set() };
         const feedbackBefore = step.do === 'click' ? await feedbackState(page) : null;
         let error = null;
 
@@ -221,6 +266,7 @@ try {
         }
 
         const ms = Date.now() - started;
+        (await mountedComponents(page)).forEach((name) => reached.mounts.add(name));
 
         // Feedback is only judged for clicks that went to the server, and
         // only on the same page: a full page load starts a fresh count.
@@ -250,6 +296,11 @@ try {
             livewire_requests: livewire.requests,
             livewire_ms: livewire.requests > 0 ? livewire.slowest_ms : null,
             feedback,
+            reached: {
+                pages: [...reached.pages],
+                calls: [...reached.calls],
+                mounts: [...reached.mounts],
+            },
         });
 
         if (error) {

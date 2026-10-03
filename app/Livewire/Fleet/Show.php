@@ -12,6 +12,7 @@ use App\Models\Scan;
 use App\Models\ScanSurface;
 use App\Scanning\ScanRequester;
 use App\Services\PermissionService;
+use App\Simulation\LiveCoverage;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Locked;
@@ -202,6 +203,17 @@ class Show extends Component
             ->orderBy('kind')
             ->orderBy('label')
             ->paginate(50);
+    }
+
+    /**
+     * The surfaces Proving Ground journeys reach in this app, by id.
+     *
+     * @return array<int, true>
+     */
+    #[Computed]
+    public function liveSurfaceIds(): array
+    {
+        return array_fill_keys(app(LiveCoverage::class)->reachedSurfaceIds($this->app), true);
     }
 
     /**
