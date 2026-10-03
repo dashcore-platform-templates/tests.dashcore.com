@@ -59,6 +59,10 @@ return [
 
     'composer' => env('SCANNER_COMPOSER', 'composer'),
 
+    // The GitHub CLI. Workers and the fleet scheduler run under launchd's
+    // minimal PATH, where Homebrew's bin is missing — name it absolutely.
+    'gh' => env('SCANNER_GH', 'gh'),
+
     // Apps are fetched from here over HTTPS (authenticated by gh's git
     // credential helper), not from their checkout's origin, which may be SSH.
     'git_base' => env('SCANNER_GIT_BASE', 'https://github.com'),

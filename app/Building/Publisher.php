@@ -70,7 +70,7 @@ class Publisher
 
         $repo = $build->fleetApp->repo;
         $pr = Process::path($workspace->path)->timeout(120)->run(array_values(array_filter([
-            'gh', 'pr', 'create',
+            (string) config('scanner.gh'), 'pr', 'create',
             $repo ? '--repo' : null, $repo,
             '--base', Str::after((string) $build->base_ref, 'origin/'),
             '--head', (string) $workspace->branch,

@@ -21,7 +21,7 @@ class SyncBuilds extends Command
     public function handle(): int
     {
         Build::query()->where('status', BuildStatus::Opened)->whereNotNull('pr_url')->each(function (Build $build) {
-            $view = Process::timeout(60)->run(['gh', 'pr', 'view', $build->pr_url, '--json', 'state']);
+            $view = Process::timeout(60)->run([(string) config('scanner.gh'), 'pr', 'view', $build->pr_url, '--json', 'state']);
             $state = json_decode($view->output(), true)['state'] ?? null;
 
             $status = match ($state) {

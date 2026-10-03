@@ -39,7 +39,7 @@ class PullRequestStatus
         };
 
         $result = Process::timeout(60)->run([
-            'gh', 'api', '--method', 'POST', "repos/{$repo}/statuses/{$scan->pr_head_sha}",
+            (string) config('scanner.gh'), 'api', '--method', 'POST', "repos/{$repo}/statuses/{$scan->pr_head_sha}",
             '-f', "state={$state}",
             '-f', 'context='.config('scanner.pull_requests.context'),
             '-f', 'description='.mb_substr($description, 0, 140),

@@ -104,8 +104,8 @@ class PullRequestScans
      */
     private function openPullRequests(string $repo): ?array
     {
-        $default = Process::timeout(60)->run(['gh', 'repo', 'view', $repo, '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name']);
-        $list = Process::timeout(60)->run(['gh', 'pr', 'list', '--repo', $repo, '--state', 'open', '--limit', '100', '--json', 'number,headRefOid,baseRefName,isDraft,url']);
+        $default = Process::timeout(60)->run([(string) config('scanner.gh'), 'repo', 'view', $repo, '--json', 'defaultBranchRef', '-q', '.defaultBranchRef.name']);
+        $list = Process::timeout(60)->run([(string) config('scanner.gh'), 'pr', 'list', '--repo', $repo, '--state', 'open', '--limit', '100', '--json', 'number,headRefOid,baseRefName,isDraft,url']);
 
         if ($default->failed() || $list->failed()) {
             return null;

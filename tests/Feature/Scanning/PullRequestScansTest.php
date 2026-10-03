@@ -151,4 +151,15 @@ class PullRequestScansTest extends TestCase
         $this->artisan('tests:scan-prs')->expectsOutputToContain('nothing new');
         $this->assertSame(3, $this->fleetApp->pullRequestScans()->count());
     }
+
+    public function test_the_github_cli_is_called_by_its_configured_path_so_launchd_can_find_it(): void
+    {
+        config(['scanner.gh' => '/opt/homebrew/bin/gh']);
+
+        $this->artisan('tests:scan-prs')->assertSuccessful();
+
+        Process::assertRan(fn ($p) => $p->command[0] === '/opt/homebrew/bin/gh' && $p->command[1] === 'pr');
+        Process::assertRan(fn ($p) => $p->command[0] === '/opt/homebrew/bin/gh' && $p->command[1] === 'api');
+        Process::assertDidntRun(fn ($p) => $p->command[0] === 'gh');
+    }
 }
