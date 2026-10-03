@@ -7,6 +7,10 @@ namespace App\Simulation;
  * browser does for each. Built fresh for every run, so each run types its own
  * fake data. The browser side is simulator/run.mjs; the step kinds here are
  * the ones it knows.
+ *
+ * remember() keeps text from the page under a name, and any later step,
+ * label or the summary can use it as {name}: that is how a journey picks up
+ * an existing record and keeps working on it.
  */
 final class Script
 {
@@ -28,6 +32,22 @@ final class Script
     public function select(string $target, string $value, string $label): self
     {
         return $this->add('select', $label, ['target' => $target, 'value' => $value]);
+    }
+
+    /**
+     * Pick an option by the text a person sees, e.g. an owner's name.
+     */
+    public function choose(string $target, string $option, string $label): self
+    {
+        return $this->add('select', $label, ['target' => $target, 'option' => $option]);
+    }
+
+    /**
+     * Keep an element's text (or a field's value) as {$as} for later steps.
+     */
+    public function remember(string $target, string $as, string $label): self
+    {
+        return $this->add('remember', $label, ['target' => $target, 'as' => $as]);
     }
 
     /**

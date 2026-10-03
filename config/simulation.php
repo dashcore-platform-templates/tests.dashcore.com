@@ -1,7 +1,14 @@
 <?php
 
+use App\Simulation\Journeys\Sales\AdvanceDeal;
+use App\Simulation\Journeys\Sales\AssignLead;
 use App\Simulation\Journeys\Sales\CaptureLead;
+use App\Simulation\Journeys\Sales\CloseLostDeal;
 use App\Simulation\Journeys\Sales\CloseWonDeal;
+use App\Simulation\Journeys\Sales\FollowUpLead;
+use App\Simulation\Journeys\Sales\OpenOpportunity;
+use App\Simulation\Journeys\Sales\ReviewPipeline;
+use App\Simulation\Pulse\SalesPulse;
 
 return [
 
@@ -68,7 +75,8 @@ return [
     | Targets
     |--------------------------------------------------------------------------
     |
-    | The apps journeys run against, and the people who use them. Personas are
+    | The apps journeys run against, the people who use them, and how to read
+    | each one's vital signs for the page's pulse panel. Personas are
     | the users the app's own seeders create (`db:seed` then
     | `db:seed --class=DemoDataSeeder`). Those seeders give every user the
     | literal password "password": a fixture of the fake company, not a secret.
@@ -79,8 +87,15 @@ return [
         'sales' => [
             'name' => 'Sales',
             'base_url' => env('SIMULATION_SALES_URL', 'http://sales.fakecompany.com.test'),
+            // Its database, on this app's own Postgres server, read by the
+            // pulse panel — never written.
+            'database' => env('SIMULATION_SALES_DATABASE', 'sales_fakecompany_com'),
+            // The timezone its timestamps are stored in (its APP_TIMEZONE).
+            'timezone' => env('SIMULATION_SALES_TIMEZONE', 'America/Los_Angeles'),
+            'pulse' => SalesPulse::class,
             'password' => env('SIMULATION_SALES_PASSWORD', 'password'),
             'personas' => [
+                ['name' => 'Admin', 'email' => 'admin@example.com', 'role' => 'Owner'],
                 ['name' => 'Maya Okafor', 'email' => 'maya.okafor@example.com', 'role' => 'Sales rep'],
                 ['name' => 'Daniel Reyes', 'email' => 'daniel.reyes@example.com', 'role' => 'Sales rep'],
                 ['name' => 'Priya Natarajan', 'email' => 'priya.natarajan@example.com', 'role' => 'Sales rep'],
@@ -100,7 +115,13 @@ return [
 
     'journeys' => [
         CaptureLead::class => 3,
+        FollowUpLead::class => 4,
+        OpenOpportunity::class => 2,
+        AdvanceDeal::class => 3,
         CloseWonDeal::class => 2,
+        CloseLostDeal::class => 1,
+        AssignLead::class => 2,
+        ReviewPipeline::class => 1,
     ],
 
 ];

@@ -148,7 +148,13 @@ surfaces (routes, Livewire components/actions, and every public method under
   feedback (the runner watches `wire:loading` elements during the click's
   Livewire request) into findings, grouped by fingerprint; one is resolved
   after `resolve_after` clean runs that could have hit it, and reopened —
-  flagged "came back" — if it returns.
+  flagged "came back" — if it returns. Journeys also work on what is already
+  there: `remember()` keeps text off the page ("the first uncontacted lead")
+  and later steps, labels and the summary use it as `{name}`. Each journey
+  names the persona roles that do it (`roles()`, default `Sales rep`; the
+  owner hands out leads and reviews the pipeline). The page's business pulse
+  reads each target's own database (`database`, read only, in its
+  `timezone`) through a `Pulse` class (`App\Simulation\Pulse`).
 
 ## NavigationRegistry Contract
 

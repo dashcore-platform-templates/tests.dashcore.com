@@ -5,7 +5,9 @@ namespace Tests\Feature\Simulation;
 use App\Enums\FindingKind;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationFinding;
+use App\Simulation\Journeys\Sales\AssignLead;
 use App\Simulation\Journeys\Sales\CaptureLead;
+use App\Simulation\Journeys\Sales\FollowUpLead;
 use App\Simulation\Persona;
 use App\Simulation\Runner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -158,5 +160,37 @@ class RunnerTest extends TestCase
         $this->assertNull($run->steps()->where('position', 0)->first()->feedback);
         $this->assertSame(1, $run->fresh()->findings_count);
         $this->assertSame(FindingKind::DeadSpace, SimulationFinding::sole()->kind);
+    }
+
+    public function test_what_a_journey_remembers_names_the_record_in_its_steps_and_summary(): void
+    {
+        $journey = new FollowUpLead;
+        $remember = collect($journey->script($this->persona(), fake())->steps())->search(fn ($step) => $step['do'] === 'remember');
+
+        Process::fake(['*' => Process::result(output: implode("\n", [
+            json_encode(['event' => 'remember', 'position' => $remember, 'name' => 'lead', 'value' => 'Krista Streich']),
+            json_encode(['event' => 'finished', 'status' => 'failed']),
+        ]))]);
+
+        $run = app(Runner::class)->run($journey, $this->persona());
+
+        $this->assertStringContainsString('Krista Streich', $run->summary);
+        $this->assertStringNotContainsString('{lead}', $run->summary);
+        $this->assertSame(0, $run->steps()->where('label', 'like', '%{lead}%')->count());
+        $this->assertGreaterThan(0, $run->steps()->where('label', 'like', '%Krista Streich%')->count());
+    }
+
+    public function test_choosing_an_option_by_its_text_keeps_the_steps_own_label(): void
+    {
+        Process::fake(['*' => Process::result(output: json_encode(['event' => 'finished', 'status' => 'failed']))]);
+
+        app(Runner::class)->run(new AssignLead, new Persona('Admin', 'admin@example.com', 'secret', 'Owner'));
+
+        Process::assertRan(function (PendingProcess $process) {
+            $choose = collect(json_decode($process->input, true)['steps'])->firstWhere('do', 'select');
+
+            return str_starts_with($choose['label'], 'Admin gives {lead} to ')
+                && in_array($choose['option'], ['Maya Okafor', 'Daniel Reyes', 'Priya Natarajan'], true);
+        });
     }
 }

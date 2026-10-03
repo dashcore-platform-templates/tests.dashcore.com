@@ -58,11 +58,59 @@ class JourneyTest extends TestCase
     {
         $persona = new Persona('Priya Natarajan', 'priya@example.test', 'secret', 'Sales rep');
 
+        $checked = 0;
+
         foreach ($this->journeys() as $journey) {
             $emails = fn () => collect($journey->script($persona, Faker::create())->steps())
                 ->where('target', '#newEmail')->pluck('value')->all();
 
+            if ($emails() === []) {
+                continue;
+            }
+
             $this->assertNotSame($emails(), $emails(), $journey->key());
+            $checked++;
+        }
+
+        $this->assertGreaterThan(0, $checked);
+    }
+
+    public function test_every_journey_has_someone_to_walk_it(): void
+    {
+        foreach ($this->journeys() as $journey) {
+            $persona = app(Simulation::class)->persona($journey->target(), $journey->roles());
+
+            $this->assertContains(
+                collect(config("simulation.targets.{$journey->target()}.personas"))->firstWhere('email', $persona->email)['role'],
+                $journey->roles(),
+                $journey->key(),
+            );
+        }
+    }
+
+    public function test_placeholders_only_use_names_the_journey_remembers_first(): void
+    {
+        $persona = new Persona('Priya Natarajan', 'priya@example.test', 'secret', 'Sales rep');
+
+        foreach ($this->journeys() as $journey) {
+            $script = $journey->script($persona, fake());
+            $known = [];
+
+            foreach ($script->steps() as $step) {
+                $used = [];
+                preg_match_all('/\{([a-z_]+)\}/', implode(' ', array_filter($step, 'is_string')), $used);
+
+                foreach ($used[1] as $name) {
+                    $this->assertContains($name, $known, "{$journey->key()}: \"{$step['label']}\" uses {{$name}} before it is remembered.");
+                }
+
+                if ($step['do'] === 'remember') {
+                    $known[] = $step['as'];
+                }
+            }
+
+            preg_match_all('/\{([a-z_]+)\}/', (string) $script->getSummary(), $used);
+            $this->assertEmpty(array_diff($used[1], $known), "{$journey->key()}: the summary uses a name nothing remembers.");
         }
     }
 
