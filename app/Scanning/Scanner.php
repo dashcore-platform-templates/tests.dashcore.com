@@ -77,6 +77,8 @@ class Scanner
                 $workspace->notes[] = "{$this->reader->skipped} probe line(s) were incomplete and skipped — the suite may have died mid-test.";
             }
 
+            $tests = $this->recheckFailures($workspace, $tests);
+
             $analysis = $this->analyzer->analyse($surfaces, $tests);
 
             $scan->update(['status' => ScanStatus::Mutating]);
@@ -101,6 +103,52 @@ class Scanner
         }
 
         return $scan->refresh();
+    }
+
+    /**
+     * Coverage makes a suite several times slower, so a test that asserts how
+     * long something takes can fail only because it was measured. Each failing
+     * test's file is run once more without coverage; a test that passes then
+     * is recorded as passing — what it executed under coverage still stands as
+     * evidence — and the scan says which tests those were.
+     *
+     * @param  list<TestRecord>  $tests
+     * @return list<TestRecord>
+     */
+    private function recheckFailures(Workspace $workspace, array $tests): array
+    {
+        $failing = array_filter($tests, fn (TestRecord $t) => $t->outcome->isFailure());
+        $files = array_values(array_unique(array_filter(array_map(fn (TestRecord $t) => $t->file, $failing))));
+
+        if ($files === []) {
+            return $tests;
+        }
+
+        $again = [];
+
+        foreach ($this->reader->read($this->runner->runFiles($workspace, $files, 'recheck', (int) config('scanner.timeout'))['probe']) as $record) {
+            $again[$record->id] = $record;
+        }
+
+        $passed = [];
+
+        $tests = array_map(function (TestRecord $test) use ($again, &$passed) {
+            $retry = $again[$test->id] ?? null;
+
+            if (! $test->outcome->isFailure() || $retry === null || $retry->outcome !== TestOutcome::Passed) {
+                return $test;
+            }
+
+            $passed[] = $test->name;
+
+            return new TestRecord($test->id, $test->file, $test->name, TestOutcome::Passed, $retry->assertions, $test->durationMs, null, $test->keys, $test->lines);
+        }, $tests);
+
+        if ($passed !== []) {
+            $workspace->notes[] = count($passed).' test(s) failed only under coverage and passed when run again without it (timing or flakiness): '.implode('; ', array_slice($passed, 0, 10));
+        }
+
+        return $tests;
     }
 
     /**
