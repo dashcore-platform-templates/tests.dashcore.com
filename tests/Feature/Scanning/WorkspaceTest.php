@@ -138,6 +138,38 @@ class WorkspaceTest extends TestCase
         $this->assertSame('<phpunit><!-- half edited', file_get_contents($this->repo.'/phpunit.xml'), 'the live checkout is untouched');
     }
 
+    public function test_a_pull_request_resolves_to_its_merge_and_the_main_commit_it_merges_onto(): void
+    {
+        $origin = $this->scannerRoot.'/origin.git';
+        Process::run(['git', 'init', '--quiet', '--bare', $origin])->throw();
+        $this->git('remote', 'add', 'origin', $origin);
+        $this->git('push', '--quiet', 'origin', 'main');
+        $main = trim($this->git('rev-parse', 'HEAD'));
+
+        // GitHub's merge ref: main merged with the PR's head.
+        $this->git('checkout', '--quiet', '-b', 'feature');
+        file_put_contents($this->repo.'/feature.txt', 'x');
+        $this->git('add', 'feature.txt');
+        $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '--quiet', '-m', 'Add exports');
+        $this->git('checkout', '--quiet', 'main');
+        $this->git('-c', 'user.email=t@t', '-c', 'user.name=t', 'merge', '--quiet', '--no-ff', '--no-edit', 'feature');
+        $this->git('push', '--quiet', 'origin', 'HEAD:refs/pull/7/merge');
+        $merge = trim($this->git('rev-parse', 'HEAD'));
+        $this->git('reset', '--quiet', '--hard', $main);
+
+        $scan = $this->fleetApp->scans()->create(['kind' => 'pull_request', 'status' => 'queued', 'pr_number' => 7]);
+        $revision = (new Workspace($this->fleetApp, $scan))->resolvePullRequest(7);
+
+        $this->assertSame($merge, $revision['sha']);
+        $this->assertSame($main, $revision['base'], 'compared with the main it merges onto');
+        $this->assertSame('Add exports', $revision['subject']);
+        $this->assertSame('tests_scan_unit_demo_pr7', (new Workspace($this->fleetApp, $scan))->database);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Pull request #8 has no merge ref');
+        (new Workspace($this->fleetApp, $scan))->resolvePullRequest(8);
+    }
+
     public function test_configured_directories_go_in_front_of_path(): void
     {
         config(['scanner.path' => '/opt/node/bin']);

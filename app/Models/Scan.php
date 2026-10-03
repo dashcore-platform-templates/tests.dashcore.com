@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Enums\ScanKind;
 use App\Enums\ScanStatus;
 use Database\Factories\ScanFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,6 +22,8 @@ class Scan extends Model
     {
         return [
             'status' => ScanStatus::class,
+            'kind' => ScanKind::class,
+            'verdict_detail' => 'array',
             'score' => 'decimal:2',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
@@ -30,6 +34,22 @@ class Scan extends Model
     public function fleetApp(): BelongsTo
     {
         return $this->belongsTo(FleetApp::class);
+    }
+
+    public function isPullRequest(): bool
+    {
+        return $this->kind === ScanKind::PullRequest;
+    }
+
+    public function baseScan(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'base_scan_id');
+    }
+
+    /** @param  Builder<Scan>  $query */
+    public function scopeMain(Builder $query): void
+    {
+        $query->where('kind', ScanKind::Main);
     }
 
     public function previousScan(): BelongsTo

@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Enums\ScanStatus;
 use App\Models\Scan;
+use App\Scanning\PullRequestStatus;
 use App\Scanning\Scanner;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -27,16 +28,27 @@ class RunScan implements ShouldQueue
     {
         $this->timeout = (int) config('scanner.timeout') + 1200;
         $this->onConnection(config('scanner.queue.connection'));
-        $this->onQueue(config('scanner.queue.queue'));
+        $this->onQueue($scan->isPullRequest() ? config('scanner.pull_requests.queue') : config('scanner.queue.queue'));
     }
 
-    public function handle(Scanner $scanner): void
+    public function handle(Scanner $scanner, PullRequestStatus $status): void
     {
         if ($this->scan->status !== ScanStatus::Queued) {
             return;
         }
 
-        $scanner->run($this->scan);
+        $scan = $scanner->run($this->scan);
+
+        if (! $scan->isPullRequest()) {
+            return;
+        }
+
+        $status->publish($scan);
+
+        // Still queued means it is waiting for its base to be scanned.
+        if ($scan->status === ScanStatus::Queued) {
+            self::dispatch($scan)->delay(now()->addMinutes(10));
+        }
     }
 
     public function failed(?Throwable $e): void
@@ -49,6 +61,8 @@ class RunScan implements ShouldQueue
                 'error' => 'The scan worker stopped before the scan finished'.($e ? ': '.$e->getMessage() : '.'),
                 'finished_at' => now(),
             ]);
+
+            app(PullRequestStatus::class)->publish($this->scan);
         }
     }
 }

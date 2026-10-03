@@ -4,7 +4,7 @@
     <div class="mb-6">
         <a href="{{ route('fleet.show', $scan->fleetApp->key) }}" wire:navigate class="text-xs text-surface-500 hover:text-surface-300">&larr; {{ $scan->fleetApp->name }}</a>
         <div class="mt-1 flex flex-wrap items-center gap-3">
-            <h1 class="text-2xl font-bold text-surface-100">Scan #{{ $scan->id }}</h1>
+            <h1 class="text-2xl font-bold text-surface-100">{{ $scan->isPullRequest() ? 'Pull request #'.$scan->pr_number : 'Scan #'.$scan->id }}</h1>
             <x-scan-status :scan="$scan" />
         </div>
         <p class="text-sm text-surface-400 mt-1">
@@ -36,6 +36,29 @@
                     <li>{{ $note }}</li>
                 @endforeach
             </ul>
+        </div>
+    @endif
+
+    @if ($scan->isPullRequest() && $scan->status->value === 'completed' && $scan->verdict_detail)
+        @php $verdict = $scan->verdict_detail; @endphp
+        <div @class(['card-os mb-6 px-4 py-3 border', 'border-success-500/40' => $scan->verdict === 'pass', 'border-red-500/40' => $scan->verdict !== 'pass'])>
+            <p @class(['text-sm font-medium', 'text-success-500' => $scan->verdict === 'pass', 'text-red-400' => $scan->verdict !== 'pass'])>
+                {{ $scan->verdict === 'pass' ? 'Keeps the ratchet — no new untested code, no lost coverage, no new failures' : 'Blocked — this pull request lowers the bar' }}
+            </p>
+            <p class="text-xs text-surface-500 mt-1">
+                Compared with main at <span class="font-mono">{{ substr((string) $scan->baseScan?->commit_sha, 0, 7) }}</span>.
+                <a href="{{ $scan->pr_url }}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-500">Open the pull request &nearr;</a>
+            </p>
+            @foreach (['new_untested' => 'New code no test proves', 'lost' => 'Coverage lost since main', 'new_failures' => 'New failing tests', 'newly_tested' => 'Newly tested'] as $key => $title)
+                @if (! empty($verdict[$key]))
+                    <p @class(['mt-3 text-xs font-medium uppercase tracking-wider', 'text-success-500' => $key === 'newly_tested', 'text-red-400' => $key !== 'newly_tested'])>{{ $title }} ({{ count($verdict[$key]) }})</p>
+                    <ul class="mt-1 space-y-0.5">
+                        @foreach ($verdict[$key] as $item)
+                            <li class="font-mono text-xs text-surface-300 break-all">{{ $item }}</li>
+                        @endforeach
+                    </ul>
+                @endif
+            @endforeach
         </div>
     @endif
 

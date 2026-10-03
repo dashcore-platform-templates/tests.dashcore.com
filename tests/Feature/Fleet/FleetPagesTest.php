@@ -254,4 +254,30 @@ class FleetPagesTest extends TestCase
             ->test(Index::class)
             ->assertSeeInOrder(['Weak', 'Strong', 'Alpha']);
     }
+
+    public function test_pull_requests_show_on_the_app_page_and_their_verdict_on_the_scan_page(): void
+    {
+        $app = $this->scannedApp();
+        $pr = Scan::factory()->for($app)->create([
+            'kind' => 'pull_request', 'pr_number' => 42, 'pr_url' => 'https://github.com/x/finance/pull/42', 'pr_head_sha' => str_repeat('4', 40),
+            'status' => ScanStatus::Completed, 'score' => 88, 'base_scan_id' => $app->scans()->main()->value('id'),
+            'verdict' => 'fail', 'verdict_detail' => ['pass' => false, 'new_untested' => ['Routes: GET /exports'], 'lost' => [], 'newly_tested' => ['Jobs: SendReport::handle'], 'new_failures' => []],
+        ]);
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(Show::class, ['appKey' => 'finance'])
+            ->assertSee('#42')
+            ->assertSee('Blocked')
+            ->assertSee('1 new untested');
+
+        Livewire::actingAs(User::factory()->create())
+            ->test(ScanShow::class, ['scanId' => $pr->id])
+            ->assertSee('Pull request #42')
+            ->assertSee('this pull request lowers the bar')
+            ->assertSee('New code no test proves (1)')
+            ->assertSee('Routes: GET /exports')
+            ->assertSee('Newly tested (1)');
+
+        $this->assertSame($app->scans()->main()->value('id'), $app->fresh()->latestScan->id, 'the matrix still shows main');
+    }
 }
