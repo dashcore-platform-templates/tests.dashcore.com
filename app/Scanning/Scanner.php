@@ -8,6 +8,7 @@ use App\Enums\ScanStatus;
 use App\Enums\SurfaceChange;
 use App\Enums\SurfaceStatus;
 use App\Enums\TestOutcome;
+use App\Library\Library;
 use App\Models\Scan;
 use App\Models\Surface;
 use App\Scanning\Evidence\ProbeReader;
@@ -85,6 +86,15 @@ class Scanner
             [$analysis, $mutations] = $this->mutate($scan, $workspace, $analysis, $tests);
 
             $this->record($scan, $analysis, $mutations, $tests, $run['output'], [...$workspace->notes, ...$this->inventory->notes]);
+
+            // The library keeps the tests themselves, at this commit. It must
+            // never cost a scan its verdict, so a failure here is only noted.
+            try {
+                app(Library::class)->captureScan($scan->refresh());
+            } catch (Throwable $e) {
+                report($e);
+                $scan->update(['notes' => [...($scan->notes ?? []), 'The test library could not be updated: '.Str::limit($e->getMessage(), 300)]]);
+            }
         } catch (Throwable $e) {
             report($e);
 
