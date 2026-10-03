@@ -31,4 +31,19 @@ class RouteInventoryTest extends TestCase
     {
         $this->assertSame([], (new RouteInventory)->fromJson('Your application doesn\'t have any routes.'));
     }
+
+    public function test_livewire_full_page_routes_are_picked_out_of_the_full_list(): void
+    {
+        $json = json_encode([
+            ['method' => 'GET|HEAD', 'uri' => 'transactions', 'name' => 'transactions.index', 'action' => 'Livewire\\Mechanisms\\HandleRouting\\LivewirePageController', 'middleware' => ['web', 'auth']],
+            ['method' => 'GET|HEAD', 'uri' => 'settings/profile', 'name' => 'profile', 'action' => 'Livewire\\Volt\\VoltManager@route', 'middleware' => ['web']],
+            ['method' => 'GET|HEAD', 'uri' => 'telescope/{view?}', 'name' => 'telescope', 'action' => 'Laravel\\Telescope\\Http\\Controllers\\HomeController@index', 'middleware' => ['web']],
+            ['method' => 'GET|HEAD', 'uri' => 'reports', 'name' => 'reports', 'action' => 'ReportController@index', 'middleware' => ['web']],
+        ]);
+
+        $pages = (new RouteInventory)->livewirePagesFromJson($json);
+
+        $this->assertSame(['GET transactions', 'GET settings/profile'], array_map(fn ($s) => $s->identifier, $pages));
+        $this->assertSame('transactions.index', $pages[0]->meta['name']);
+    }
 }

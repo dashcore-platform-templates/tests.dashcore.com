@@ -34,6 +34,22 @@ class Inventory
 
         $routeSurfaces = $routes->successful() ? $this->routes->fromJson($routes->output()) : [];
 
+        // Livewire full-page routes, which --except-vendor leaves out.
+        $all = Process::path($root)
+            ->timeout(300)
+            ->env($environment)
+            ->run([$php, 'artisan', 'route:list', '--json']);
+
+        if ($routes->successful() && $all->successful()) {
+            $listed = array_flip(array_map(fn (DiscoveredSurface $s) => $s->identifier, $routeSurfaces));
+
+            foreach ($this->routes->livewirePagesFromJson($all->output()) as $page) {
+                if (! isset($listed[$page->identifier])) {
+                    $routeSurfaces[] = $page;
+                }
+            }
+        }
+
         if ($routes->failed()) {
             $this->notes[] = 'Routes could not be listed, so none are counted: '.Str::limit(trim($routes->errorOutput() ?: $routes->output()), 500);
         }
