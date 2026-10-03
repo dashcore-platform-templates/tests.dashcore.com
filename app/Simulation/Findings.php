@@ -29,7 +29,7 @@ class Findings
 
         DB::transaction(function () use ($run, $hits) {
             foreach ($hits as $hit) {
-                $this->hit($run, $hit);
+                $this->hit($run->target, $hit, $run);
             }
 
             $this->creditCleanRuns($run, array_keys($hits));
@@ -98,9 +98,26 @@ class Findings
     }
 
     /**
+     * Something the server side of an app did that no run can be blamed for:
+     * an error in its log, a job that failed.
+     */
+    public function recordMonitored(string $target, FindingKind $kind, string $fingerprint, string $title, ?string $detail): void
+    {
+        DB::transaction(fn () => $this->hit($target, [
+            'kind' => $kind,
+            'fingerprint' => Str::limit("{$target}|{$fingerprint}", 490, ''),
+            'journey' => null,
+            'position' => null,
+            'step_position' => null,
+            'title' => Str::limit($title, 250),
+            'detail' => $detail === null ? null : Str::limit($detail, 4000),
+        ]));
+    }
+
+    /**
      * @param  array{kind: FindingKind, fingerprint: string, journey: ?string, position: ?int, step_position: ?int, title: string, detail: ?string}  $hit
      */
-    private function hit(SimulationRun $run, array $hit): void
+    private function hit(string $target, array $hit, ?SimulationRun $run = null): void
     {
         $finding = SimulationFinding::query()
             ->where('kind', $hit['kind'])
@@ -111,7 +128,7 @@ class Findings
         $seen = [
             'title' => $hit['title'],
             'detail' => $hit['detail'],
-            'last_run_id' => $run->id,
+            'last_run_id' => $run?->id,
             'last_position' => $hit['step_position'],
             'last_seen_at' => now(),
             'clean_runs' => 0,
@@ -122,7 +139,7 @@ class Findings
                 ...$seen,
                 'kind' => $hit['kind'],
                 'fingerprint' => $hit['fingerprint'],
-                'target' => $run->target,
+                'target' => $target,
                 'journey' => $hit['journey'],
                 'position' => $hit['position'],
                 'status' => FindingStatus::Open,
@@ -156,6 +173,7 @@ class Findings
         $passedPositions = $passed->pluck('position')->all();
         $passedElements = $passed->map(fn (SimulationStep $step) => $this->element($run, $step))->all();
         $resolveAfter = max(1, (int) config('simulation.findings.resolve_after'));
+        $quietAfter = max(1, (int) config('simulation.findings.resolve_monitored_after'));
 
         SimulationFinding::query()
             ->where('status', FindingStatus::Open)
@@ -168,10 +186,10 @@ class Findings
                 $finding->kind->isElementScoped() => in_array($finding->fingerprint, $passedElements, true),
                 default => $run->status === SimulationStatus::Passed,
             })
-            ->each(function (SimulationFinding $finding) use ($resolveAfter) {
+            ->each(function (SimulationFinding $finding) use ($resolveAfter, $quietAfter) {
                 $finding->clean_runs++;
 
-                if ($finding->clean_runs >= $resolveAfter) {
+                if ($finding->clean_runs >= ($finding->kind->isMonitored() ? $quietAfter : $resolveAfter)) {
                     $finding->status = FindingStatus::Resolved;
                     $finding->resolved_at = now();
                 }

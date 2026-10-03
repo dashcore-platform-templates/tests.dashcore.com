@@ -101,6 +101,72 @@
         </div>
     </div>
 
+    {{-- Under load --}}
+    @php
+        $load = $this->load;
+        $ms = fn (?int $value) => $value === null ? '—' : ($value >= 1000 ? number_format($value / 1000, 1).'s' : $value.'ms');
+        $versus = function (?int $now, ?int $then) {
+            if ($now === null || ! $then) {
+                return null;
+            }
+            $change = (int) round(($now - $then) / $then * 100);
+
+            return ($change >= 0 ? '+' : '').$change.'% since switched on';
+        };
+    @endphp
+    <div class="card-os mb-6">
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-surface-800 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Under load</p>
+            <div class="flex items-center gap-2">
+                <span class="text-xs text-surface-500">People at once</span>
+                <div class="flex overflow-hidden rounded-md ring-1 ring-surface-700">
+                    @foreach (range(1, \App\Simulation\Simulation::MAX_CONCURRENCY) as $n)
+                        @if ($this->canManage)
+                            <button type="button" wire:click="setPeople({{ $n }})" wire:loading.attr="disabled" wire:target="setPeople({{ $n }})"
+                                class="px-2.5 py-1 font-mono text-xs transition-colors disabled:opacity-50 {{ $this->people === $n ? 'bg-accent-500 text-white' : 'text-surface-300 hover:bg-surface-800' }}">{{ $n }}</button>
+                        @else
+                            <span class="px-2.5 py-1 font-mono text-xs {{ $this->people === $n ? 'bg-accent-500 text-white' : 'text-surface-500' }}">{{ $n }}</span>
+                        @endif
+                    @endforeach
+                </div>
+            </div>
+        </div>
+        <dl class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="px-4 py-3">
+                <dt class="text-xs text-surface-500">In flight</dt>
+                <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ $load['in_flight'] }}<span class="text-xs text-surface-500">/{{ $this->people }}</span></dd>
+                <dd class="text-[11px] text-surface-500">journeys running now</dd>
+            </div>
+            <div class="px-4 py-3">
+                <dt class="text-xs text-surface-500">Per hour</dt>
+                <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ number_format($load['per_hour']) }}</dd>
+                <dd class="text-[11px] text-surface-500">journeys finished</dd>
+            </div>
+            <div class="px-4 py-3">
+                <dt class="text-xs text-surface-500">Step time p50 · p95</dt>
+                <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ $ms($load['now']['p50']) }} · {{ $ms($load['now']['p95']) }}</dd>
+                <dd class="text-[11px] text-surface-500">{{ $versus($load['now']['p95'], $load['start']['p95'] ?? null) ?? 'clicks and page loads, last 15 min' }}</dd>
+            </div>
+            <div class="px-4 py-3">
+                <dt class="text-xs text-surface-500">Livewire p95</dt>
+                <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ $ms($load['now']['livewire_p95']) }}</dd>
+                <dd class="text-[11px] text-surface-500">{{ $versus($load['now']['livewire_p95'], $load['start']['livewire_p95'] ?? null) ?? 'server round trips, last 15 min' }}</dd>
+            </div>
+            @foreach ($load['targets'] as $key => $health)
+                <div class="px-4 py-3" wire:key="health-queue-{{ $key }}">
+                    <dt class="text-xs text-surface-500">{{ $health['name'] }} queue</dt>
+                    <dd class="mt-0.5 font-mono text-lg font-semibold {{ ($health['waiting'] ?? 0) > 0 ? 'text-warning-500' : 'text-surface-100' }}">{{ $health['waiting'] ?? '—' }}</dd>
+                    <dd class="text-[11px] {{ ($health['failed'] ?? 0) > 0 ? 'text-red-400' : 'text-surface-500' }}">waiting · {{ $health['failed'] ?? '—' }} failed</dd>
+                </div>
+                <div class="px-4 py-3" wire:key="health-db-{{ $key }}">
+                    <dt class="text-xs text-surface-500">{{ $health['name'] }} database</dt>
+                    <dd class="mt-0.5 font-mono text-lg font-semibold text-surface-100">{{ $health['database_bytes'] ? \Illuminate\Support\Number::fileSize($health['database_bytes']) : '—' }}</dd>
+                    <dd class="text-[11px] text-surface-500">{{ $health['error'] ? 'could not read it' : 'on disk' }}</dd>
+                </div>
+            @endforeach
+        </dl>
+    </div>
+
     {{-- Business pulse --}}
     @foreach ($this->pulse as $key => $pulse)
         <div class="card-os mb-6" wire:key="pulse-{{ $key }}">
@@ -297,6 +363,8 @@
         $kindClasses = [
             'breaks' => 'bg-red-500/15 text-red-400',
             'server_error' => 'bg-red-500/15 text-red-400',
+            'log_error' => 'bg-red-500/15 text-red-400',
+            'failed_job' => 'bg-red-500/15 text-red-400',
             'console_error' => 'bg-warning-500/15 text-warning-500',
             'dead_space' => 'bg-warning-500/15 text-warning-500',
             'slow' => 'bg-surface-800 text-surface-300',

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Console\Commands\Simulate;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
 use App\Simulation\Simulation;
@@ -50,8 +51,39 @@ class SimulateCommandTest extends TestCase
         $this->artisan('tests:simulate', ['--max-runs' => 3])->assertSuccessful();
 
         $this->assertSame(3, SimulationRun::count());
+        $this->assertSame(0, SimulationRun::query()->where('status', 'running')->count());
         Process::assertRanTimes(fn () => true, 3);
-        Sleep::assertSleptTimes(2 * (int) config('simulation.pause'));
+    }
+
+    public function test_it_keeps_as_many_journeys_in_flight_as_people_are_set_to_work(): void
+    {
+        config(['simulation.pause' => 0]);
+        Process::fake(['*' => Process::describe()->output(json_encode(['event' => 'finished', 'status' => 'failed']))->iterations(40)]);
+        app(Simulation::class)->turnOn();
+        app(Simulation::class)->setConcurrency(3);
+
+        $this->artisan('tests:simulate', ['--max-runs' => 3])->assertSuccessful();
+
+        $runs = SimulationRun::query()->orderBy('id')->get();
+        $this->assertCount(3, $runs);
+        // Each one started before the first had finished.
+        $this->assertTrue($runs[2]->started_at->lte($runs[0]->finished_at));
+    }
+
+    public function test_switched_off_it_starts_nothing_new(): void
+    {
+        app(Simulation::class)->turnOff();
+        $worker = new Simulate;
+
+        Sleep::whenFakingSleep(function () use ($worker) {
+            $worker->handleSignal(SIGTERM);
+        });
+
+        $this->app->instance(Simulate::class, $worker);
+        $this->artisan('tests:simulate')->assertSuccessful();
+
+        $this->assertSame(0, SimulationRun::count());
+        Process::assertNothingRan();
     }
 
     public function test_it_marks_runs_left_by_a_dead_worker_stopped_before_starting(): void

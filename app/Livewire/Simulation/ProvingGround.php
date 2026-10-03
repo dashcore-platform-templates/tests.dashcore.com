@@ -14,6 +14,7 @@ use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Services\PermissionService;
 use App\Simulation\LiveCoverage;
+use App\Simulation\Monitor;
 use App\Simulation\Simulation;
 use App\Simulation\Trials;
 use Illuminate\Support\Carbon;
@@ -47,6 +48,15 @@ class ProvingGround extends Component
         $simulation->isOn() ? $simulation->turnOff() : $simulation->turnOn();
 
         unset($this->on);
+    }
+
+    public function setPeople(int $people, Simulation $simulation): void
+    {
+        $this->authorizeFull();
+
+        $simulation->setConcurrency($people);
+
+        unset($this->people);
     }
 
     public function watch(int $runId): void
@@ -186,6 +196,28 @@ class ProvingGround extends Component
     public function onSince(): ?Carbon
     {
         return app(Simulation::class)->onSince();
+    }
+
+    #[Computed]
+    public function people(): int
+    {
+        return app(Simulation::class)->concurrency();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    #[Computed]
+    public function load(): array
+    {
+        $monitor = app(Monitor::class);
+
+        return [
+            ...app(Simulation::class)->load(),
+            'targets' => collect(config('simulation.targets', []))
+                ->map(fn (array $target, string $key) => ['name' => $target['name'] ?? $key, ...$monitor->health($key)])
+                ->all(),
+        ];
     }
 
     #[Computed]

@@ -5,29 +5,21 @@ namespace App\Simulation;
 use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationRun;
-use App\Models\SimulationStep;
 use Faker\Factory as Faker;
-use Illuminate\Process\Exceptions\ProcessTimedOutException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 
 /**
- * Walks one journey: records the run and its steps, hands the script to the
+ * Walks journeys: records each run and its steps, hands the script to the
  * browser (simulator/run.mjs), and writes each event back as it arrives so
- * the page can follow along.
+ * the page can follow along. start() leaves the browser running and returns
+ * its session, so the worker can keep several journeys going at once;
+ * run() is start, wait and finish in one.
  */
 class Runner
 {
-    private const CONSOLE_LIMIT = 20;
-
-    /** @var array<string, string> what the journey has remembered so far */
-    private array $remembered = [];
-
-    /** @var array{pages?: list<string>, calls?: list<string>, mounts?: list<string>} what the run has reached so far */
-    private array $reached = [];
-
     public function __construct(
         private Simulation $simulation,
         private Findings $findings,
@@ -36,6 +28,17 @@ class Runner
     ) {}
 
     public function run(Journey $journey, Persona $persona): SimulationRun
+    {
+        $session = $this->start($journey, $persona);
+
+        while ($session->poll()) {
+            usleep(50_000);
+        }
+
+        return $this->finish($session);
+    }
+
+    public function start(Journey $journey, Persona $persona): RunSession
     {
         $script = $journey->script($persona, Faker::create());
         $target = config("simulation.targets.{$journey->target()}");
@@ -70,158 +73,30 @@ class Runner
         $directory = $this->simulation->screenshotDirectory($run);
         File::ensureDirectoryExists($directory);
 
-        $payload = [
-            'base_url' => $target['base_url'],
-            'shots_dir' => $directory,
-            'step_timeout_ms' => (int) config('simulation.step_timeout_ms'),
-            'steps' => $script->steps(),
-        ];
+        $session = new RunSession($run, $journey, $this->simulation);
 
-        $buffer = '';
-        $finished = null;
-        $stderr = '';
-        $this->remembered = [];
-        $this->reached = [];
+        $session->attach(Process::path(base_path('simulator'))
+            ->timeout((int) config('simulation.run_timeout'))
+            ->input(json_encode([
+                'base_url' => $target['base_url'],
+                'shots_dir' => $directory,
+                'step_timeout_ms' => (int) config('simulation.step_timeout_ms'),
+                'steps' => $script->steps(),
+            ], JSON_THROW_ON_ERROR))
+            ->start([config('simulation.node'), config('simulation.runner')], fn (string $type, string $output) => $session->receive($type, $output)));
 
-        try {
-            $result = Process::path(base_path('simulator'))
-                ->timeout((int) config('simulation.run_timeout'))
-                ->input(json_encode($payload, JSON_THROW_ON_ERROR))
-                ->start([config('simulation.node'), config('simulation.runner')])
-                ->wait(function (string $type, string $output) use (&$buffer, &$finished, &$stderr, $run) {
-                    if ($type === 'err') {
-                        $stderr = Str::substr($stderr.$output, -4000);
-
-                        return;
-                    }
-
-                    $buffer .= $output;
-
-                    while (($newline = strpos($buffer, "\n")) !== false) {
-                        $line = substr($buffer, 0, $newline);
-                        $buffer = substr($buffer, $newline + 1);
-                        $finished = $this->handle($run, $line) ?? $finished;
-                    }
-                });
-
-            if ($buffer !== '') {
-                $finished = $this->handle($run, $buffer) ?? $finished;
-            }
-
-            if ($finished === null && ! $result->successful()) {
-                $run->error ??= trim($stderr) !== '' ? Str::limit(trim($stderr), 2000) : 'The browser runner exited with code '.$result->exitCode().'.';
-            }
-        } catch (ProcessTimedOutException) {
-            $run->error = 'The journey took longer than '.config('simulation.run_timeout').' seconds and was stopped.';
-        }
-
-        return $this->finish($run, $finished, $journey);
+        return $session;
     }
 
     /**
-     * Apply one line from the browser. Returns the run's final status when
-     * the line is the runner's last word.
+     * Close the books on a session whose browser is done: the verdict, the
+     * findings, the coverage tally, and — for a drafted journey — its trial.
      */
-    private function handle(SimulationRun $run, string $line): ?SimulationStatus
+    public function finish(RunSession $session): SimulationRun
     {
-        $event = json_decode(trim($line), true);
-
-        if (! is_array($event)) {
-            return null;
-        }
-
-        $step = isset($event['position'])
-            ? SimulationStep::query()->where('simulation_run_id', $run->id)->where('position', (int) $event['position'])->first()
-            : null;
-
-        switch ($event['event'] ?? null) {
-            case 'step':
-                $status = SimulationStatus::tryFrom($event['status'] ?? '') ?? SimulationStatus::Failed;
-
-                $step?->update(array_filter([
-                    'status' => $status,
-                    'duration_ms' => $event['ms'] ?? null,
-                    'url' => $event['url'] ?? null,
-                    'screenshot' => $event['screenshot'] ?? null,
-                    'error' => $event['error'] ?? null,
-                    'livewire_requests' => $event['livewire_requests'] ?? null,
-                    'livewire_ms' => $event['livewire_ms'] ?? null,
-                ], fn ($value) => $value !== null) + (array_key_exists('feedback', $event) ? ['feedback' => $event['feedback']] : []));
-
-                $run->current_step = (int) $event['position'];
-
-                if (is_array($event['reached'] ?? null)) {
-                    $this->reached = LiveCoverage::merge($this->reached, $event['reached']);
-                }
-
-                if ($status === SimulationStatus::Passed) {
-                    $run->steps_passed++;
-                }
-
-                if ($status === SimulationStatus::Failed) {
-                    $run->error = $step ? "{$step->label}: ".($event['error'] ?? 'failed') : ($event['error'] ?? 'A step failed.');
-                }
-
-                $run->save();
-                $this->simulation->heartbeat();
-
-                return null;
-
-            case 'console':
-                if ($step !== null && count($step->console ?? []) < self::CONSOLE_LIMIT) {
-                    $step->update(['console' => [...($step->console ?? []), [
-                        'level' => (string) ($event['level'] ?? 'error'),
-                        'text' => Str::limit((string) ($event['text'] ?? ''), 1000),
-                    ]]]);
-                }
-
-                return null;
-
-            case 'remember':
-                $this->remember($run, (string) ($event['name'] ?? ''), (string) ($event['value'] ?? ''));
-
-                return null;
-
-            case 'error':
-                $run->update(['error' => Str::limit((string) ($event['text'] ?? 'The browser failed.'), 2000)]);
-
-                return null;
-
-            case 'finished':
-                return SimulationStatus::tryFrom($event['status'] ?? '') ?? SimulationStatus::Failed;
-        }
-
-        return null;
-    }
-
-    /**
-     * Something the journey picked off the page: fill it into the labels
-     * still waiting for it, so the feed names the real record.
-     */
-    private function remember(SimulationRun $run, string $name, string $value): void
-    {
-        if ($name === '') {
-            return;
-        }
-
-        $this->remembered[$name] = $value;
-
-        SimulationStep::query()
-            ->where('simulation_run_id', $run->id)
-            ->where('label', 'like', '%{'.$name.'}%')
-            ->get()
-            ->each(fn (SimulationStep $step) => $step->update(['label' => Str::limit($this->interpolate($step->label), 250)]));
-    }
-
-    private function interpolate(string $text): string
-    {
-        return preg_replace_callback('/\{([a-z_]+)\}/', fn (array $m) => $this->remembered[$m[1]] ?? $m[0], $text);
-    }
-
-    private function finish(SimulationRun $run, ?SimulationStatus $finished, Journey $journey): SimulationRun
-    {
-        $run = DB::transaction(function () use ($run, $finished) {
-            $status = $finished === SimulationStatus::Passed && $run->steps_passed === $run->steps_total
+        $run = DB::transaction(function () use ($session) {
+            $run = $session->run;
+            $status = $session->verdict === SimulationStatus::Passed && $run->steps_passed === $run->steps_total
                 ? SimulationStatus::Passed
                 : SimulationStatus::Failed;
 
@@ -231,8 +106,8 @@ class Runner
 
             $run->fill([
                 'status' => $status,
-                'summary' => $run->summary === null ? null : Str::limit($this->interpolate($run->summary), 250),
-                'reached' => $this->reached === [] ? null : $this->reached,
+                'summary' => $run->summary === null ? null : Str::limit($session->interpolate($run->summary), 250),
+                'reached' => $session->reached === [] ? null : $session->reached,
                 'error' => $status === SimulationStatus::Failed ? ($run->error ?? 'The browser stopped without reporting a result.') : null,
                 'finished_at' => now(),
                 'duration_ms' => (int) $run->started_at->diffInMilliseconds(now()),
@@ -249,8 +124,8 @@ class Runner
 
         $this->coverage->record($run);
 
-        if ($journey instanceof StoredJourney) {
-            $this->trials->afterRun($journey->record->refresh(), $run);
+        if ($session->journey instanceof StoredJourney) {
+            $this->trials->afterRun($session->journey->record->refresh(), $run);
         }
 
         return $run;
