@@ -120,8 +120,9 @@ return [
     | A build hands up to `targets` open surfaces of one app to Claude Code,
     | running headless in a worktree branch, then verifies the tests itself
     | and opens a PR for review when they hold up. `publish` false keeps the
-    | branch local instead of pushing it. `nightly` queues one build per app
-    | each night for apps with no build PR already waiting on review.
+    | branch local instead of pushing it. `nightly` turns on the scheduled
+    | builder: hourly, one build per app with gaps and no build running or PR
+    | waiting on review.
     |
     */
 
