@@ -24,9 +24,13 @@ class Runner
     /** @var array<string, string> what the journey has remembered so far */
     private array $remembered = [];
 
+    /** @var array{pages?: list<string>, calls?: list<string>, mounts?: list<string>} what the run has reached so far */
+    private array $reached = [];
+
     public function __construct(
         private Simulation $simulation,
         private Findings $findings,
+        private LiveCoverage $coverage,
     ) {}
 
     public function run(Journey $journey, Persona $persona): SimulationRun
@@ -73,6 +77,7 @@ class Runner
         $finished = null;
         $stderr = '';
         $this->remembered = [];
+        $this->reached = [];
 
         try {
             $result = Process::path(base_path('simulator'))
@@ -140,6 +145,10 @@ class Runner
                 ], fn ($value) => $value !== null) + (array_key_exists('feedback', $event) ? ['feedback' => $event['feedback']] : []));
 
                 $run->current_step = (int) $event['position'];
+
+                if (is_array($event['reached'] ?? null)) {
+                    $this->reached = LiveCoverage::merge($this->reached, $event['reached']);
+                }
 
                 if ($status === SimulationStatus::Passed) {
                     $run->steps_passed++;
@@ -219,6 +228,7 @@ class Runner
             $run->fill([
                 'status' => $status,
                 'summary' => $run->summary === null ? null : Str::limit($this->interpolate($run->summary), 250),
+                'reached' => $this->reached === [] ? null : $this->reached,
                 'error' => $status === SimulationStatus::Failed ? ($run->error ?? 'The browser stopped without reporting a result.') : null,
                 'finished_at' => now(),
                 'duration_ms' => (int) $run->started_at->diffInMilliseconds(now()),
@@ -228,6 +238,7 @@ class Runner
         });
 
         $this->findings->record($run->setRelation('steps', $run->steps()->get()));
+        $this->coverage->record($run);
 
         return $run;
     }

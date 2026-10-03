@@ -5,11 +5,15 @@ namespace Tests\Feature\Simulation;
 use App\Enums\FindingKind;
 use App\Enums\FindingStatus;
 use App\Enums\SimulationStatus;
+use App\Enums\SurfaceKind;
+use App\Enums\SurfaceStatus;
 use App\Livewire\Simulation\ProvingGround;
+use App\Models\FleetApp;
 use App\Models\SimulationFinding;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Models\User;
+use App\Simulation\LiveCoverage;
 use App\Simulation\Pulse\Pulse;
 use App\Simulation\Simulation;
 use Illuminate\Database\ConnectionInterface;
@@ -272,5 +276,29 @@ class ProvingGroundPageTest extends TestCase
             ->assertSee('Business pulse · Sales')
             ->assertSee(['Open pipeline', '$574,500', '65 open deals'])
             ->assertSee('Could not read Finance');
+    }
+
+    public function test_live_coverage_shows_what_journeys_use_and_what_no_test_proves(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $app = FleetApp::factory()->create(['key' => 'sales', 'name' => 'Sales']);
+        $app->surfaces()->create(['kind' => SurfaceKind::Route, 'identifier' => 'GET leads/{lead}', 'label' => 'GET /leads/{lead}', 'status' => SurfaceStatus::Missing]);
+        $app->surfaces()->create(['kind' => SurfaceKind::Route, 'identifier' => 'GET settings', 'label' => 'GET /settings', 'status' => SurfaceStatus::Tested]);
+        $run = SimulationRun::factory()->create(['reached' => ['pages' => ['GET /leads/{n}'], 'calls' => ['leads.show@logActivity']]]);
+        app(LiveCoverage::class)->record($run);
+
+        Livewire::test(ProvingGround::class)
+            ->assertSee('Live coverage · Sales')
+            ->assertSee('1 of 2 routes, components and actions used by a journey')
+            ->assertSee('GET /leads/{lead}')
+            ->assertSee('leads.show@logActivity');
+    }
+
+    public function test_live_coverage_says_when_an_app_is_not_in_the_fleet(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(ProvingGround::class)->assertSee('Sales is not in the fleet roster here');
     }
 }

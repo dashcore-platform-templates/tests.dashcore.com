@@ -5,6 +5,7 @@ namespace Tests\Feature\Simulation;
 use App\Enums\FindingKind;
 use App\Enums\SimulationStatus;
 use App\Models\SimulationFinding;
+use App\Models\SimulationReach;
 use App\Simulation\Journeys\Sales\AssignLead;
 use App\Simulation\Journeys\Sales\CaptureLead;
 use App\Simulation\Journeys\Sales\FollowUpLead;
@@ -192,5 +193,23 @@ class RunnerTest extends TestCase
             return str_starts_with($choose['label'], 'Admin gives {lead} to ')
                 && in_array($choose['option'], ['Maya Okafor', 'Daniel Reyes', 'Priya Natarajan'], true);
         });
+    }
+
+    public function test_what_the_steps_reached_is_kept_on_the_run_and_added_to_the_tally(): void
+    {
+        Process::fake(['*' => Process::result(output: implode("\n", [
+            json_encode(['event' => 'step', 'position' => 0, 'status' => 'passed', 'reached' => ['pages' => ['GET /login'], 'calls' => [], 'mounts' => ['pages.auth.login']]]),
+            json_encode(['event' => 'step', 'position' => 1, 'status' => 'passed', 'reached' => ['pages' => ['GET /leads/12'], 'calls' => ['leads.index@createLead', 'leads.index@$commit'], 'mounts' => []]]),
+            json_encode(['event' => 'finished', 'status' => 'failed']),
+        ]))]);
+
+        $run = app(Runner::class)->run(new CaptureLead, $this->persona());
+
+        $this->assertSame([
+            'pages' => ['GET /login', 'GET /leads/{n}'],
+            'calls' => ['leads.index@createLead'],
+            'mounts' => ['pages.auth.login'],
+        ], $run->fresh()->reached);
+        $this->assertSame(4, SimulationReach::count());
     }
 }

@@ -233,6 +233,65 @@
         </div>
     @endif
 
+    {{-- Live coverage --}}
+    @foreach ($this->coverage as $key => $cover)
+        <div class="card-os mb-6" wire:key="coverage-{{ $key }}">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-surface-800 px-4 py-3">
+                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Live coverage · {{ $cover['name'] }}</p>
+                @if ($cover['app'])
+                    <a href="{{ route('fleet.show', $cover['app']->key) }}" wire:navigate class="text-xs text-accent-400 hover:text-accent-500">Test coverage &rarr;</a>
+                @endif
+            </div>
+            @if (! $cover['app'])
+                <p class="px-4 py-4 text-sm text-surface-400">{{ $cover['name'] }} is not in the fleet roster here, so there are no scanned surfaces to map journeys onto.</p>
+            @elseif ($cover['total'] === 0)
+                <p class="px-4 py-4 text-sm text-surface-400">{{ $cover['name'] }} has not been scanned yet. Scan it and journeys map onto its routes and Livewire actions.</p>
+            @else
+                @php $percent = round($cover['reached'] / $cover['total'] * 100); @endphp
+                <div class="grid gap-6 px-4 py-4 lg:grid-cols-3">
+                    <div>
+                        <p class="font-mono text-2xl font-semibold text-surface-100">{{ $percent }}%</p>
+                        <p class="text-xs text-surface-500">{{ number_format($cover['reached']) }} of {{ number_format($cover['total']) }} routes, components and actions used by a journey</p>
+                        <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-surface-800">
+                            <div class="h-full rounded-full bg-accent-500" style="width: {{ $percent }}%"></div>
+                        </div>
+                        <ul class="mt-3 space-y-1">
+                            @foreach ($cover['kinds'] as $kind)
+                                <li class="flex justify-between text-xs text-surface-400">
+                                    <span>{{ $kind['label'] }}</span>
+                                    <span class="font-mono">{{ $kind['reached'] }}/{{ $kind['total'] }}</span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                    <div class="lg:col-span-2">
+                        <p class="text-xs font-medium text-surface-300">Used live, but no test proves it <span class="font-mono text-surface-500">{{ $cover['unproven']->count() }}</span></p>
+                        @if ($cover['unproven']->isEmpty())
+                            <p class="mt-1 text-xs text-surface-500">Everything journeys use is proven by a passing test.</p>
+                        @else
+                            <ul class="mt-2 space-y-1">
+                                @foreach ($cover['unproven']->take(10) as $surface)
+                                    <li class="flex items-center gap-2 text-xs" wire:key="unproven-{{ $surface->id }}">
+                                        <span class="w-14 shrink-0 rounded px-1.5 py-px text-center text-[10px] font-medium {{ $surface->status->value === 'missing' ? 'bg-red-500/15 text-red-400' : 'bg-warning-500/15 text-warning-500' }}">{{ $surface->status->value === 'missing' ? 'untested' : 'weak' }}</span>
+                                        <span class="truncate font-mono text-surface-200">{{ $surface->label }}</span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            @if ($cover['unproven']->count() > 10)
+                                <p class="mt-1 text-xs text-surface-500">and {{ $cover['unproven']->count() - 10 }} more</p>
+                            @endif
+                        @endif
+                        @if ($cover['unmapped'])
+                            <p class="mt-4 text-xs font-medium text-surface-300">Reached live, but not in the scan's inventory <span class="font-mono text-surface-500">{{ count($cover['unmapped']) }}</span></p>
+                            <p class="mt-1 text-xs text-surface-500">Livewire calls journeys made that the scanner does not list as surfaces — a blind spot in the scan.</p>
+                            <p class="mt-1 font-mono text-xs text-surface-400">{{ implode(', ', array_slice($cover['unmapped'], 0, 12)) }}{{ count($cover['unmapped']) > 12 ? ' …' : '' }}</p>
+                        @endif
+                    </div>
+                </div>
+            @endif
+        </div>
+    @endforeach
+
     {{-- Findings --}}
     @php
         $kindClasses = [

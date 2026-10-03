@@ -217,7 +217,12 @@
                                 'bg-success-500/15 text-success-500' => $surface->status?->value === 'tested',
                             ])>{{ $surface->status?->label() }}</span>
                             <div class="min-w-0 flex-1">
-                                <p class="font-mono text-sm text-surface-100 break-all">{{ $surface->label }}</p>
+                                <p class="font-mono text-sm text-surface-100 break-all">
+                                    {{ $surface->label }}
+                                    @if (isset($this->liveSurfaceIds[$surface->id]))
+                                        <a href="{{ route('simulation.index') }}" wire:navigate class="ml-1 inline-flex items-center rounded-full bg-accent-500/15 px-2 py-px align-middle font-sans text-[11px] font-medium text-accent-400 hover:bg-accent-500/25" title="A Proving Ground journey uses this in a real browser">live</a>
+                                    @endif
+                                </p>
                                 <p class="text-xs text-surface-500 mt-0.5">
                                     {{ $surface->kind->label() }}
                                     @if ($surface->file) · {{ $surface->file }}@if ($surface->start_line):{{ $surface->start_line }}@endif @endif

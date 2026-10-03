@@ -23,6 +23,7 @@ class SimulationRun extends Model
         return [
             'status' => SimulationStatus::class,
             'screenshots_pruned' => 'boolean',
+            'reached' => 'array',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
         ];
