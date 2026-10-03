@@ -60,7 +60,7 @@ abstract class SalesJourney extends Journey
     {
         return $script
             ->fill('#leadSearch', $lead['email'], "{$who} searches for {$lead['name']}")
-            ->click("a:has-text(\"{$lead['name']}\")", "{$who} opens {$lead['name']}")
+            ->click('tbody tr:first-child a:has-text("Open")', "{$who} opens {$lead['name']}")
             ->see($lead['email'], "{$who} is on {$lead['name']}'s page");
     }
 

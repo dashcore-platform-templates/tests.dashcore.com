@@ -31,11 +31,21 @@ enum FindingKind: string
     }
 
     /**
-     * Whether the finding belongs to one step of one journey, rather than to
-     * the app as a whole.
+     * Whether the finding belongs to one step of one journey: a journey that
+     * breaks is that journey's problem.
      */
     public function isStepScoped(): bool
     {
-        return in_array($this, [self::Breaks, self::DeadSpace, self::Slow], true);
+        return $this === self::Breaks;
+    }
+
+    /**
+     * Whether the finding is about one element on one page, whichever
+     * journey clicks it: a button with no loading feedback is the same
+     * finding in every journey that presses it.
+     */
+    public function isElementScoped(): bool
+    {
+        return in_array($this, [self::DeadSpace, self::Slow], true);
     }
 }

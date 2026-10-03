@@ -2,8 +2,10 @@
 
 namespace App\Simulation;
 
+use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
 use App\Models\Setting;
+use App\Models\SimulationJourney;
 use App\Models\SimulationRun;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
@@ -75,7 +77,8 @@ class Simulation
     }
 
     /**
-     * Every journey in rotation, by key, with its weight.
+     * Every journey in rotation — written in code, or drafted and on trial or
+     * active — by key, with its weight.
      *
      * @return array<string, array{journey: Journey, weight: int}>
      */
@@ -87,6 +90,21 @@ class Simulation
             $journey = app($class);
             $journeys[$journey->key()] = ['journey' => $journey, 'weight' => max(0, (int) $weight)];
         }
+
+        // Drafted journeys: on trial they run often, to prove themselves
+        // quickly; once active, at the weight the explorer proposed.
+        SimulationJourney::query()
+            ->whereIn('status', [JourneyStatus::Trial, JourneyStatus::Active])
+            ->whereIn('target', array_keys(config('simulation.targets', [])))
+            ->orderBy('id')
+            ->each(function (SimulationJourney $record) use (&$journeys) {
+                $journeys[$record->key] ??= [
+                    'journey' => new StoredJourney($record),
+                    'weight' => $record->status === JourneyStatus::Trial
+                        ? max(0, (int) config('simulation.trials.weight'))
+                        : max(0, min(5, $record->weight)),
+                ];
+            });
 
         return $journeys;
     }

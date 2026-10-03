@@ -371,6 +371,113 @@
         @endif
     </div>
 
+    {{-- Journeys --}}
+    @php $exploring = $this->explorations->first(fn ($e) => $e->status->isActive()); @endphp
+    <div class="card-os mb-6" @if ($exploring) wire:poll.5s @endif>
+        <div class="flex flex-wrap items-center justify-between gap-3 border-b border-surface-800 px-4 py-3">
+            <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Journeys</p>
+            @if ($this->canManage)
+                <form wire:submit="explore" class="flex flex-1 flex-wrap items-center justify-end gap-2">
+                    <input type="text" wire:model="exploreFocus" placeholder="Focus the explorer (optional): e.g. deal notes, the today page"
+                        class="w-full max-w-sm rounded-md border-0 bg-surface-900 px-3 py-1.5 text-xs text-surface-200 ring-1 ring-inset ring-surface-700 placeholder:text-surface-600 focus:ring-2 focus:ring-accent-500" />
+                    <button type="submit" wire:loading.attr="disabled" wire:target="explore" @disabled($exploring)
+                        class="inline-flex items-center gap-2 rounded-md bg-accent-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-600 transition-colors disabled:opacity-50">
+                        <x-spinner wire:loading wire:target="explore" class="h-3 w-3" />
+                        {{ $exploring ? 'Exploring…' : 'Explore for new journeys' }}
+                    </button>
+                </form>
+            @endif
+        </div>
+        @error('exploreFocus') <p class="px-4 pt-2 text-xs text-red-400">{{ $message }}</p> @enderror
+
+        <ul class="divide-y divide-surface-800">
+            @foreach ($this->journeys as $row)
+                @php $record = $row['record']; $status = $record?->status; @endphp
+                <li class="px-4 py-2.5" wire:key="journey-{{ $row['key'] }}">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm {{ $status?->value === 'retired' ? 'text-surface-500 line-through' : 'text-surface-100' }}">
+                                {{ $row['name'] }}
+                                @if ($status && $status->value !== 'active')
+                                    <span @class([
+                                        'ml-1 rounded-full px-2 py-px text-[11px] font-medium',
+                                        'bg-accent-500/15 text-accent-400' => $status->value === 'trial',
+                                        'bg-warning-500/15 text-warning-500' => $status->value === 'held',
+                                        'bg-surface-800 text-surface-400' => $status->value === 'retired',
+                                    ])>{{ $status->label() }}@if ($status->value === 'trial') · {{ $record->trial_passes }}/{{ config('simulation.trials.passes') }}@endif</span>
+                                @endif
+                                @if ($record)
+                                    <span class="ml-1 text-[11px] text-surface-500">drafted by the explorer</span>
+                                @endif
+                            </p>
+                            <p class="text-xs text-surface-500 font-mono">{{ $row['key'] }}</p>
+                            @if ($record?->why && $status?->value !== 'active')
+                                <p class="mt-1 text-xs text-surface-400">{{ $record->why }}</p>
+                            @endif
+                            @if ($record?->last_error && $status?->value === 'held')
+                                <p class="mt-1 whitespace-pre-line text-xs text-red-300">{{ \Illuminate\Support\Str::limit($record->last_error, 300) }}</p>
+                            @endif
+                        </div>
+                        <div class="w-20 text-right text-xs text-surface-400">{{ $row['share'] ? $row['share'].'% of runs' : '—' }}</div>
+                        <div class="w-24 text-right text-xs">
+                            @if ($row['runs'] > 0)
+                                <span class="{{ $row['passed'] === $row['runs'] ? 'text-success-500' : 'text-warning-500' }}">{{ $row['passed'] }}/{{ $row['runs'] }} passed</span>
+                            @else
+                                <span class="text-surface-500">not run yet</span>
+                            @endif
+                        </div>
+                        @if ($record && $this->canManage)
+                            <div class="flex items-center gap-1">
+                                @if ($record->last_run_id)
+                                    <button type="button" wire:click="replayJourney({{ $record->id }})" wire:loading.attr="disabled" wire:target="replayJourney({{ $record->id }})" class="rounded-md px-2 py-1 text-xs text-surface-300 hover:bg-surface-800 disabled:opacity-50">Replay</button>
+                                @endif
+                                @if (in_array($status->value, ['held', 'trial', 'retired']))
+                                    <button type="button" wire:click="activateJourney({{ $record->id }})" wire:loading.attr="disabled" wire:target="activateJourney({{ $record->id }})" class="rounded-md px-2 py-1 text-xs text-success-500 hover:bg-surface-800 disabled:opacity-50">{{ $status->value === 'retired' ? 'Bring back' : 'Activate' }}</button>
+                                @endif
+                                @if ($status->value === 'held')
+                                    <button type="button" wire:click="retryJourney({{ $record->id }})" wire:loading.attr="disabled" wire:target="retryJourney({{ $record->id }})" class="rounded-md px-2 py-1 text-xs text-accent-400 hover:bg-surface-800 disabled:opacity-50">Retry trial</button>
+                                @endif
+                                @if ($status->value !== 'retired')
+                                    <button type="button" wire:click="retireJourney({{ $record->id }})" wire:loading.attr="disabled" wire:target="retireJourney({{ $record->id }})" class="rounded-md px-2 py-1 text-xs text-surface-400 hover:bg-surface-800 disabled:opacity-50">Retire</button>
+                                @endif
+                            </div>
+                        @endif
+                    </div>
+                </li>
+            @endforeach
+        </ul>
+
+        @if ($this->explorations->isNotEmpty())
+            <div class="border-t border-surface-800 px-4 py-3">
+                <p class="text-xs font-medium text-surface-400 mb-2">Explorations</p>
+                <ul class="space-y-2">
+                    @foreach ($this->explorations as $exploration)
+                        <li class="text-xs" wire:key="exploration-{{ $exploration->id }}">
+                            <span class="font-mono text-surface-500">#{{ $exploration->id }}</span>
+                            <span @class([
+                                'ml-1 font-medium',
+                                'text-accent-400' => $exploration->status->isActive(),
+                                'text-success-500' => $exploration->status->value === 'completed',
+                                'text-red-400' => $exploration->status->value === 'failed',
+                            ])>{{ $exploration->status->label() }}</span>
+                            <span class="text-surface-400">
+                                · {{ $exploration->created_at->diffForHumans() }}
+                                @if ($exploration->focus) · focus: “{{ $exploration->focus }}”@endif
+                                @if ($exploration->status->value === 'completed') · {{ $exploration->drafted }} drafted, {{ $exploration->rejected }} turned away @endif
+                                @if ($exploration->cost_usd !== null) · ${{ number_format((float) $exploration->cost_usd, 2) }} @endif
+                            </span>
+                            @if ($exploration->error)
+                                <p class="mt-0.5 text-red-300">{{ \Illuminate\Support\Str::limit($exploration->error, 300) }}</p>
+                            @elseif ($exploration->report)
+                                <p class="mt-0.5 whitespace-pre-line text-surface-500">{{ \Illuminate\Support\Str::limit($exploration->report, 600) }}</p>
+                            @endif
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+    </div>
+
     {{-- Feed --}}
     <div class="card-os">
         <div class="border-b border-surface-800 px-4 py-3">

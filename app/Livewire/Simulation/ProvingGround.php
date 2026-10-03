@@ -2,14 +2,20 @@
 
 namespace App\Livewire\Simulation;
 
+use App\Enums\ExplorationStatus;
 use App\Enums\FindingStatus;
+use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
+use App\Jobs\RunExploration;
+use App\Models\SimulationExploration;
 use App\Models\SimulationFinding;
+use App\Models\SimulationJourney;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Services\PermissionService;
 use App\Simulation\LiveCoverage;
 use App\Simulation\Simulation;
+use App\Simulation\Trials;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -30,6 +36,9 @@ class ProvingGround extends Component
 
     /** Which findings are listed: open, resolved or ignored. */
     public string $findingsTab = 'open';
+
+    /** What the next exploration should look at, in plain words. */
+    public string $exploreFocus = '';
 
     public function toggle(Simulation $simulation): void
     {
@@ -86,6 +95,62 @@ class ProvingGround extends Component
         ]);
 
         unset($this->findings, $this->findingCounts);
+    }
+
+    public function explore(): void
+    {
+        $this->authorizeFull();
+        $this->validate(['exploreFocus' => ['nullable', 'string', 'max:500']]);
+
+        $target = array_key_first(config('simulation.targets', []));
+
+        if (SimulationExploration::query()->where('target', $target)->whereIn('status', [ExplorationStatus::Queued, ExplorationStatus::Running])->exists()) {
+            $this->addError('exploreFocus', 'An exploration of this app is already under way.');
+
+            return;
+        }
+
+        $exploration = SimulationExploration::create([
+            'target' => $target,
+            'focus' => trim($this->exploreFocus) ?: null,
+            'status' => ExplorationStatus::Queued,
+            'requested_by' => auth()->id(),
+        ]);
+
+        RunExploration::dispatch($exploration);
+
+        $this->exploreFocus = '';
+        unset($this->explorations);
+    }
+
+    public function activateJourney(int $journeyId, Trials $trials): void
+    {
+        $this->authorizeFull();
+        $trials->activate(SimulationJourney::query()->findOrFail($journeyId));
+        unset($this->journeys);
+    }
+
+    public function retryJourney(int $journeyId, Trials $trials): void
+    {
+        $this->authorizeFull();
+        $trials->retry(SimulationJourney::query()->findOrFail($journeyId));
+        unset($this->journeys);
+    }
+
+    public function retireJourney(int $journeyId, Trials $trials): void
+    {
+        $this->authorizeFull();
+        $trials->retire(SimulationJourney::query()->findOrFail($journeyId));
+        unset($this->journeys);
+    }
+
+    public function replayJourney(int $journeyId): void
+    {
+        $runId = SimulationJourney::query()->whereKey($journeyId)->value('last_run_id');
+
+        if ($runId !== null) {
+            $this->watch($runId);
+        }
     }
 
     public function showFindings(string $tab): void
@@ -173,6 +238,62 @@ class ProvingGround extends Component
     public function pulse(): array
     {
         return app(Simulation::class)->pulse();
+    }
+
+    /**
+     * Every journey: those in rotation with their share of runs and how they
+     * have fared this week, then drafts held back or retired.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    #[Computed]
+    public function journeys(): Collection
+    {
+        $rotation = app(Simulation::class)->journeys();
+        $totalWeight = max(1, array_sum(array_column($rotation, 'weight')));
+
+        $stats = SimulationRun::query()
+            ->where('created_at', '>=', now()->subWeek())
+            ->whereNot('status', SimulationStatus::Running)
+            ->groupBy('journey')
+            ->selectRaw('journey, count(*) as runs, count(*) filter (where status = ?) as passed, max(created_at) as last_at', [SimulationStatus::Passed->value])
+            ->get()
+            ->keyBy('journey');
+
+        $stored = SimulationJourney::query()->with('exploration')->get()->keyBy('key');
+
+        $rows = collect($rotation)->map(fn (array $entry, string $key) => [
+            'key' => $key,
+            'name' => $entry['journey']->name(),
+            'share' => round($entry['weight'] / $totalWeight * 100),
+            'record' => $stored->get($key),
+        ]);
+
+        $offRotation = $stored->reject(fn (SimulationJourney $journey) => $rows->has($journey->key))
+            ->map(fn (SimulationJourney $journey) => ['key' => $journey->key, 'name' => $journey->name, 'share' => 0, 'record' => $journey]);
+
+        return $rows->merge($offRotation)
+            ->map(function (array $row) use ($stats) {
+                $stat = $stats->get($row['key']);
+
+                return [...$row, 'runs' => (int) ($stat->runs ?? 0), 'passed' => (int) ($stat->passed ?? 0), 'last_at' => $stat?->last_at ? Carbon::parse($stat->last_at) : null];
+            })
+            ->sortBy(fn (array $row) => [match ($row['record']?->status) {
+                JourneyStatus::Held => 0,
+                JourneyStatus::Trial => 1,
+                JourneyStatus::Retired => 3,
+                default => 2,
+            }, -$row['share'], $row['name']])
+            ->values();
+    }
+
+    /**
+     * @return Collection<int, SimulationExploration>
+     */
+    #[Computed]
+    public function explorations(): Collection
+    {
+        return SimulationExploration::query()->with('requestedBy')->latest('id')->limit(5)->get();
     }
 
     /**

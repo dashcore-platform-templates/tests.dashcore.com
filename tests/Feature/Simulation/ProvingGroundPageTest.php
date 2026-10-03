@@ -4,12 +4,16 @@ namespace Tests\Feature\Simulation;
 
 use App\Enums\FindingKind;
 use App\Enums\FindingStatus;
+use App\Enums\JourneyStatus;
 use App\Enums\SimulationStatus;
 use App\Enums\SurfaceKind;
 use App\Enums\SurfaceStatus;
+use App\Jobs\RunExploration;
 use App\Livewire\Simulation\ProvingGround;
 use App\Models\FleetApp;
+use App\Models\SimulationExploration;
 use App\Models\SimulationFinding;
+use App\Models\SimulationJourney;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Models\User;
@@ -20,6 +24,7 @@ use Illuminate\Database\ConnectionInterface;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -300,5 +305,57 @@ class ProvingGroundPageTest extends TestCase
         $this->actingAs(User::factory()->create());
 
         Livewire::test(ProvingGround::class)->assertSee('Sales is not in the fleet roster here');
+    }
+
+    public function test_the_journeys_panel_lists_the_rotation_and_drafts_held_back_first(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        SimulationJourney::factory()->create(['key' => 'sales.notes', 'name' => 'Write notes on a deal', 'status' => JourneyStatus::Held, 'last_error' => 'Maya saves: Timeout']);
+        SimulationJourney::factory()->create(['key' => 'sales.trial', 'name' => 'Book a meeting', 'status' => JourneyStatus::Trial, 'trial_passes' => 1]);
+        SimulationRun::factory()->count(2)->create(['journey' => 'sales.capture-lead']);
+        SimulationRun::factory()->failed()->create(['journey' => 'sales.capture-lead']);
+
+        Livewire::test(ProvingGround::class)
+            ->assertSeeInOrder(['Write notes on a deal', 'Held for review', 'Maya saves: Timeout', 'Book a meeting', 'On trial', '1/3', 'Capture a lead'])
+            ->assertSee('2/3 passed')
+            ->assertDontSee('Explore for new journeys');
+    }
+
+    public function test_an_admin_sends_the_explorer_with_a_focus_but_not_twice_at_once(): void
+    {
+        Queue::fake();
+        $this->actingAs(User::factory()->admin()->create());
+
+        Livewire::test(ProvingGround::class)
+            ->set('exploreFocus', 'deal notes')
+            ->call('explore')
+            ->assertHasNoErrors()
+            ->assertSet('exploreFocus', '')
+            ->assertSee('Exploring…')
+            ->call('explore')
+            ->assertHasErrors('exploreFocus');
+
+        Queue::assertPushed(RunExploration::class, 1);
+        $this->assertSame('deal notes', SimulationExploration::sole()->focus);
+    }
+
+    public function test_an_admin_decides_what_happens_to_a_held_draft_and_a_member_cannot(): void
+    {
+        $journey = SimulationJourney::factory()->create(['status' => JourneyStatus::Held]);
+
+        $this->actingAs(User::factory()->create());
+        Livewire::test(ProvingGround::class)->call('activateJourney', $journey->id)->assertForbidden();
+        Livewire::test(ProvingGround::class)->call('explore')->assertForbidden();
+
+        $this->actingAs(User::factory()->admin()->create());
+        Livewire::test(ProvingGround::class)->call('retryJourney', $journey->id);
+        $this->assertSame(JourneyStatus::Trial, $journey->fresh()->status);
+
+        Livewire::test(ProvingGround::class)->call('activateJourney', $journey->id);
+        $this->assertSame(JourneyStatus::Active, $journey->fresh()->status);
+
+        Livewire::test(ProvingGround::class)->call('retireJourney', $journey->id)->assertSee('Bring back');
+        $this->assertSame(JourneyStatus::Retired, $journey->fresh()->status);
     }
 }

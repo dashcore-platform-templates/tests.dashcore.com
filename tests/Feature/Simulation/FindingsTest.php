@@ -137,10 +137,10 @@ class FindingsTest extends TestCase
         $this->assertSame(1, SimulationFinding::sole()->occurrences);
     }
 
-    public function test_a_step_finding_resolves_after_enough_runs_get_past_that_step_cleanly(): void
+    public function test_a_broken_step_resolves_after_enough_runs_of_that_journey_get_past_it(): void
     {
         config(['simulation.findings.resolve_after' => 2]);
-        $this->record($this->simRun([4 => ['action' => 'click', 'livewire_requests' => 1, 'feedback' => false]]));
+        $this->record($this->simRun([4 => ['status' => SimulationStatus::Failed], 5 => ['status' => SimulationStatus::Skipped]]));
         $finding = SimulationFinding::sole();
 
         // Stopped before step 4: proves nothing about it.
@@ -155,6 +155,35 @@ class FindingsTest extends TestCase
         $this->record($this->simRun());
         $this->assertSame(FindingStatus::Resolved, $finding->fresh()->status);
         $this->assertNotNull($finding->fresh()->resolved_at);
+    }
+
+    public function test_an_element_with_no_feedback_is_one_finding_whichever_journey_presses_it(): void
+    {
+        $won = ['action' => 'click', 'target' => 'role=button[name="Won" s]', 'url' => 'http://sales.test/leads/281', 'livewire_requests' => 1, 'feedback' => false];
+
+        $this->record($this->simRun([4 => $won]));
+        $this->record($this->simRun([2 => [...$won, 'url' => 'http://sales.test/leads/9']], journey: 'sales.capture-lead'));
+
+        $finding = SimulationFinding::sole();
+        $this->assertSame(FindingKind::DeadSpace, $finding->kind);
+        $this->assertSame('sales|/leads/{id}|click|role=button[name="Won" s]', $finding->fingerprint);
+        $this->assertSame(2, $finding->occurrences);
+    }
+
+    public function test_an_element_finding_resolves_when_any_journey_uses_that_element_cleanly(): void
+    {
+        config(['simulation.findings.resolve_after' => 1]);
+        $won = ['action' => 'click', 'target' => 'role=button[name="Won" s]', 'url' => 'http://sales.test/leads/281', 'livewire_requests' => 1];
+
+        $this->record($this->simRun([4 => [...$won, 'feedback' => false]]));
+        $finding = SimulationFinding::sole();
+
+        // A run that never pressed it says nothing about it.
+        $this->record($this->simRun(journey: 'sales.capture-lead'));
+        $this->assertSame(FindingStatus::Open, $finding->fresh()->status);
+
+        $this->record($this->simRun([1 => [...$won, 'feedback' => true]], journey: 'sales.follow-up-lead'));
+        $this->assertSame(FindingStatus::Resolved, $finding->fresh()->status);
     }
 
     public function test_an_app_wide_finding_resolves_on_passed_runs_of_any_journey_on_that_app(): void
@@ -176,14 +205,14 @@ class FindingsTest extends TestCase
     {
         $finding = SimulationFinding::factory()->create([
             'kind' => FindingKind::DeadSpace,
-            'fingerprint' => 'sales.close-won-deal#4',
+            'fingerprint' => 'sales|/leads/{id}|click|role=button[name="Won" s]',
             'status' => FindingStatus::Resolved,
             'resolved_at' => now()->subDay(),
             'occurrences' => 7,
             'clean_runs' => 3,
         ]);
 
-        $this->record($this->simRun([4 => ['livewire_requests' => 1, 'feedback' => false]]));
+        $this->record($this->simRun([4 => ['action' => 'click', 'target' => 'role=button[name="Won" s]', 'url' => 'http://sales.test/leads/7', 'livewire_requests' => 1, 'feedback' => false]]));
 
         $finding->refresh();
         $this->assertSame(FindingStatus::Open, $finding->status);
@@ -196,11 +225,11 @@ class FindingsTest extends TestCase
     {
         $finding = SimulationFinding::factory()->create([
             'kind' => FindingKind::DeadSpace,
-            'fingerprint' => 'sales.close-won-deal#4',
+            'fingerprint' => 'sales|/leads/{id}|click|role=button[name="Won" s]',
             'status' => FindingStatus::Ignored,
         ]);
 
-        $this->record($this->simRun([4 => ['livewire_requests' => 1, 'feedback' => false]]));
+        $this->record($this->simRun([4 => ['action' => 'click', 'target' => 'role=button[name="Won" s]', 'url' => 'http://sales.test/leads/7', 'livewire_requests' => 1, 'feedback' => false]]));
 
         $this->assertSame([FindingStatus::Ignored, 2], [$finding->fresh()->status, $finding->fresh()->occurrences]);
     }
