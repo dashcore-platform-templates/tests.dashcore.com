@@ -38,6 +38,12 @@ class ScannerTest extends TestCase
     /** @var list<string> identifiers the fake mutation tester was asked to check */
     public array $mutated = [];
 
+    /** @var list<array<string, mixed>> what a plain re-run of failing tests reports */
+    public array $recheck = [];
+
+    /** @var list<list<string>> */
+    public array $rechecked = [];
+
     private FleetApp $fleetApp;
 
     protected function setUp(): void
@@ -88,6 +94,15 @@ class ScannerTest extends TestCase
             public function run(Workspace $workspace): array
             {
                 return $this->test->runSuite($workspace);
+            }
+
+            public function runFiles(Workspace $workspace, array $files, string $name, int $timeout, bool $coverage = false): array
+            {
+                $this->test->rechecked[] = $files;
+                $probe = $workspace->runDir.'/'.$name.'.ndjson';
+                file_put_contents($probe, implode("\n", array_map('json_encode', $this->test->recheck)));
+
+                return ['exit_code' => 0, 'timed_out' => false, 'probe' => $probe, 'output' => ''];
             }
         });
 
@@ -322,5 +337,25 @@ class ScannerTest extends TestCase
         $this->assertSame(1, $second->surfaces_gained);
         $this->assertGreaterThanOrEqual(1, $second->surfaces_lost);
         $this->assertSame($second->surfaces_new_untested + $second->surfaces_lost, $second->regressions());
+    }
+
+    public function test_a_test_that_fails_only_under_coverage_is_recorded_as_passing_and_noted(): void
+    {
+        $this->probe = [
+            ['id' => 'Perf::fast', 'file' => 'tests/PerfTest.php', 'name' => 'projects quickly', 'status' => 'failed', 'message' => '7872 is not less than 2000', 'assertions' => 1, 'routes' => ['GET reports']],
+            ['id' => 'Real::broken', 'file' => 'tests/RealTest.php', 'name' => 'really broken', 'status' => 'failed', 'assertions' => 1],
+        ];
+        $this->recheck = [
+            ['id' => 'Perf::fast', 'status' => 'passed', 'assertions' => 2],
+            ['id' => 'Real::broken', 'status' => 'failed', 'assertions' => 1],
+        ];
+
+        $scan = $this->scan();
+
+        $this->assertEqualsCanonicalizing(['tests/PerfTest.php', 'tests/RealTest.php'], $this->rechecked[0]);
+        $this->assertSame(1, $scan->tests_failed, 'only the real failure is left');
+        $this->assertSame('passed', $scan->tests()->where('test_id', 'Perf::fast')->sole()->outcome->value);
+        $this->assertSame(SurfaceStatus::Tested, $this->fleetApp->surfaces()->where('identifier', 'GET reports')->sole()->status, 'what it executed still counts');
+        $this->assertContains('1 test(s) failed only under coverage and passed when run again without it (timing or flakiness): projects quickly', $scan->notes);
     }
 }
