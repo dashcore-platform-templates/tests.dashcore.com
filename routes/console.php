@@ -24,6 +24,10 @@ Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping();
 Schedule::command('tests:build')->dailyAt('03:00')->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.build.nightly'));
 
+// Every new push to an open PR is scanned and reported as a commit status.
+Schedule::command('tests:scan-prs')->everyTenMinutes()->withoutOverlapping()
+    ->when(fn () => (bool) config('scanner.pull_requests.enabled'));
+
 // Follow the PRs builds opened: merged, closed, or still waiting.
 Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();
 

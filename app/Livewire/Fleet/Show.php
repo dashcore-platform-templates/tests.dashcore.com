@@ -245,10 +245,25 @@ class Show extends Component
             ->get() ?? collect();
     }
 
+    /**
+     * The latest scan of each pull request, newest PR first.
+     */
+    #[Computed]
+    public function pullRequests(): Collection
+    {
+        return $this->app->pullRequestScans()
+            ->latest('id')
+            ->limit(100)
+            ->get()
+            ->unique('pr_number')
+            ->take(15)
+            ->values();
+    }
+
     #[Computed]
     public function history(): Collection
     {
-        return $this->app->scans()->latest('id')->limit(15)->get();
+        return $this->app->scans()->main()->latest('id')->limit(15)->get();
     }
 
     public function render()

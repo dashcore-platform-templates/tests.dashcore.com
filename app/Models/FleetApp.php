@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ScanKind;
 use App\Enums\ScanStatus;
 use Database\Factories\FleetAppFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -45,22 +46,35 @@ class FleetApp extends Model
         return $this->hasMany(Surface::class);
     }
 
+    /**
+     * The app's latest main scan. Pull request scans only report on a PR;
+     * they never stand in for the app's own record.
+     */
     public function latestScan(): HasOne
     {
-        return $this->hasOne(Scan::class)->latestOfMany();
+        return $this->hasOne(Scan::class)->ofMany(
+            ['id' => 'max'],
+            fn ($query) => $query->where('kind', ScanKind::Main),
+        );
     }
 
     public function latestCompletedScan(): HasOne
     {
         return $this->hasOne(Scan::class)->ofMany(
             ['id' => 'max'],
-            fn ($query) => $query->where('status', ScanStatus::Completed),
+            fn ($query) => $query->where('kind', ScanKind::Main)->where('status', ScanStatus::Completed),
         );
+    }
+
+    public function pullRequestScans(): HasMany
+    {
+        return $this->hasMany(Scan::class)->where('kind', ScanKind::PullRequest);
     }
 
     public function hasActiveScan(): bool
     {
         return $this->scans()
+            ->where('kind', ScanKind::Main)
             ->whereIn('status', array_map(fn (ScanStatus $s) => $s->value, array_filter(ScanStatus::cases(), fn (ScanStatus $s) => $s->isActive())))
             ->exists();
     }

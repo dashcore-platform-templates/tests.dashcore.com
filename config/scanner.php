@@ -144,6 +144,27 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pull request scans
+    |--------------------------------------------------------------------------
+    |
+    | Open PRs against an app's default branch are scanned as GitHub would
+    | merge them and compared with a scan of the main commit they merge onto,
+    | which is requested if missing. The result is a commit status (`context`)
+    | that branch protection can require. A PR waits up to `max_deferrals`
+    | rounds of ten minutes for that base scan, then is compared with the
+    | latest main scan instead, and says so.
+    |
+    */
+
+    'pull_requests' => [
+        'enabled' => (bool) env('SCANNER_PR_SCANS', false),
+        'context' => env('SCANNER_PR_CONTEXT', 'tests/coverage'),
+        'queue' => env('SCANNER_PR_QUEUE', 'prs'),
+        'max_deferrals' => (int) env('SCANNER_PR_MAX_DEFERRALS', 18),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue
     |--------------------------------------------------------------------------
     |

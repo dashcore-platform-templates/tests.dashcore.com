@@ -6,6 +6,7 @@ use App\Enums\ScanStatus;
 use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Scanning\PullRequestStatus;
 use App\Scanning\Scanner;
 use App\Scanning\ScanRequester;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -76,12 +77,12 @@ class ScanRequestTest extends TestCase
         $scanner = Mockery::mock(Scanner::class);
         $scanner->shouldReceive('run')->once()->with(Mockery::on(fn ($s) => $s->is($scan)))->andReturn($scan);
 
-        (new RunScan($scan))->handle($scanner);
+        (new RunScan($scan))->handle($scanner, app(PullRequestStatus::class));
 
         $done = Scan::factory()->completed()->create();
         $idle = Mockery::mock(Scanner::class);
         $idle->shouldNotReceive('run');
-        (new RunScan($done))->handle($idle);
+        (new RunScan($done))->handle($idle, app(PullRequestStatus::class));
     }
 
     public function test_a_worker_that_dies_marks_the_scan_failed_but_leaves_a_finished_one_alone(): void

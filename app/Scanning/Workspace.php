@@ -60,8 +60,14 @@ class Workspace
 
         $this->path = $base.'/worktrees/'.$kind.'-'.$for->id;
         $this->runDir = $base.'/'.($kind === 'build' ? 'builds' : 'runs').'/'.$for->id;
+        $suffix = match (true) {
+            $for instanceof Build => '_build',
+            $for->isPullRequest() => '_pr'.$for->pr_number,
+            default => '',
+        };
+
         $this->database = Str::of((string) config('scanner.database.prefix'))
-            ->append($app->key, $kind === 'build' ? '_build' : '')
+            ->append($app->key, $suffix)
             ->lower()
             ->replaceMatches('/[^a-z0-9_]/', '_')
             ->limit(63, '')
@@ -183,6 +189,34 @@ class Workspace
         $current = (string) getenv('PATH');
 
         return $extra === '' ? $current : $extra.':'.$current;
+    }
+
+    /**
+     * A pull request as GitHub would merge it: its merge ref, and the base
+     * commit that merge sits on — the main commit it has to be compared with.
+     *
+     * @return array{ref: string, sha: string, subject: string, base: string}
+     */
+    public function resolvePullRequest(int $number): array
+    {
+        $repo = (string) $this->app->local_path;
+        $local = 'refs/remotes/origin/tests-pull/'.$number;
+
+        $fetch = Process::path($repo)->timeout(180)->run(['git', 'fetch', '--quiet', '--force', 'origin', "+refs/pull/{$number}/merge:{$local}"]);
+
+        if ($fetch->failed()) {
+            throw new RuntimeException("Pull request #{$number} has no merge ref — it may conflict with its base or be closed: ".Str::limit(trim($fetch->errorOutput()), 500));
+        }
+
+        $sha = trim(Process::path($repo)->run(['git', 'rev-parse', '--verify', $local.'^{commit}'])->output());
+        $base = trim(Process::path($repo)->run(['git', 'rev-parse', '--verify', $sha.'^1'])->output());
+        $subject = trim(Process::path($repo)->run(['git', 'log', '-1', '--format=%s', $sha.'^2'])->output());
+
+        if ($sha === '' || $base === '') {
+            throw new RuntimeException("Pull request #{$number}'s merge ref could not be read.");
+        }
+
+        return ['ref' => "pull/{$number}/merge", 'sha' => $sha, 'subject' => $subject, 'base' => $base];
     }
 
     /**
