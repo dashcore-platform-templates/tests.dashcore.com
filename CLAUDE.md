@@ -217,6 +217,21 @@ surfaces (routes, Livewire components/actions, and every public method under
   sales, finance, hr (tour only), marketing. The worker restarts on
   `max_runs` or `max_seconds`, so an idle one still picks up new code.
 
+### Running on the fleet host — gotchas that cost real time
+
+- **Resume point:** `.claude/PROGRESS.md` holds the current state and next action.
+- **launchd PATH has no Homebrew or nvm.** Anything a worker or the fleet
+  scheduler runs must be named absolutely: `SCANNER_GH`, `SCANNER_CLAUDE`, and
+  `SCANNER_PATH` (prepended for workspace processes — node, npm).
+- **Never start workers from the schedule** — launchd kills a tick's children.
+  Workers are the KeepAlive agents `com.dashcore.queue-tests{,-2,-prs}`;
+  `php artisan queue:restart` picks up new code after the current job.
+- **GitHub over HTTPS only** (`SCANNER_GIT_BASE`); SSH port 22 is blocked here.
+- **Scratch lives in `storage/scanner.noindex`** so Spotlight skips it.
+- **Develop in a worktree**, not the anchor: the anchor is what the workers run,
+  and another session builds here too. Give the worktree its own test DB (copy
+  `phpunit.xml` with a different `DB_DATABASE`, keep it out of git).
+
 ## NavigationRegistry Contract
 
 Packages register navigation items via `App\Services\NavigationRegistry`, a singleton defined in `AppServiceProvider`. The navigation component (`resources/views/livewire/layout/navigation.blade.php`) reads from the registry — `items()` returns a Collection sorted by `order` then grouped by `group`. `hasItems()` is used by the dashboard to detect empty state.
