@@ -137,6 +137,18 @@ surfaces (routes, Livewire components/actions, and every public method under
   tick's background processes when it ends. Scratch space is
   `storage/scanner.noindex` (Spotlight must not index it). Big suites need
   `SCANNER_TIMEOUT=14400`.
+- **Test library** — `app/Library`, pages `/library`, `/library/{app}`,
+  `/library/{app}/file?path=`: the home of every test of every app, kept here
+  even though each runs in its own repo. After every scan `Library` reads the
+  app's test files (`tests/**`, and `packages/*/tests/**`) at the scan's commit
+  straight from git (`git ls-tree`/`git show`, no checkout), keeps a revision
+  when a file changes, and ties every test to its code (`TestParser`: PHPUnit
+  `Class::method` incl. `#dataset` runs, Pest `it()`/`test()`/`describe()` by
+  the name runs report), its outcome history (30 scans, outliving pruned
+  detail), and how many surfaces it proves (from the scan's evidence). A test
+  in the code no scan ran is kept as "never ran"; assertion-free tests are
+  PHPUnit's "risky". `tests:library [keys]` catches up from the latest scans.
+  A library failure is a note on the scan, never a failed scan.
 - **Proving Ground** — `app/Simulation`, page `/proving-ground`: a never-ending
   simulation. Fake personas walk scripted `Journey`s (sign in, add a lead, win a
   deal…) through the real UI of the local `*.fakecompany.com` apps, whose data

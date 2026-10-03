@@ -341,3 +341,10 @@ select.appearance-none {
     background-size: 1rem 1rem;
     padding-right: 2rem !important;
 }
+
+/* Test library: PHP source, coloured from the theme so it reads in both modes. */
+.hl-default { color: var(--color-surface-200); }
+.hl-keyword { color: var(--color-accent-400); }
+.hl-string { color: var(--color-success-500); }
+.hl-comment { color: var(--color-surface-500); font-style: italic; }
+.hl-html { color: var(--color-surface-400); }
