@@ -31,18 +31,26 @@ abstract class Journey
     }
 
     /**
-     * Every journey starts by signing in through the app's own login form.
+     * Every journey starts by signing in through the app's own login form,
+     * whose fields and landing page each target names (`login`).
      */
     protected function signIn(Script $script, Persona $persona): Script
     {
         $who = $persona->firstName();
+        $login = [
+            'email' => '#email',
+            'password' => '#password',
+            'submit' => 'form[wire\:submit="login"] button[type=submit]',
+            'landed' => 'Dashboard',
+            ...(array) config("simulation.targets.{$this->target()}.login", []),
+        ];
 
         return $script
             ->visit('/login', "{$who} opens the login page")
-            ->fill('#email', $persona->email, "{$who} enters their email")
-            ->fill('#password', $persona->password, "{$who} enters their password")
-            ->click('form[wire\:submit="login"] button[type=submit]', "{$who} signs in")
-            ->see('Dashboard', "{$who} lands on the dashboard");
+            ->fill($login['email'], $persona->email, "{$who} enters their email")
+            ->fill($login['password'], $persona->password, "{$who} enters their password")
+            ->click($login['submit'], "{$who} signs in")
+            ->see($login['landed'], "{$who} lands on the dashboard");
     }
 
     /**

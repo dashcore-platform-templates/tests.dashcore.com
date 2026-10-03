@@ -1,5 +1,10 @@
 <?php
 
+use App\Simulation\Journeys\Finance\AddCategory;
+use App\Simulation\Journeys\Finance\AddRecurringIncome;
+use App\Simulation\Journeys\Finance\RecordExpense;
+use App\Simulation\Journeys\Finance\RecordIncome;
+use App\Simulation\Journeys\Finance\ReviewBooks;
 use App\Simulation\Journeys\Sales\AdvanceDeal;
 use App\Simulation\Journeys\Sales\AssignLead;
 use App\Simulation\Journeys\Sales\CaptureLead;
@@ -8,6 +13,7 @@ use App\Simulation\Journeys\Sales\CloseWonDeal;
 use App\Simulation\Journeys\Sales\FollowUpLead;
 use App\Simulation\Journeys\Sales\OpenOpportunity;
 use App\Simulation\Journeys\Sales\ReviewPipeline;
+use App\Simulation\Pulse\FinancePulse;
 use App\Simulation\Pulse\SalesPulse;
 
 return [
@@ -138,6 +144,39 @@ return [
                 ['name' => 'Priya Natarajan', 'email' => 'priya.natarajan@example.com', 'role' => 'Sales rep'],
             ],
         ],
+
+        'finance' => [
+            'name' => 'Finance',
+            'base_url' => env('SIMULATION_FINANCE_URL', 'http://finance.fakecompany.com.test'),
+            'checkout' => env('SIMULATION_FINANCE_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/finance.fakecompany.com' : null),
+            // Finance runs on MySQL (Herd's, root with no password locally).
+            'database' => env('SIMULATION_FINANCE_DATABASE', 'finance_fakecompany_com'),
+            'connection' => [
+                'driver' => 'mysql',
+                'host' => env('SIMULATION_FINANCE_DB_HOST', '127.0.0.1'),
+                'port' => env('SIMULATION_FINANCE_DB_PORT', '3306'),
+                'username' => env('SIMULATION_FINANCE_DB_USERNAME', 'root'),
+                'password' => env('SIMULATION_FINANCE_DB_PASSWORD', ''),
+            ],
+            'timezone' => env('SIMULATION_FINANCE_TIMEZONE', 'America/Los_Angeles'),
+            'pulse' => FinancePulse::class,
+            // Fortify's plain login form, not a Livewire one.
+            'login' => [
+                'email' => 'input[name="email"]',
+                'password' => 'input[name="password"]',
+                'submit' => 'button[data-test="login-button"]',
+                'landed' => 'Overview',
+            ],
+            'password' => env('SIMULATION_FINANCE_PASSWORD', 'password'),
+            // Its seeders make only a read-only viewer, so tests:prepare-target
+            // also creates these people with the app role each needs.
+            'personas' => [
+                ['name' => 'Fiona Grant', 'email' => 'fiona.grant@example.com', 'role' => 'Finance lead', 'app_role' => 'admin'],
+                ['name' => 'Omar Haddad', 'email' => 'omar.haddad@example.com', 'role' => 'Bookkeeper', 'app_role' => 'editor'],
+                ['name' => 'Lena Park', 'email' => 'lena.park@example.com', 'role' => 'Bookkeeper', 'app_role' => 'editor'],
+            ],
+            'prepare' => ['migrate --force', 'db:seed --force', 'db:seed --class=WhatChangedDemoSeeder --force'],
+        ],
     ],
 
     /*
@@ -159,6 +198,11 @@ return [
         CloseLostDeal::class => 1,
         AssignLead::class => 2,
         ReviewPipeline::class => 1,
+        RecordExpense::class => 4,
+        RecordIncome::class => 2,
+        AddRecurringIncome::class => 1,
+        AddCategory::class => 1,
+        ReviewBooks::class => 1,
     ],
 
 ];

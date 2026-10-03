@@ -7,6 +7,7 @@ use App\Enums\SimulationStatus;
 use App\Models\Setting;
 use App\Models\SimulationJourney;
 use App\Models\SimulationRun;
+use Dotenv\Dotenv;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -246,20 +247,48 @@ class Simulation
     }
 
     /**
-     * A connection to a target's database on this app's own server.
+     * A read connection to a target's database: by name on this app's own
+     * server, or wherever its `connection` settings say (another driver,
+     * host or port — the fake finance app runs on MySQL).
      */
     public function targetDatabase(string $key, string $database): ConnectionInterface
     {
         $name = "simulation_{$key}";
 
         if (config("database.connections.{$name}") === null) {
+            $overrides = (array) config("simulation.targets.{$key}.connection", []);
+            $driver = $overrides['driver'] ?? config('database.default');
+
             config(["database.connections.{$name}" => [
-                ...config('database.connections.'.config('database.default')),
+                ...config("database.connections.{$driver}", config('database.connections.'.config('database.default'))),
+                ...$overrides,
                 'database' => $database,
             ]]);
         }
 
         return DB::connection($name);
+    }
+
+    /**
+     * The environment for a command run inside a target's checkout: this
+     * app's own settings taken out, so the target reads its own .env. A child
+     * process inherits its parent's variables and Laravel never overrides one
+     * already set — without this, a target's `migrate` runs against this
+     * app's database.
+     *
+     * @return array<string, false>
+     */
+    public function targetEnvironment(): array
+    {
+        $keys = is_file(base_path('.env')) ? array_keys(Dotenv::parse((string) file_get_contents(base_path('.env')))) : [];
+
+        foreach (array_keys(getenv()) as $key) {
+            if (preg_match('/^(APP|DB|CACHE|SESSION|QUEUE|REDIS|MAIL|LOG|BROADCAST|FILESYSTEM|VITE|BRIDGE|NIGHTWATCH|SCANNER|SIMULATION)_/', $key)) {
+                $keys[] = $key;
+            }
+        }
+
+        return array_fill_keys(array_values(array_unique($keys)), false);
     }
 
     public function screenshotDirectory(SimulationRun $run): string

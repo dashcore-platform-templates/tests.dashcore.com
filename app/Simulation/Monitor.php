@@ -52,12 +52,23 @@ class Monitor
             return [
                 'waiting' => $schema->hasTable('jobs') ? $db->table('jobs')->count() : null,
                 'failed' => $schema->hasTable('failed_jobs') ? $db->table('failed_jobs')->count() : null,
-                'database_bytes' => (int) ($db->selectOne('select pg_database_size(current_database()) as size')->size ?? 0) ?: null,
+                'database_bytes' => $this->size($db),
                 'error' => null,
             ];
         } catch (Throwable $e) {
             return ['waiting' => null, 'failed' => null, 'database_bytes' => null, 'error' => Str::limit($e->getMessage(), 200)];
         }
+    }
+
+    private function size(ConnectionInterface $db): ?int
+    {
+        $bytes = match ($db->getDriverName()) {
+            'pgsql' => $db->selectOne('select pg_database_size(current_database()) as size')->size ?? null,
+            'mysql', 'mariadb' => $db->selectOne('select sum(data_length + index_length) as size from information_schema.tables where table_schema = database()')->size ?? null,
+            default => null,
+        };
+
+        return $bytes === null ? null : ((int) $bytes ?: null);
     }
 
     private function checkLog(string $target): void

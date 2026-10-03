@@ -179,6 +179,16 @@ surfaces (routes, Livewire components/actions, and every public method under
   `resolve_monitored_after` quiet runs), and the "Under load" panel compares
   step and Livewire latency now with the first 15 minutes after switching on,
   next to each target's queue, failed jobs and database size.
+  Targets so far: `sales` (Postgres) and `finance` (MySQL: its `connection`
+  settings; Fortify login: its `login` selectors). Adding an app is config
+  plus journeys: a target block, a `Journey` subclass per piece of work, a
+  `Pulse`. `tests:prepare-target {target}` sets a fake app up — its own
+  `prepare` migrations and seeders, then personas with an `app_role` made
+  through its User model — only for a `*.fakecompany.com` checkout with no
+  users yet. **Any process run inside a target's checkout must get
+  `Simulation::targetEnvironment()`**: a child inherits this app's variables
+  and Laravel never overrides one already set, so without it the target's
+  `migrate` runs against this app's database.
 
 ## NavigationRegistry Contract
 
