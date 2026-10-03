@@ -25,7 +25,8 @@ class Simulate extends Command implements SignalableCommandInterface
     protected $signature = 'tests:simulate
         {--once : Run one journey now, whether or not the simulation is on, then exit}
         {--journey= : Run this journey (by key) instead of drawing one}
-        {--max-runs= : Exit after this many runs so launchd starts a fresh worker}';
+        {--max-runs= : Exit after this many runs so launchd starts a fresh worker}
+        {--max-time= : Exit after this many seconds (once nothing is in flight), so launchd starts a fresh worker on fresh code}';
 
     protected $description = 'Run the Proving Ground: fake people working through the fake company\'s apps';
 
@@ -45,6 +46,8 @@ class Simulate extends Command implements SignalableCommandInterface
 
         $once = (bool) $this->option('once');
         $maxRuns = $once ? 1 : (int) ($this->option('max-runs') ?? config('simulation.max_runs'));
+        $maxTime = (int) ($this->option('max-time') ?? config('simulation.max_seconds'));
+        $startedAt = $this->clock();
 
         /** @var list<RunSession> $sessions */
         $sessions = [];
@@ -53,7 +56,7 @@ class Simulate extends Command implements SignalableCommandInterface
         $lastBeat = 0.0;
 
         while (true) {
-            $now = microtime(true);
+            $now = $this->clock();
 
             if ($now - $lastBeat >= self::HEARTBEAT_EVERY_SECONDS) {
                 $simulation->heartbeat();
@@ -61,8 +64,9 @@ class Simulate extends Command implements SignalableCommandInterface
             }
 
             // Fill the free places, one at a time, while there is room.
-            $wanted = $this->stopping || (! $once && ! $simulation->isOn()) ? 0 : ($once ? 1 : $simulation->concurrency());
-            $budgetLeft = $maxRuns <= 0 || $started < $maxRuns;
+            $timeLeft = $once || $maxTime <= 0 || $now - $startedAt < $maxTime;
+            $wanted = $this->stopping || ! $timeLeft || (! $once && ! $simulation->isOn()) ? 0 : ($once ? 1 : $simulation->concurrency());
+            $budgetLeft = ($maxRuns <= 0 || $started < $maxRuns) && $timeLeft;
 
             if (count($sessions) < $wanted && $budgetLeft && $now >= $nextStartAt) {
                 [$journey, $persona] = $simulation->pick($this->option('journey'));
@@ -78,7 +82,7 @@ class Simulate extends Command implements SignalableCommandInterface
 
                 unset($sessions[$i]);
                 $this->report($runner->finish($session));
-                $nextStartAt = microtime(true) + (int) config('simulation.pause');
+                $nextStartAt = $this->clock() + (int) config('simulation.pause');
 
                 try {
                     $monitor->check($session->run->target);
@@ -114,6 +118,15 @@ class Simulate extends Command implements SignalableCommandInterface
         $this->stopping = true;
 
         return false;
+    }
+
+    /**
+     * Seconds, from the app's clock rather than the system's, so tests can
+     * move it.
+     */
+    private function clock(): float
+    {
+        return now()->getTimestampMs() / 1000;
     }
 
     private function report(SimulationRun $run): void

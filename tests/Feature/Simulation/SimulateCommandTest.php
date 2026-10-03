@@ -96,4 +96,15 @@ class SimulateCommandTest extends TestCase
 
         $this->assertSame(SimulationStatus::Stopped, $orphan->fresh()->status);
     }
+
+    public function test_an_idle_worker_still_exits_on_its_clock_so_it_restarts_on_fresh_code(): void
+    {
+        app(Simulation::class)->turnOff();
+        $this->travelTo(now());
+        Sleep::whenFakingSleep(fn ($duration) => $this->travel((int) $duration->totalSeconds)->seconds());
+
+        $this->artisan('tests:simulate', ['--max-time' => 5])->assertSuccessful();
+
+        $this->assertSame(0, SimulationRun::count());
+    }
 }

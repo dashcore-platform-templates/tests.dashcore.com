@@ -7,6 +7,7 @@ use App\Enums\SimulationStatus;
 use App\Models\Setting;
 use App\Models\SimulationJourney;
 use App\Models\SimulationRun;
+use App\Simulation\Journeys\TourJourney;
 use Dotenv\Dotenv;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Carbon;
@@ -110,6 +111,14 @@ class Simulation
             $journeys[$journey->key()] = ['journey' => $journey, 'weight' => max(0, (int) $weight)];
         }
 
+        // Every target with a tour gets a walk round its main pages.
+        foreach (config('simulation.targets', []) as $key => $target) {
+            if (! empty($target['tour']['pages'])) {
+                $journey = new TourJourney($key);
+                $journeys[$journey->key()] ??= ['journey' => $journey, 'weight' => max(0, (int) ($target['tour']['weight'] ?? 1))];
+            }
+        }
+
         // Drafted journeys: on trial they run often, to prove themselves
         // quickly; once active, at the weight the explorer proposed.
         SimulationJourney::query()
@@ -189,7 +198,7 @@ class Simulation
 
                 try {
                     $timezone = $target['timezone'] ?? config('app.timezone');
-                    $metrics = app($target['pulse'])->read(
+                    $metrics = app($target['pulse'], ['metrics' => $target['pulse_metrics'] ?? []])->read(
                         $this->targetDatabase($key, $target['database']),
                         now($timezone),
                         $since?->copy()->setTimezone($timezone),

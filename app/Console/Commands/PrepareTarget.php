@@ -84,8 +84,10 @@ class PrepareTarget extends Command
                 continue;
             }
 
+            // forceFill: apps differ in what they let be mass-assigned, and
+            // a role is usually guarded. Only columns the app has are set.
             $code = sprintf(
-                '\App\Models\User::query()->updateOrCreate(["email" => %s], ["name" => %s, "password" => \Illuminate\Support\Facades\Hash::make(%s), "role" => %s])->forceFill(["email_verified_at" => now()])->save();',
+                '$u = \\App\\Models\\User::query()->firstOrNew(["email" => %1$s]); $cols = \\Illuminate\\Support\\Facades\\Schema::getColumnListing($u->getTable()); $u->forceFill(array_intersect_key(["name" => %2$s, "password" => \\Illuminate\\Support\\Facades\\Hash::make(%3$s), "role" => %4$s, "email_verified_at" => now()], array_flip($cols)))->save(); if (method_exists($u, "syncRoles")) { $u->syncRoles([%4$s]); }',
                 var_export($persona['email'], true),
                 var_export($persona['name'], true),
                 var_export((string) $config['password'], true),

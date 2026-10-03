@@ -188,7 +188,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   users yet. **Any process run inside a target's checkout must get
   `Simulation::targetEnvironment()`**: a child inherits this app's variables
   and Laravel never overrides one already set, so without it the target's
-  `migrate` runs against this app's database.
+  `migrate` runs against this app's database. Cheaper still: a target with a
+  `tour` (pages to open and the heading each must show) gets a read-only
+  `TourJourney` automatically, and `TablePulse` builds its pulse from
+  `pulse_metrics` (table, optional `where`) — then let the explorer draft the
+  real work (`explore_notes` warn it off a target's outside services;
+  `explore_off` refuses it, e.g. HR while its mail goes out for real). Targets:
+  sales, finance, hr (tour only), marketing. The worker restarts on
+  `max_runs` or `max_seconds`, so an idle one still picks up new code.
 
 ## NavigationRegistry Contract
 

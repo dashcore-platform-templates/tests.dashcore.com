@@ -35,6 +35,10 @@ class Explorer
         $exploration->update(['status' => ExplorationStatus::Running, 'started_at' => now()]);
 
         try {
+            if (($why = config("simulation.targets.{$exploration->target}.explore_off")) !== null) {
+                throw new \RuntimeException("Exploring {$exploration->target} is switched off: {$why}");
+            }
+
             $checkout = $this->checkout($exploration->target);
             $result = $this->ask($checkout, $this->prompt->build($exploration->target, $exploration->focus, $this->gaps($exploration->target)));
             $this->keep($exploration, $result);
