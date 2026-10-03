@@ -48,6 +48,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Findings
+    |--------------------------------------------------------------------------
+    |
+    | After every run its failures, server errors, browser errors, clicks with
+    | no loading feedback and slow steps become findings. A step slower than
+    | slow_ms is slow. A finding is resolved once resolve_after runs in a row
+    | could have hit it and did not.
+    |
+    */
+
+    'findings' => [
+        'slow_ms' => (int) env('SIMULATION_SLOW_MS', 3000),
+        'resolve_after' => (int) env('SIMULATION_RESOLVE_AFTER', 3),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Targets
     |--------------------------------------------------------------------------
     |

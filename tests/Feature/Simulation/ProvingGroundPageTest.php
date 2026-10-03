@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Enums\FindingKind;
+use App\Enums\FindingStatus;
 use App\Enums\SimulationStatus;
 use App\Livewire\Simulation\ProvingGround;
+use App\Models\SimulationFinding;
 use App\Models\SimulationRun;
 use App\Models\SimulationStep;
 use App\Models\User;
@@ -161,5 +164,83 @@ class ProvingGroundPageTest extends TestCase
         $this->get(route('simulation.screenshot', [$run, '000.jpg']))->assertNotFound();
 
         File::deleteDirectory($root);
+    }
+
+    public function test_open_findings_are_listed_worst_first_with_the_runs_that_hit_them_marked(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $run = SimulationRun::factory()->create(['summary' => 'Maya won a $3,400 deal with Gerlach Ltd', 'findings_count' => 2]);
+        SimulationFinding::factory()->create(['kind' => FindingKind::Slow, 'title' => 'Slow when someone saves the lead']);
+        SimulationFinding::factory()->create(['kind' => FindingKind::Breaks, 'title' => '“Lead to won deal” breaks when someone creates the deal', 'last_run_id' => $run->id]);
+        SimulationFinding::factory()->create(['kind' => FindingKind::DeadSpace, 'title' => 'Resolved one', 'status' => FindingStatus::Resolved]);
+
+        Livewire::test(ProvingGround::class)
+            ->assertSeeInOrder(['breaks when someone creates the deal', 'Slow when someone saves the lead'])
+            ->assertDontSee('Resolved one')
+            ->assertSee('2 findings')
+            ->call('showFindings', 'resolved')
+            ->assertSee('Resolved one')
+            ->assertDontSee('Slow when someone saves the lead');
+    }
+
+    public function test_the_open_findings_card_calls_out_ones_that_came_back(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        SimulationFinding::factory()->create(['reopened_at' => now()]);
+        SimulationFinding::factory()->create();
+
+        $counts = Livewire::test(ProvingGround::class)->assertSee('1 came back after a fix')->instance()->findingCounts;
+
+        $this->assertSame(['open' => 2, 'resolved' => 0, 'ignored' => 0, 'regressions' => 1], $counts);
+    }
+
+    public function test_replaying_a_finding_opens_its_last_run_on_the_step_where_it_happened(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $run = SimulationRun::factory()->create();
+        SimulationStep::factory()->for($run, 'run')->create(['position' => 0, 'screenshot' => '000.jpg']);
+        SimulationStep::factory()->for($run, 'run')->create(['position' => 1, 'screenshot' => '001.jpg', 'label' => 'Maya marks the deal won']);
+        SimulationStep::factory()->for($run, 'run')->create(['position' => 2, 'screenshot' => '002.jpg']);
+        $finding = SimulationFinding::factory()->create(['last_run_id' => $run->id, 'last_position' => 1]);
+        SimulationRun::factory()->running()->create();
+
+        Livewire::test(ProvingGround::class)
+            ->call('replayFinding', $finding->id)
+            ->assertSet('runId', $run->id)
+            ->assertSet('stepPosition', 1)
+            ->assertSee("Replaying run #{$run->id}")
+            ->assertSeeHtml(route('simulation.screenshot', ['run' => $run->id, 'file' => '001.jpg']));
+    }
+
+    public function test_an_admin_ignores_and_reopens_a_finding_and_a_member_cannot(): void
+    {
+        $finding = SimulationFinding::factory()->create(['clean_runs' => 2]);
+
+        $this->actingAs(User::factory()->create());
+        Livewire::test(ProvingGround::class)->call('ignoreFinding', $finding->id)->assertForbidden();
+        $this->assertSame(FindingStatus::Open, $finding->fresh()->status);
+
+        $this->actingAs(User::factory()->admin()->create());
+        Livewire::test(ProvingGround::class)
+            ->call('ignoreFinding', $finding->id)
+            ->assertDontSee($finding->title)
+            ->call('showFindings', 'ignored')
+            ->assertSee($finding->title)
+            ->call('reopenFinding', $finding->id);
+
+        $this->assertSame([FindingStatus::Open, 0], [$finding->fresh()->status, $finding->fresh()->clean_runs]);
+    }
+
+    public function test_steps_with_no_loading_feedback_are_marked_in_the_step_list(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $run = SimulationRun::factory()->create();
+        SimulationStep::factory()->for($run, 'run')->create(['position' => 0, 'label' => 'Maya marks the deal won', 'feedback' => false, 'livewire_requests' => 1]);
+
+        Livewire::test(ProvingGround::class)->assertSee('no feedback');
     }
 }

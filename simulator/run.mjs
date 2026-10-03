@@ -44,6 +44,49 @@ const settle = async (page) => {
     }
 };
 
+// Livewire round trips started by the current step: how many, and the
+// slowest, so the PHP side can judge whether waiting was noticeable.
+const LIVEWIRE_UPDATE = /\/livewire[^/]*\/update(\?|$)/;
+let livewire = { requests: 0, slowest_ms: 0 };
+const livewireStarted = new Map();
+
+// Counts visible loading feedback: any change to an element carrying a
+// wire:loading directive (Livewire shows, hides, disables or restyles it
+// while a request is in flight). Livewire's own data-loading marker on the
+// clicked element is not counted — it changes nothing a person can see
+// unless the app styles it.
+const watchLoadingFeedback = () => {
+    window.__pgFeedback = 0;
+    const hasLoadingDirective = (el) =>
+        el.nodeType === 1 && Array.from(el.attributes).some((a) => a.name.startsWith('wire:loading'));
+    new MutationObserver((records) => {
+        if (records.some((r) => hasLoadingDirective(r.target))) {
+            window.__pgFeedback++;
+        }
+    }).observe(document, {
+        attributes: true,
+        subtree: true,
+        attributeFilter: ['style', 'class', 'disabled', 'hidden', 'aria-busy', 'readonly'],
+    });
+};
+
+// The feedback count, which page it belongs to (a full page load starts a new
+// count), and whether the page delays any of its loading states — a delayed
+// state never shows for a request faster than the delay, which is not a
+// missing one.
+const feedbackState = (page) =>
+    page
+        .evaluate(() => ({
+            count: window.__pgFeedback ?? 0,
+            origin: performance.timeOrigin,
+            delayed: Array.from(document.querySelectorAll('*')).some((el) =>
+                Array.from(el.attributes).some((a) => a.name.startsWith('wire:loading') && a.name.includes('.delay')),
+            ),
+        }))
+        .catch(() => null);
+
+const LOADING_DELAY_MS = 250;
+
 const browser = await chromium.launch({ headless: true });
 let status = 'passed';
 
@@ -54,6 +97,7 @@ try {
         ignoreHTTPSErrors: true,
     });
     context.setDefaultTimeout(timeout);
+    await context.addInitScript(watchLoadingFeedback);
     const page = await context.newPage();
 
     page.on('request', (request) => {
@@ -64,10 +108,18 @@ try {
         }
         inFlight.add(request);
         lastActivity = Date.now();
+        if (LIVEWIRE_UPDATE.test(request.url())) {
+            livewire.requests++;
+            livewireStarted.set(request, Date.now());
+        }
     });
     const done = (request) => {
         inFlight.delete(request);
         lastActivity = Date.now();
+        if (livewireStarted.has(request)) {
+            livewire.slowest_ms = Math.max(livewire.slowest_ms, Date.now() - livewireStarted.get(request));
+            livewireStarted.delete(request);
+        }
     };
     page.on('requestfinished', done);
     page.on('requestfailed', done);
@@ -94,6 +146,8 @@ try {
         // The quiet window starts now, so a click whose request has not left
         // yet is not mistaken for a page at rest.
         lastActivity = started;
+        livewire = { requests: 0, slowest_ms: 0 };
+        const feedbackBefore = step.do === 'click' ? await feedbackState(page) : null;
         let error = null;
 
         try {
@@ -134,6 +188,19 @@ try {
         }
 
         const ms = Date.now() - started;
+
+        // Feedback is only judged for clicks that went to the server, and
+        // only on the same page: a full page load starts a fresh count.
+        let feedback = null;
+        if (feedbackBefore !== null && livewire.requests > 0) {
+            const after = await feedbackState(page);
+            if (after !== null && after.origin === feedbackBefore.origin) {
+                feedback = after.count > feedbackBefore.count;
+                if (!feedback && feedbackBefore.delayed && livewire.slowest_ms < LOADING_DELAY_MS) {
+                    feedback = null;
+                }
+            }
+        }
         const shot = `${String(index).padStart(3, '0')}.jpg`;
         const shotTaken = await page
             .screenshot({ path: join(journey.shots_dir, shot), type: 'jpeg', quality: 60 })
@@ -147,6 +214,9 @@ try {
             url: page.url(),
             screenshot: shotTaken ? shot : null,
             error,
+            livewire_requests: livewire.requests,
+            livewire_ms: livewire.requests > 0 ? livewire.slowest_ms : null,
+            feedback,
         });
 
         if (error) {

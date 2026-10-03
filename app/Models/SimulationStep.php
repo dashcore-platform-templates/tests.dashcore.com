@@ -20,6 +20,7 @@ class SimulationStep extends Model
         return [
             'status' => SimulationStatus::class,
             'console' => 'array',
+            'feedback' => 'boolean',
         ];
     }
 
