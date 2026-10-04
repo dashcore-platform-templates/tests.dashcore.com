@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **What this app is for — and what it is not for — is in [`PURPOSE.md`](PURPOSE.md). Read it first.**
+
 ## Commands
 
 ```bash
