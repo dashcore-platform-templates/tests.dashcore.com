@@ -1,5 +1,7 @@
 # DashCore Starter
 
+> **What this app is for — and what it is not for — is in [`PURPOSE.md`](PURPOSE.md). Read it first.**
+
 Base template for DashCore client applications. Every client app is scaffolded from this template via the DashCore Portal, then customized with installed packages and optional client-specific code.
 
 ## What's Included
