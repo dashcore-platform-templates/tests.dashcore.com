@@ -32,6 +32,10 @@
         <server name="DB_DATABASE" value="tests_dashcore_testing" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <env name="SCANNER_ROOT" value="" force="true"/>
+        <!-- The host's .env names gh by absolute path (launchd has no Homebrew
+             on PATH); tests assert on the bare command. -->
+        <env name="SCANNER_GH" value="gh" force="true"/>
+        <server name="SCANNER_GH" value="gh" force="true"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
