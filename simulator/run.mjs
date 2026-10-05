@@ -185,6 +185,13 @@ try {
         if (previous) {
             inFlight.delete(previous);
         }
+        // blob: and data: never touch the network, and Chromium never
+        // reports one finished: Turnstile's challenge script is a blob, so
+        // the first journey sat out the full step timeout on every step
+        // after the website — 15 s each, across apps — and ran out of time.
+        if (! /^https?:/.test(request.url())) {
+            return;
+        }
         inFlight.add(request);
         lastActivity = Date.now();
         if (LIVEWIRE_UPDATE.test(request.url())) {
