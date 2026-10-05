@@ -1,5 +1,6 @@
 <?php
 
+use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\Journeys\Finance\AddCategory;
 use App\Simulation\Journeys\Finance\AddRecurringIncome;
 use App\Simulation\Journeys\Finance\RecordExpense;
@@ -16,6 +17,14 @@ use App\Simulation\Journeys\Sales\ReviewPipeline;
 use App\Simulation\Pulse\FinancePulse;
 use App\Simulation\Pulse\SalesPulse;
 use App\Simulation\Pulse\TablePulse;
+use Illuminate\Support\Str;
+
+// Whose practice fleet customer journeys walk: fleets.dashcore.com builds
+// one per person (`fleet:practice`), named for this machine's user, served
+// by Herd at <app>.<who>.practice.test and checked out under ~/Herd by host.
+$practiceWho = env('SIMULATION_PRACTICE_WHO') ?: Str::slug((string) ((function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? null) : null) ?: basename((string) env('HOME'))));
+$practiceDomain = "{$practiceWho}.practice";
+$practiceRoot = rtrim((string) (env('SIMULATION_PRACTICE_ROOT') ?: env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/');
 
 return [
 
@@ -265,6 +274,71 @@ return [
             ],
             'prepare' => ['migrate --force', 'db:seed --force'],
         ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fleets, and the customer journeys walked across them
+    |--------------------------------------------------------------------------
+    |
+    | A customer journey follows one customer across every app it touches —
+    | the website, then sales, then whatever comes next — so it runs against
+    | a whole stand-in fleet rather than one target. Each fleet names its
+    | apps: where each is served, its checkout (which must be a stand-in:
+    | *.fakecompany.com or *.practice), and who signs in to it.
+    |
+    | Before a step runs, every app the journey touches must show, from its
+    | own configuration, that its mail goes to the log (`mail.default` is
+    | `log`, plus anything in `mail_guard`). `php artisan tests:journey`.
+    |
+    */
+
+    'fleets' => [
+        'practice' => [
+            'name' => "Practice fleet ({$practiceWho})",
+            // The fleet's install slug in fleets.dashcore.com.
+            'install' => "practice-{$practiceWho}",
+            'apps' => [
+                // The marketing site, at the fleet's apex. It posts the
+                // contact form to sales over the bridge (sales.capture).
+                'website' => [
+                    'name' => 'Website',
+                    'base_url' => env('SIMULATION_PRACTICE_WEBSITE_URL', "http://{$practiceDomain}.test"),
+                    'checkout' => env('SIMULATION_PRACTICE_WEBSITE_CHECKOUT', "{$practiceRoot}/{$practiceDomain}"),
+                    // It mails through Resend's API directly, which no mailer
+                    // setting reaches; it holds every message only while it
+                    // runs as local and nobody has asked it to really send.
+                    'mail_guard' => ['app.env' => 'local', 'mail.local_really_send' => false],
+                ],
+                'sales' => [
+                    'name' => 'Sales',
+                    'base_url' => env('SIMULATION_PRACTICE_SALES_URL', "http://sales.{$practiceDomain}.test"),
+                    'checkout' => env('SIMULATION_PRACTICE_SALES_CHECKOUT', "{$practiceRoot}/sales.{$practiceDomain}"),
+                    // A practice fleet has no seeded people. The rep is made
+                    // (or updated) by sales' own command before every run,
+                    // with a password generated for that run and never kept:
+                    // {email}, {name} and {password} are filled in.
+                    'personas' => [
+                        ['name' => 'Journey Rep', 'email' => 'journey.rep@example.com', 'role' => 'Sales rep'],
+                    ],
+                    'persona_command' => ['dashcore:admin', '{email}', '--name={name}', '--role=member', '--password={password}'],
+                ],
+            ],
+        ],
+    ],
+
+    // Every stage of a customer's life with Dashcore, in order. One with a
+    // `journey` is walked; the rest are pending — the stage it simulates is
+    // not built yet — so this list doubles as the progress bar for the whole
+    // customer journey (`tests:journey --list`).
+    'customer_journeys' => [
+        'enquiry' => ['name' => 'Enquiry', 'journey' => Enquiry::class],
+        'payment' => ['name' => 'Payment', 'what' => 'The prospect pays for a plan, and sales and finance both see the sale.'],
+        'provisioning' => ['name' => 'Provisioning', 'what' => "The paid order builds the customer's own fleet."],
+        'first-sign-in' => ['name' => 'First sign-in', 'what' => 'The new customer signs in to their fleet for the first time.'],
+        'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],
+        'upgrade' => ['name' => 'Upgrade', 'what' => 'The customer moves to a bigger plan, and their fleet grows to match.'],
+        'cancellation' => ['name' => 'Cancellation', 'what' => 'The customer cancels, and their fleet winds down cleanly.'],
     ],
 
     /*

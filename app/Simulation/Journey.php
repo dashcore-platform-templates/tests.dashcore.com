@@ -36,13 +36,25 @@ abstract class Journey
      */
     protected function signIn(Script $script, Persona $persona): Script
     {
+        return self::signInSteps($script, $persona, (array) config("simulation.targets.{$this->target()}.login", []));
+    }
+
+    /**
+     * The sign-in steps themselves, through a login form whose fields and
+     * landing page `$login` may override — shared with customer journeys,
+     * whose apps name their own.
+     *
+     * @param  array{email?: string, password?: string, submit?: string, landed?: string}  $login
+     */
+    public static function signInSteps(Script $script, Persona $persona, array $login = []): Script
+    {
         $who = $persona->firstName();
         $login = [
             'email' => '#email',
             'password' => '#password',
             'submit' => 'form[wire\:submit="login"] button[type=submit]',
             'landed' => 'Dashboard',
-            ...(array) config("simulation.targets.{$this->target()}.login", []),
+            ...$login,
         ];
 
         return $script

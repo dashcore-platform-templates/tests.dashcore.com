@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Simulation\Simulation;
+use App\Simulation\StandInGuard;
 use Illuminate\Console\Command;
 use Illuminate\Console\View\TaskResult;
 use Illuminate\Support\Facades\Process;
@@ -11,8 +12,9 @@ use Throwable;
 /**
  * Gets a fake app ready for the Proving Ground: runs its own migrations and
  * seeders in its checkout, so the personas exist and there is a business to
- * work in. Only ever a *.fakecompany.com copy, and only one nobody has set
- * up yet — it never reseeds an app with people in it.
+ * work in. Only ever a stand-in — a *.fakecompany.com copy or an app of a
+ * practice fleet (StandInGuard) — and only one nobody has set up yet: it
+ * never reseeds an app with people in it.
  */
 class PrepareTarget extends Command
 {
@@ -20,7 +22,7 @@ class PrepareTarget extends Command
 
     protected $description = 'Migrate and seed a fake app so the Proving Ground can work in it';
 
-    public function handle(Simulation $simulation): int
+    public function handle(Simulation $simulation, StandInGuard $guard): int
     {
         $target = (string) $this->argument('target');
         $config = config("simulation.targets.{$target}");
@@ -33,14 +35,8 @@ class PrepareTarget extends Command
 
         $checkout = $config['checkout'] ?? null;
 
-        if (! is_string($checkout) || ! is_dir($checkout)) {
-            $this->components->error("No checkout of {$target} at ".var_export($checkout, true).'.');
-
-            return self::FAILURE;
-        }
-
-        if (! str_contains(basename($checkout), 'fakecompany')) {
-            $this->components->error("{$checkout} is not a fake company app; only *.fakecompany.com checkouts are prepared.");
+        if (($refusal = $guard->checkoutRefusal($checkout)) !== null) {
+            $this->components->error("Not preparing {$target}: {$refusal}");
 
             return self::FAILURE;
         }
