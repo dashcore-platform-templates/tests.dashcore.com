@@ -76,7 +76,7 @@ class PrepareTargetTest extends TestCase
         config(['simulation.targets.finance.checkout' => $this->root.'/finance.dashcore.com']);
 
         $this->artisan('tests:prepare-target', ['target' => 'finance'])
-            ->expectsOutputToContain('is not a fake company app')
+            ->expectsOutputToContain('is not a stand-in app')
             ->assertFailed();
 
         Process::assertNothingRan();

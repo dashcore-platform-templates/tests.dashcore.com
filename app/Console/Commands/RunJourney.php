@@ -1,0 +1,214 @@
+<?php
+
+namespace App\Console\Commands;
+
+use App\Simulation\CustomerJourney;
+use App\Simulation\JourneyWalker;
+use App\Simulation\Persona;
+use App\Simulation\Simulation;
+use App\Simulation\StandInGuard;
+use Faker\Factory as Faker;
+use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
+
+/**
+ * Walks one stage of the customer journey across a stand-in fleet and says,
+ * step by step, whether it held. With no journey, lists every stage and
+ * which are still pending — the progress bar for the whole journey.
+ *
+ * Nothing is driven until every app the journey touches is a stand-in and
+ * has shown that its mail stays in its log.
+ */
+class RunJourney extends Command
+{
+    protected $signature = 'tests:journey
+        {journey? : The customer journey to walk (e.g. enquiry); omit to list them}
+        {--target=practice : The stand-in fleet to walk it against (simulation.fleets)}
+        {--list : List the customer journeys and which are pending}';
+
+    protected $description = 'Walk a customer journey across a stand-in fleet, step by step';
+
+    public function handle(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker): int
+    {
+        $key = $this->argument('journey');
+
+        if ($key === null || $this->option('list')) {
+            return $this->list();
+        }
+
+        $stage = config("simulation.customer_journeys.{$key}");
+
+        if (! is_array($stage)) {
+            $this->components->error("No customer journey \"{$key}\". Known: ".implode(', ', array_keys(config('simulation.customer_journeys', []))).'.');
+
+            return self::FAILURE;
+        }
+
+        if (empty($stage['journey'])) {
+            $this->components->warn("{$stage['name']} is pending: {$stage['what']}");
+
+            return self::FAILURE;
+        }
+
+        $target = (string) $this->option('target');
+        $fleet = config("simulation.fleets.{$target}");
+
+        if (! is_array($fleet)) {
+            $this->components->error("No stand-in fleet \"{$target}\". Known: ".implode(', ', array_keys(config('simulation.fleets', []))).'.');
+
+            return self::FAILURE;
+        }
+
+        /** @var CustomerJourney $journey */
+        $journey = app($stage['journey']);
+        $faker = Faker::create();
+
+        // The apps are read off the script itself, so what is guarded is
+        // exactly what will be driven. The people are placeholders until the
+        // guard has passed; nobody is made in an app that might mail them.
+        $placeholders = array_map(fn () => new Persona('Someone', 'someone@example.com', '', ''), $journey->signsIn());
+        $apps = array_values(array_unique([...$journey->script($placeholders, Faker::create())->apps(), ...array_keys($journey->signsIn())]));
+
+        $this->components->info("{$stage['name']}: {$journey->name()} — on {$fleet['name']}");
+
+        foreach ($apps as $app) {
+            $config = $fleet['apps'][$app] ?? null;
+
+            if (! is_array($config)) {
+                $this->components->error("{$fleet['name']} has no {$app} app; the journey needs it.");
+
+                return self::FAILURE;
+            }
+
+            $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
+                ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []));
+
+            if ($refusal !== null) {
+                $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");
+
+                return self::FAILURE;
+            }
+
+            $this->components->twoColumnDetail("{$app} <fg=gray>{$config['base_url']}</>", '<fg=green>stand-in, mail to log</>');
+        }
+
+        $people = [];
+
+        foreach ($journey->signsIn() as $app => $role) {
+            $person = $this->person($simulation, $app, $fleet['apps'][$app], $role);
+
+            if ($person === null) {
+                return self::FAILURE;
+            }
+
+            $people[$app] = $person;
+        }
+
+        $script = $journey->script($people, $faker);
+        $shots = rtrim((string) config('simulation.screenshots'), '/')."/journeys/{$key}-".now()->format('Ymd-His');
+        $this->newLine();
+
+        $result = $walker->walk(
+            $script,
+            array_map(fn (array $app) => (string) $app['base_url'], $fleet['apps']),
+            $shots,
+            function (array $step) {
+                $mark = $step['status'] === 'passed' ? '<fg=green>✓</>' : '<fg=red>✗</>';
+                $this->line(sprintf('  %s %s <fg=gray>%s · %s ms</>', $mark, $step['label'], $step['on'] ?? '-', $step['ms'] ?? '?'));
+
+                if ($step['status'] !== 'passed') {
+                    foreach (array_filter([$step['error'], $step['url'] ? "at {$step['url']}" : null]) as $detail) {
+                        $this->line('      <fg=red>'.str_replace("\n", "\n      ", $detail).'</>');
+                    }
+                }
+            },
+        );
+
+        foreach (array_slice($script->steps(), count($result->steps)) as $step) {
+            $this->line('  <fg=gray>- '.$result->interpolate($step['label']).' (not reached)</>');
+        }
+
+        $this->newLine();
+
+        foreach (array_unique($result->serverErrors) as $error) {
+            $this->components->warn("Server error: {$error}");
+        }
+
+        if ($result->error !== null) {
+            $this->components->error($result->error);
+        }
+
+        if (! $result->passed()) {
+            $this->components->error(sprintf('%s failed after %d of %d steps. Screenshots: %s', $stage['name'], count(array_filter($result->steps, fn ($s) => $s['status'] === 'passed')), $result->total, $result->shotsDir));
+
+            return self::FAILURE;
+        }
+
+        $this->components->info(sprintf('%s passed: %d steps in %.1f s. %s', $stage['name'], $result->total, array_sum(array_column($result->steps, 'ms')) / 1000, $result->interpolate((string) $script->getSummary())));
+
+        return self::SUCCESS;
+    }
+
+    private function list(): int
+    {
+        $stages = config('simulation.customer_journeys', []);
+        $walked = count(array_filter($stages, fn (array $stage) => ! empty($stage['journey'])));
+
+        $this->components->info(sprintf('The customer journey: %d of %d stages simulated.', $walked, count($stages)));
+
+        foreach ($stages as $key => $stage) {
+            $this->components->twoColumnDetail(
+                "{$key} <fg=gray>{$stage['name']}</>",
+                empty($stage['journey']) ? '<fg=yellow>pending</>' : '<fg=green>ready</> <fg=gray>'.app($stage['journey'])->name().'</>',
+            );
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * The person who signs in to an app: its persona in that role, made or
+     * refreshed by the app's own command with a password for this run only,
+     * when the app names one; else the persona as its seeders made it.
+     *
+     * @param  array<string, mixed>  $app
+     */
+    private function person(Simulation $simulation, string $key, array $app, string $role): ?Persona
+    {
+        $persona = collect($app['personas'] ?? [])->firstWhere('role', $role);
+
+        if ($persona === null) {
+            $this->components->error("{$key} has no persona in the role {$role}.");
+
+            return null;
+        }
+
+        if (empty($app['persona_command'])) {
+            return new Persona($persona['name'], $persona['email'], (string) ($app['password'] ?? 'password'), $role);
+        }
+
+        $password = Str::password(24, symbols: false);
+        $arguments = array_map(fn (string $part) => strtr($part, [
+            '{email}' => $persona['email'],
+            '{name}' => $persona['name'],
+            '{password}' => $password,
+        ]), $app['persona_command']);
+
+        $result = Process::path($app['checkout'])
+            ->env($simulation->cleanEnvironment())
+            ->timeout(120)
+            ->run(['php', 'artisan', ...$arguments, '--no-interaction']);
+
+        if (! $result->successful()) {
+            // Its output, never the command: that carries the password.
+            $this->components->error("Could not make {$persona['name']} in {$key}: ".Str::limit(trim($result->errorOutput() ?: $result->output()), 500));
+
+            return null;
+        }
+
+        $this->components->twoColumnDetail("{$key} <fg=gray>signs in as</>", "{$persona['name']} <fg=gray>{$persona['email']}</>");
+
+        return new Persona($persona['name'], $persona['email'], $password, $role);
+    }
+}

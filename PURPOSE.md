@@ -53,6 +53,11 @@ decide what the next batch of tests should cover. The jobs it does:
   headless browser, and failed steps, server errors, slow steps and clicks with
   no loading feedback become findings. Coverage reached that way is mapped back
   onto the fleet page as "live".
+- **Walk customer journeys.** `tests:journey` follows one customer across
+  every app a stage of their life touches — enquiring on the website and
+  arriving in sales first, then paying, being provisioned and onwards — in
+  a stand-in fleet (a practice fleet, or the fake company). The list of
+  stages, pending ones included, is the progress bar for the whole journey.
 
 A feature belongs here if it answers "does this app's code have proof behind
 it, and is that proof getting better or worse?" across the fleet.
@@ -88,9 +93,10 @@ close.
   Composer, npm, databases — is `herd` (local only).
 - **Not the fleet roster.** Which apps exist is the hub's manifest; this app
   reads it and keeps no list of its own.
-- **Not a place to test against real data.** The Proving Ground drives only
-  local stand-in apps seeded with fake data, never a real app or a production
-  install.
+- **Not a place to test against real data.** The Proving Ground and customer
+  journeys drive only local stand-in apps (*.fakecompany.com, *.practice)
+  with fake data, never a real app or a production install — and never one
+  that has not shown its mail goes to its log.
 - **Not a writer of application code.** The builder may touch only tests and
   factories; anything else it changes is thrown away before verification.
 

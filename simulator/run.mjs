@@ -4,7 +4,11 @@
 // stdout, which the PHP side reads as they arrive so the page can follow the
 // run step by step. Every step ends with a screenshot, pass or fail.
 //
-//   { base_url, shots_dir, step_timeout_ms, viewport, steps: [{ do, label, ... }] }
+//   { base_url, base_urls?, shots_dir, step_timeout_ms, viewport, steps: [{ do, label, on?, ... }] }
+//
+// A journey across apps names each app's address in base_urls, and a step's
+// `on` says which app it belongs to: a visit opens its path there. Steps
+// without `on` use base_url, as every single-app journey does.
 //
 // Step kinds:
 //   visit  { path }                   open a page
@@ -13,6 +17,8 @@
 //   click  { target, confirm? }       click; confirm: true accepts the browser confirm() it opens
 //   see    { text }                   wait until the text is on the page
 //   gone   { target }                 wait until the element has left the page
+//   filled { target }                 wait until a field holds a value the page
+//                                     put there (a challenge widget's token)
 //   press  { key }                    press a key on the focused element
 //   remember { target, as }           keep the element's text (or a field's
 //                                     value) as {as} for later steps
@@ -147,6 +153,15 @@ const mountedComponents = (page) =>
         )
         .catch(() => []);
 
+// A path on the app the step belongs to; an absolute URL is left alone.
+const addressOf = (step) => {
+    const base = step.on !== undefined ? journey.base_urls?.[step.on] : undefined;
+    if (step.on !== undefined && base === undefined) {
+        throw new Error(`No address for the app "${step.on}"`);
+    }
+    return base === undefined ? step.path : new URL(step.path, base).href;
+};
+
 const remembered = {};
 const fill = (value) =>
     typeof value === 'string' ? value.replace(/\{([a-z_]+)\}/g, (match, name) => remembered[name] ?? match) : value;
@@ -225,7 +240,7 @@ try {
         try {
             switch (step.do) {
                 case 'visit':
-                    await page.goto(step.path);
+                    await page.goto(addressOf(step));
                     break;
                 case 'fill': {
                     const field = page.locator(step.target).first();
@@ -262,6 +277,22 @@ try {
                 case 'gone':
                     await page.locator(step.target).first().waitFor({ state: 'detached' });
                     break;
+                case 'filled': {
+                    // Hidden fields count: a widget's token usually lives in one.
+                    const field = page.locator(step.target).first();
+                    const deadline = Date.now() + timeout;
+                    for (;;) {
+                        const value = await field.inputValue({ timeout: 500 }).catch(() => '');
+                        if (value !== '') {
+                            break;
+                        }
+                        if (Date.now() >= deadline) {
+                            throw new Error(`${step.target} never got a value`);
+                        }
+                        await page.waitForTimeout(100);
+                    }
+                    break;
+                }
                 case 'press':
                     await page.keyboard.press(step.key);
                     break;

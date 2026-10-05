@@ -300,6 +300,23 @@ class Simulation
         return array_fill_keys(array_values(array_unique($keys)), false);
     }
 
+    /**
+     * The environment `env -i PATH=… HOME=…` would give: nothing inherited
+     * but where to find programs and whose home it is. For a stand-in app of
+     * a practice fleet, whose configuration must be read exactly as its own
+     * .env states it — a variable Herd exported into this shell from some
+     * other project would otherwise win over that file.
+     *
+     * @return array<string, string|false>
+     */
+    public function cleanEnvironment(): array
+    {
+        return [
+            ...array_fill_keys(array_keys(getenv()), false),
+            ...array_filter(['PATH' => getenv('PATH'), 'HOME' => getenv('HOME')], fn ($value) => is_string($value)),
+        ];
+    }
+
     public function screenshotDirectory(SimulationRun $run): string
     {
         return rtrim((string) config('simulation.screenshots'), '/').'/'.$run->id;

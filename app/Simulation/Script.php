@@ -11,6 +11,11 @@ namespace App\Simulation;
  * remember() keeps text from the page under a name, and any later step,
  * label or the summary can use it as {name}: that is how a journey picks up
  * an existing record and keeps working on it.
+ *
+ * A customer journey crosses apps: on() says which app of the fleet the
+ * steps after it belong to, and each visit opens its path on that app. What
+ * was remembered on one app is still there on the next, so the email a
+ * prospect typed into the website is the one a rep searches for in sales.
  */
 final class Script
 {
@@ -18,6 +23,29 @@ final class Script
     private array $steps = [];
 
     private ?string $summary = null;
+
+    /** The app the next steps run against, in a journey across apps. */
+    private ?string $app = null;
+
+    /**
+     * Run the steps after this one against another app of the fleet.
+     */
+    public function on(string $app): self
+    {
+        $this->app = $app;
+
+        return $this;
+    }
+
+    /**
+     * The apps the steps run against, in the order the journey reaches them.
+     *
+     * @return list<string>
+     */
+    public function apps(): array
+    {
+        return array_values(array_unique(array_filter(array_column($this->steps, 'on'))));
+    }
 
     public function visit(string $path, string $label): self
     {
@@ -69,6 +97,15 @@ final class Script
     }
 
     /**
+     * Wait until a field holds a value something else put there — a
+     * challenge widget's token, say — rather than one the journey typed.
+     */
+    public function filled(string $target, string $label): self
+    {
+        return $this->add('filled', $label, ['target' => $target]);
+    }
+
+    /**
      * One line for the feed once the run passes, e.g. "Maya added lead Dana Fox".
      */
     public function summary(string $summary): self
@@ -96,7 +133,7 @@ final class Script
      */
     private function add(string $do, string $label, array $with): self
     {
-        $this->steps[] = ['do' => $do, 'label' => $label, ...$with];
+        $this->steps[] = ['do' => $do, 'label' => $label, ...$with, ...($this->app === null ? [] : ['on' => $this->app])];
 
         return $this;
     }

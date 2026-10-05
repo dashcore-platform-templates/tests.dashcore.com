@@ -219,6 +219,26 @@ surfaces (routes, Livewire components/actions, and every public method under
   sales, finance, hr (tour only), marketing. The worker restarts on
   `max_runs` or `max_seconds`, so an idle one still picks up new code.
 
+- **Customer journeys** — `tests:journey [journey] [--target=practice]`
+  (`--list`, or no journey, lists them). One stage of a customer's life
+  (enquiry, payment, provisioning, first-sign-in, first-briefing, upgrade,
+  cancellation — `simulation.customer_journeys`; one without a `journey`
+  class is pending, so the list is the progress bar) walked across every app
+  it touches of a stand-in fleet (`simulation.fleets`: each app's
+  `base_url`, `checkout`, personas). A `CustomerJourney` script switches app
+  with `Script::on()`; a visit opens on that app (run.mjs `base_urls`), and
+  values cross apps by `remember()` → `{name}`. `JourneyWalker` drives
+  run.mjs and reports to the console only — no run records or findings.
+  `StandInGuard` refuses before anything runs: a checkout must be
+  `*fakecompany*` or `*.practice*` (also `tests:prepare-target`'s check), and
+  every app must show `mail.default` = `log` (plus its `mail_guard`, e.g. the
+  website's `app.env`/`mail.local_really_send`, since it posts to Resend's
+  API directly), read with `php -r` in its checkout under
+  `Simulation::cleanEnvironment()` (as `env -i`); an unreadable answer
+  refuses. A practice fleet has no people: the sales rep is made before each
+  run by sales' `dashcore:admin … --role=member` with a password for that
+  run only (`persona_command`). Journey 1 is `CustomerJourneys\Enquiry`.
+
 ### Running on the fleet host — gotchas that cost real time
 
 - **Resume point:** `.claude/PROGRESS.md` holds the current state and next action.
