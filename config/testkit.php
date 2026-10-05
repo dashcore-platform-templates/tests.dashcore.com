@@ -62,7 +62,6 @@ return [
             'resources/views/livewire/layout/navigation.blade.php@logout',
             'resources/views/livewire/pages/auth/confirm-password.blade.php@confirmPassword',
             'resources/views/livewire/pages/auth/forgot-password.blade.php@sendPasswordResetLink',
-            'resources/views/livewire/pages/auth/register.blade.php@register',
             'resources/views/livewire/pages/auth/reset-password.blade.php@resetPassword',
             'resources/views/livewire/pages/auth/verify-email.blade.php@logout',
             'resources/views/livewire/pages/auth/verify-email.blade.php@sendVerification',
