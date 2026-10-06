@@ -75,33 +75,16 @@ class RunJourney extends Command
         // guard has passed; nobody is made in an app that might mail them.
         $placeholders = array_map(fn () => new Persona('Someone', 'someone@example.com', '', ''), $journey->signsIn());
         // The app it pays is guarded too, even if no step visits it.
-        $apps = array_values(array_unique([...$journey->script($placeholders, Faker::create())->apps(), ...array_keys($journey->signsIn()), ...array_filter([$journey->stripeWebhookApp()])]));
+        // Apps its own prepare() brings into being are guarded once they exist.
+        $apps = array_values(array_diff(
+            array_unique([...$journey->script($placeholders, Faker::create())->apps(), ...array_keys($journey->signsIn()), ...$journey->guards(), ...array_filter([$journey->stripeWebhookApp()])]),
+            $journey->providesApps(),
+        ));
 
         $this->components->info("{$stage['name']}: {$journey->name()} — on {$fleet['name']}");
 
-        foreach ($apps as $app) {
-            $config = $fleet['apps'][$app] ?? null;
-
-            if (! is_array($config)) {
-                $this->components->error("{$fleet['name']} has no {$app} app; the journey needs it.");
-
-                return self::FAILURE;
-            }
-
-            $testMode = (array) ($config['test_mode'] ?? []);
-
-            $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
-                ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []))
-                ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode))
-                ?? $guard->settingRefusal($config['checkout'], (array) ($journey->requires()[$app] ?? []));
-
-            if ($refusal !== null) {
-                $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");
-
-                return self::FAILURE;
-            }
-
-            $this->components->twoColumnDetail("{$app} <fg=gray>{$config['base_url']}</>", '<fg=green>stand-in, mail to log'.($testMode === [] ? '' : ', payments in test mode').'</>');
+        if (! $this->guardApps($guard, $key, $fleet, $apps, $journey->requires())) {
+            return self::FAILURE;
         }
 
         $forwarding = null;
@@ -115,10 +98,85 @@ class RunJourney extends Command
         }
 
         try {
+            $fleet = $this->prepare($guard, $key, $fleet, $journey);
+
+            if ($fleet === null) {
+                return self::FAILURE;
+            }
+
             return $this->walk($simulation, $walker, $key, $stage, $fleet, $journey, $faker);
         } finally {
             $stripe->stop($forwarding);
         }
+    }
+
+    /**
+     * Every app named, a stand-in whose mail stays in its log (and, where it
+     * takes payments, on test keys) — or false, having said which is not.
+     *
+     * @param  array<string, mixed>  $fleet
+     * @param  list<string>  $apps
+     * @param  array<string, array<string, mixed>>  $requires  config each app must hold (CustomerJourney::requires)
+     */
+    private function guardApps(StandInGuard $guard, string $key, array $fleet, array $apps, array $requires = []): bool
+    {
+        foreach ($apps as $app) {
+            $config = $fleet['apps'][$app] ?? null;
+
+            if (! is_array($config)) {
+                $this->components->error("{$fleet['name']} has no {$app} app; the journey needs it.");
+
+                return false;
+            }
+
+            $testMode = (array) ($config['test_mode'] ?? []);
+
+            $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
+                ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []))
+                ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode))
+                ?? $guard->settingRefusal($config['checkout'], (array) ($requires[$app] ?? []));
+
+            if ($refusal !== null) {
+                $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");
+
+                return false;
+            }
+
+            $this->components->twoColumnDetail("{$app} <fg=gray>{$config['base_url']}</>", '<fg=green>stand-in, mail to log'.($testMode === [] ? '' : ', payments in test mode').'</>');
+        }
+
+        return true;
+    }
+
+    /**
+     * The journey's work on this machine, then the apps it brought into
+     * being guarded like the rest: the fleet to walk, or null having said
+     * why not.
+     *
+     * @param  array<string, mixed>  $fleet
+     * @return array<string, mixed>|null
+     */
+    private function prepare(StandInGuard $guard, string $key, array $fleet, CustomerJourney $journey): ?array
+    {
+        try {
+            $provided = $journey->prepare($fleet, fn (string $line) => $this->line("  <fg=gray>{$line}</>"));
+        } catch (Throwable $e) {
+            $this->components->error($e->getMessage());
+
+            return null;
+        }
+
+        $missing = array_diff($journey->providesApps(), array_keys($provided));
+
+        if ($missing !== []) {
+            $this->components->error('The journey did not say where '.implode(', ', $missing).' is.');
+
+            return null;
+        }
+
+        $fleet['apps'] = [...$fleet['apps'], ...$provided];
+
+        return $this->guardApps($guard, $key, $fleet, array_keys($provided), $journey->requires()) ? $fleet : null;
     }
 
     /**

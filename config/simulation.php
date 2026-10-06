@@ -1,7 +1,9 @@
 <?php
 
 use App\Simulation\CustomerJourneys\Enquiry;
+use App\Simulation\CustomerJourneys\FirstSignIn;
 use App\Simulation\CustomerJourneys\Payment;
+use App\Simulation\CustomerJourneys\Provisioning;
 use App\Simulation\CustomerJourneys\Subscription;
 use App\Simulation\Journeys\Finance\AddCategory;
 use App\Simulation\Journeys\Finance\AddRecurringIncome;
@@ -300,6 +302,13 @@ return [
             'name' => "Practice fleet ({$practiceWho})",
             // The fleet's install slug in fleets.dashcore.com.
             'install' => "practice-{$practiceWho}",
+            // Where the fleets a customer pays for are built from: the
+            // fleets checkout whose `fleet:intake` builds them, how long a
+            // whole fleet may take, and the Herd folder each client app's
+            // checkout lands in (<app>.<company>.practice).
+            'fleets_checkout' => env('SIMULATION_FLEETS_CHECKOUT', "{$practiceRoot}/fleets.dashcore.com"),
+            'provisioning_timeout' => (int) env('SIMULATION_PROVISIONING_TIMEOUT', 3600),
+            'client_root' => $practiceRoot,
             'apps' => [
                 // The marketing site, at the fleet's apex. It posts the
                 // contact form to sales over the bridge (sales.capture).
@@ -369,8 +378,8 @@ return [
         // sales and started by the payment link. Walks once sales and dcos run
         // the release that sells plans through the hand-off.
         'subscription' => ['name' => 'Subscription', 'journey' => Subscription::class],
-        'provisioning' => ['name' => 'Provisioning', 'what' => "The paid order builds the customer's own fleet."],
-        'first-sign-in' => ['name' => 'First sign-in', 'what' => 'The new customer signs in to their fleet for the first time.'],
+        'provisioning' => ['name' => 'Provisioning', 'journey' => Provisioning::class],
+        'first-sign-in' => ['name' => 'First sign-in', 'journey' => FirstSignIn::class],
         'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],
         'upgrade' => ['name' => 'Upgrade', 'what' => 'The customer moves to a bigger plan, and their fleet grows to match.'],
         'cancellation' => ['name' => 'Cancellation', 'what' => 'The customer cancels, and their fleet winds down cleanly.'],

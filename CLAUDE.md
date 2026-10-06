@@ -256,6 +256,21 @@ surfaces (routes, Livewire components/actions, and every public method under
   its price and next charge. A journey's `requires()` names config each app
   must hold (`StandInGuard::settingRefusal`, values only, never a secret) —
   here the plan switched on in sales and dcos (`DASHCORE_API_CEO_ENABLED`).
+  `CustomerJourneys\Provisioning` starts where Subscription ends, from the
+  paid API + CEO request it leaves waiting in the practice dcos
+  (`installs:pending`): its `prepare()`
+  runs `fleet:intake <practice install>` in the fleets checkout
+  (`fleets_checkout`), which builds the customer's own fleet under Herd at
+  `<company>.practice`, then reads back from dcos (`installs:show`) where it
+  was built and opens that cockpit. `CustomerJourneys\FirstSignIn`
+  takes the newest built fleet, reads the owner's set-password mail from the
+  cockpit's own mail log, sets a password, signs in and lands on its
+  dashboard. A journey's host-side work is `prepare()`, after the guard; the
+  apps it names in `guards()` are guarded first, and the apps it brings into
+  being (`providesApps()`, here `cockpit`) are guarded once it has said where
+  they are — a practice host (`*.practice.test`), a `.practice` checkout and
+  mail to the log, or nothing is driven. Only a practice fleet's sales are
+  ever built (`Provisioner::source`).
 
 ### Running on the fleet host — gotchas that cost real time
 

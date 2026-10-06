@@ -1,0 +1,152 @@
+<?php
+
+namespace App\Simulation\Provisioning;
+
+use App\Simulation\Simulation;
+use Illuminate\Support\Facades\Process;
+use RuntimeException;
+
+/**
+ * What the provisioning journeys do outside the browser: ask a practice
+ * fleet's dcos what has been paid for, have fleets.dashcore.com build it,
+ * and read back from dcos where it was built.
+ *
+ * Each is the app's own artisan command, run in its checkout under an empty
+ * environment (Simulation::cleanEnvironment), so it reads its own .env and
+ * never this app's. dcos is the ledger: fleets reports into it, and this
+ * reads the report there rather than asking fleets — the client is told
+ * their address by dcos, so that is the copy worth checking.
+ *
+ * Rehearsal only. A source that is not a practice fleet is refused before
+ * anything runs, and a client fleet that came up anywhere but under Herd
+ * here, at *.practice, is refused before a browser goes near it.
+ */
+class Provisioner
+{
+    public function __construct(private Simulation $simulation) {}
+
+    /**
+     * @param  array<string, mixed>  $fleet  a stand-in fleet (simulation.fleets.*)
+     *
+     * @throws RuntimeException when the fleet is not a practice fleet
+     */
+    public function source(array $fleet): string
+    {
+        $source = (string) ($fleet['install'] ?? '');
+
+        if (! str_starts_with($source, 'practice-')) {
+            throw new RuntimeException("{$fleet['name']} is not a practice fleet (its install is ".json_encode($source).'); a client fleet is only ever built here from practice.');
+        }
+
+        return $source;
+    }
+
+    /**
+     * The fleets clients have paid for that nobody has started building,
+     * oldest first.
+     *
+     * @param  array<string, mixed>  $delivery  the fleet's dcos entry
+     * @return list<array<string, mixed>>
+     */
+    public function pending(array $delivery): array
+    {
+        $listed = $this->json($delivery, ['installs:pending', '--json']);
+
+        if (! is_array($listed['installs'] ?? null)) {
+            throw new RuntimeException('dcos did not list its pending installs.');
+        }
+
+        return array_values($listed['installs']);
+    }
+
+    /**
+     * One request as dcos last heard of it — the newest when no uuid is given.
+     *
+     * @param  array<string, mixed>  $delivery
+     * @return array<string, mixed>
+     */
+    public function show(array $delivery, ?string $uuid = null): array
+    {
+        return $this->json($delivery, array_values(array_filter(['installs:show', $uuid, '--json'])));
+    }
+
+    /**
+     * Have fleets take in what the source fleet's dcos sold, and build it.
+     * Its output is passed on line by line: a build takes minutes, and a
+     * silent one reads as a hang.
+     *
+     * @param  callable(string): void  $say
+     */
+    public function intake(string $fleetsCheckout, string $source, int $timeout, callable $say): bool
+    {
+        if (! is_dir($fleetsCheckout) || ! is_file("{$fleetsCheckout}/artisan")) {
+            throw new RuntimeException("There is no fleets.dashcore.com checkout at {$fleetsCheckout}.");
+        }
+
+        return Process::path($fleetsCheckout)
+            ->env($this->simulation->cleanEnvironment())
+            ->timeout($timeout)
+            ->start(['php', 'artisan', 'fleet:intake', $source, '--no-interaction'], function (string $type, string $output) use ($say): void {
+                foreach (preg_split('/\R/', rtrim($output)) ?: [] as $line) {
+                    if (trim($line) !== '') {
+                        $say($line);
+                    }
+                }
+            })
+            ->wait()
+            ->successful();
+    }
+
+    /**
+     * The client's cockpit as a fleet entry the walker can drive: where it
+     * answers, and the checkout its mail log is in — a local practice fleet's
+     * app lives in the Herd folder named for its host.
+     *
+     * @param  array<string, mixed>  $request  as installs:show printed it
+     * @return array{name: string, base_url: string, checkout: string}
+     *
+     * @throws RuntimeException when it was not built as a local practice fleet
+     */
+    public function cockpit(array $request, string $root): array
+    {
+        $url = (string) ($request['install_url'] ?? '');
+        $host = (string) parse_url($url, PHP_URL_HOST);
+
+        if (($request['status'] ?? null) !== 'built' || $host === '') {
+            throw new RuntimeException("{$request['company']}'s fleet is not built: dcos has it ".($request['status'] ?? 'unknown').(empty($request['message']) ? '.' : " — {$request['message']}"));
+        }
+
+        if (! str_ends_with($host, '.practice.test')) {
+            throw new RuntimeException("{$request['company']}'s fleet answers at {$url}, which is not a practice fleet on this machine. Nothing is driven outside one.");
+        }
+
+        return [
+            'name' => "{$request['company']}'s cockpit",
+            'base_url' => rtrim($url, '/'),
+            'checkout' => rtrim($root, '/').'/'.substr($host, 0, -strlen('.test')),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $app
+     * @param  list<string>  $command
+     * @return array<string, mixed>
+     */
+    private function json(array $app, array $command): array
+    {
+        $result = Process::path((string) $app['checkout'])
+            ->env($this->simulation->cleanEnvironment())
+            ->timeout(60)
+            ->run(['php', 'artisan', ...$command, '--no-interaction']);
+
+        $said = trim($result->output());
+        $start = strpos($said, '{');
+        $decoded = $start === false ? null : json_decode(substr($said, $start), true);
+
+        if (! $result->successful() || ! is_array($decoded)) {
+            throw new RuntimeException("`{$command[0]}` in {$app['checkout']} failed: ".trim($result->errorOutput() ?: $said));
+        }
+
+        return $decoded;
+    }
+}
