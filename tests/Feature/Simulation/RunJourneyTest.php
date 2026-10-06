@@ -4,6 +4,7 @@ namespace Tests\Feature\Simulation;
 
 use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\CustomerJourneys\Payment;
+use App\Simulation\CustomerJourneys\Subscription;
 use App\Simulation\Persona;
 use App\Simulation\Simulation;
 use App\Simulation\StripeForwarder;
@@ -147,13 +148,13 @@ class RunJourneyTest extends TestCase
     public function test_the_list_is_the_progress_bar_for_the_whole_customer_journey(): void
     {
         $this->artisan('tests:journey')
-            ->expectsOutputToContain('2 of 7 stages simulated')
+            ->expectsOutputToContain('3 of 8 stages simulated')
             ->expectsOutputToContain('enquiry')
             ->expectsOutputToContain('cancellation')
             ->assertSuccessful();
 
         $this->assertSame(
-            ['enquiry', 'payment', 'provisioning', 'first-sign-in', 'first-briefing', 'upgrade', 'cancellation'],
+            ['enquiry', 'payment', 'subscription', 'provisioning', 'first-sign-in', 'first-briefing', 'upgrade', 'cancellation'],
             array_keys(config('simulation.customer_journeys')),
         );
     }
@@ -435,5 +436,68 @@ class RunJourneyTest extends TestCase
 
         $this->assertCount(1, $forwarder->stopped);
         $this->assertInstanceOf(InvokedProcess::class, $forwarder->stopped[0]);
+    }
+
+    private function subscriptionSteps(): int
+    {
+        return count(app(Subscription::class)->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
+    }
+
+    /**
+     * Sales and dcos as they answer once the plan is switched on in both.
+     */
+    private function planSwitchedOn(bool $sales = true, bool $delivery = true): void
+    {
+        $safe = ['mail.default' => 'log', 'app.env' => 'local', 'mail.local_really_send' => false];
+
+        $this->mail['sales.travischapman.practice'] = json_encode([...$safe, 'dashcore.plans.api_ceo.enabled' => $sales]);
+        $this->mail['dcos.travischapman.practice'] = json_encode([...$safe, 'dashcore.api_ceo.enabled' => $delivery]);
+    }
+
+    public function test_it_refuses_to_sell_the_plan_on_a_delivery_that_does_not_offer_it(): void
+    {
+        $this->planSwitchedOn(delivery: false);
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'subscription'])
+            ->expectsOutputToContain('dcos.travischapman.practice is not set up for this journey: dashcore.api_ceo.enabled is false, and must be true.')
+            ->assertFailed();
+
+        // Refused with the rest of the guard: no forwarder, nobody made, no browser.
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === '/opt/stripe');
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('dashcore:admin', (array) $p->command, true));
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_it_refuses_a_sales_release_that_cannot_sell_plans_yet(): void
+    {
+        // An older sales has no such setting at all: unknown is not ready.
+        $this->planSwitchedOn();
+        $this->mail['sales.travischapman.practice'] = json_encode(['mail.default' => 'log']);
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'subscription'])
+            ->expectsOutputToContain('sales.travischapman.practice is not set up for this journey: dashcore.plans.api_ceo.enabled is null, and must be true.')
+            ->assertFailed();
+    }
+
+    public function test_it_walks_the_subscription_while_the_stripe_cli_forwards_to_delivery(): void
+    {
+        $this->planSwitchedOn();
+        $this->events = $this->aWalk($this->subscriptionSteps(), 'journey+abc123def456@example.com');
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'subscription', '--target' => 'practice'])
+            ->expectsOutputToContain('payments in test mode')
+            ->expectsOutputToContain('forwarding test events')
+            ->expectsOutputToContain('picks the API + CEO plan')
+            ->expectsOutputToContain('Subscription passed')
+            ->assertSuccessful();
+
+        Process::assertRan(fn (PendingProcess $p) => (array) $p->command === [
+            '/opt/stripe', 'listen',
+            '--forward-to', 'http://dcos.travischapman.practice.test/webhooks/stripe',
+            '--events', 'checkout.session.completed',
+        ]);
     }
 }

@@ -2,6 +2,7 @@
 
 use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\CustomerJourneys\Payment;
+use App\Simulation\CustomerJourneys\Subscription;
 use App\Simulation\Journeys\Finance\AddCategory;
 use App\Simulation\Journeys\Finance\AddRecurringIncome;
 use App\Simulation\Journeys\Finance\RecordExpense;
@@ -364,6 +365,10 @@ return [
     'customer_journeys' => [
         'enquiry' => ['name' => 'Enquiry', 'journey' => Enquiry::class],
         'payment' => ['name' => 'Payment', 'journey' => Payment::class],
+        // Masterplan item 6's own test: the $300/mo API + CEO plan, sold from
+        // sales and started by the payment link. Walks once sales and dcos run
+        // the release that sells plans through the hand-off.
+        'subscription' => ['name' => 'Subscription', 'journey' => Subscription::class],
         'provisioning' => ['name' => 'Provisioning', 'what' => "The paid order builds the customer's own fleet."],
         'first-sign-in' => ['name' => 'First sign-in', 'what' => 'The new customer signs in to their fleet for the first time.'],
         'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],

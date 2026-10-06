@@ -92,7 +92,8 @@ class RunJourney extends Command
 
             $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
                 ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []))
-                ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode));
+                ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode))
+                ?? $guard->settingRefusal($config['checkout'], (array) ($journey->requires()[$app] ?? []));
 
             if ($refusal !== null) {
                 $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");

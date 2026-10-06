@@ -133,6 +133,41 @@ class StandInGuard
     }
 
     /**
+     * Why an app is not set up for a journey, or null when it holds every
+     * value the journey requires (CustomerJourney::requires()). Values only —
+     * never ask this about a secret; testModeRefusal() and holdsSecret() are
+     * how those are asked about without leaving the app.
+     *
+     * @param  array<string, mixed>  $required  config key => the value it must hold
+     */
+    public function settingRefusal(string $checkout, array $required): ?string
+    {
+        if ($required === []) {
+            return null;
+        }
+
+        try {
+            $actual = $this->read($checkout, array_keys($required));
+        } catch (Throwable $e) {
+            return "could not read the settings of {$checkout}: {$e->getMessage()}";
+        }
+
+        foreach ($required as $key => $value) {
+            if (! array_key_exists($key, $actual) || $actual[$key] !== $value) {
+                return sprintf(
+                    '%s is not set up for this journey: %s is %s, and must be %s.',
+                    basename($checkout),
+                    $key,
+                    json_encode($actual[$key] ?? null),
+                    json_encode($value),
+                );
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Whether an app holds the same secret as this process does — the Stripe
      * CLI's webhook signing secret, say — compared by fingerprint so neither
      * value is printed or passed to the other side. Null when it could not
