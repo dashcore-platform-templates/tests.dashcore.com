@@ -131,4 +131,64 @@ class StandInGuardTest extends TestCase
             && ($p->environment['LOCAL_MAIL_REALLY_SEND'] ?? null) === false
             && ($p->environment['PATH'] ?? null) === getenv('PATH'));
     }
+
+    public function test_an_app_on_stripe_test_keys_is_allowed(): void
+    {
+        Process::fake(['*' => Process::result('@@simulation-config@@'.json_encode(['starts_with:services.stripe.secret' => true])."\n")]);
+
+        $this->assertNull(app(StandInGuard::class)->testModeRefusal("{$this->root}/sales.travischapman.practice", ['services.stripe.secret' => 'sk_test_']));
+    }
+
+    public function test_an_app_on_live_or_missing_keys_is_refused_without_the_key_being_read(): void
+    {
+        Process::fake(['*' => Process::result('@@simulation-config@@'.json_encode(['starts_with:services.stripe.secret' => false])."\n")]);
+
+        $refusal = app(StandInGuard::class)->testModeRefusal("{$this->root}/sales.travischapman.practice", ['services.stripe.secret' => 'sk_test_']);
+
+        $this->assertSame('sales.travischapman.practice is not in test mode: services.stripe.secret is not a sk_test_ key.', $refusal);
+
+        // The app is asked whether its key starts as a test key does — the
+        // question goes in, a yes or no comes out, and the key stays put.
+        Process::assertRan(fn (PendingProcess $p) => $p->command[1] === '-r'
+            && str_contains($p->command[2], "'starts_with'")
+            && str_contains($p->command[2], "'sk_test_'")
+            && str_contains($p->command[2], 'str_starts_with($value, $argument)'));
+    }
+
+    public function test_an_answer_that_is_not_a_plain_yes_is_a_refusal(): void
+    {
+        $guard = app(StandInGuard::class);
+
+        // A key brought back instead of an answer is not a yes.
+        Process::fake(['*' => Process::result('@@simulation-config@@'.json_encode(['starts_with:services.stripe.secret' => 'sk_test_abc'])."\n")]);
+        $this->assertNotNull($guard->testModeRefusal("{$this->root}/sales.travischapman.practice", ['services.stripe.secret' => 'sk_test_']));
+
+        Process::fake(['*' => Process::result('', 'PHP Fatal error', 255)]);
+        $this->assertStringContainsString('could not read the payment settings', (string) $guard->testModeRefusal("{$this->root}/sales.travischapman.practice", ['services.stripe.secret' => 'sk_test_']));
+    }
+
+    public function test_a_secret_is_compared_by_fingerprint_and_never_sent(): void
+    {
+        $secret = 'whsec_'.bin2hex(random_bytes(16));
+        Process::fake(['*' => Process::result('@@simulation-config@@'.json_encode(['sha256:services.stripe.webhook_secret' => hash('sha256', $secret)])."\n")]);
+        $guard = app(StandInGuard::class);
+
+        $this->assertTrue($guard->holdsSecret("{$this->root}/sales.travischapman.practice", 'services.stripe.webhook_secret', $secret));
+        $this->assertFalse($guard->holdsSecret("{$this->root}/sales.travischapman.practice", 'services.stripe.webhook_secret', 'whsec_somebody_else'));
+        $this->assertFalse($guard->holdsSecret("{$this->root}/sales.travischapman.practice", 'services.stripe.webhook_secret', ''));
+
+        Process::assertDidntRun(fn (PendingProcess $p) => str_contains(implode(' ', (array) $p->command), $secret)
+            || in_array($secret, array_filter((array) $p->environment, 'is_string'), true));
+    }
+
+    public function test_an_app_that_holds_no_secret_or_cannot_say_does_not_hold_it(): void
+    {
+        $guard = app(StandInGuard::class);
+
+        Process::fake(['*' => Process::result('@@simulation-config@@'.json_encode(['sha256:services.stripe.webhook_secret' => null])."\n")]);
+        $this->assertFalse($guard->holdsSecret("{$this->root}/sales.travischapman.practice", 'services.stripe.webhook_secret', 'whsec_x'));
+
+        Process::fake(['*' => Process::result('', 'PHP Fatal error', 255)]);
+        $this->assertNull($guard->holdsSecret("{$this->root}/sales.travischapman.practice", 'services.stripe.webhook_secret', 'whsec_x'));
+    }
 }

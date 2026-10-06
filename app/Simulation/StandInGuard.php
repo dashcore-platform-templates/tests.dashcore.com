@@ -15,6 +15,12 @@ use Throwable;
  * its mail to itself? A simulated prospect types an address into a form, and
  * a real email from a simulation is the failure this exists to prevent, so
  * an app that cannot be shown to log its mail is refused, not trusted.
+ *
+ * An app that takes payments is asked a third: is it on its provider's test
+ * keys? A simulated prospect pays with a test card, and on live keys that
+ * would be a real charge. Secrets are never brought back to ask it: the app
+ * answers whether its key starts as a test key does, or with a fingerprint
+ * of a secret to compare, and nothing else crosses.
  */
 class StandInGuard
 {
@@ -96,6 +102,56 @@ class StandInGuard
     }
 
     /**
+     * Why an app may be on live payment keys, or null when every key it was
+     * asked about is a test key. `$prefixes` maps a config key to the start a
+     * test key has, e.g. services.stripe.secret => sk_test_. The key itself
+     * never leaves the app — only whether it starts that way.
+     *
+     * @param  array<string, string>  $prefixes
+     */
+    public function testModeRefusal(string $checkout, array $prefixes): ?string
+    {
+        $probes = [];
+
+        foreach ($prefixes as $key => $prefix) {
+            $probes["starts_with:{$key}"] = [$key, 'starts_with', (string) $prefix];
+        }
+
+        try {
+            $answers = $this->probe($checkout, $probes);
+        } catch (Throwable $e) {
+            return "could not read the payment settings of {$checkout}: {$e->getMessage()}";
+        }
+
+        foreach ($prefixes as $key => $prefix) {
+            if (($answers["starts_with:{$key}"] ?? null) !== true) {
+                return sprintf('%s is not in test mode: %s is not a %s key.', basename($checkout), $key, $prefix);
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Whether an app holds the same secret as this process does — the Stripe
+     * CLI's webhook signing secret, say — compared by fingerprint so neither
+     * value is printed or passed to the other side. Null when it could not
+     * be read.
+     */
+    public function holdsSecret(string $checkout, string $key, string $secret): ?bool
+    {
+        try {
+            $answers = $this->probe($checkout, ["sha256:{$key}" => [$key, 'sha256', '']]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        $fingerprint = $answers["sha256:{$key}"] ?? null;
+
+        return is_string($fingerprint) && $secret !== '' && hash_equals($fingerprint, hash('sha256', $secret));
+    }
+
+    /**
      * Config values as the app itself resolves them.
      *
      * @param  list<string>  $keys
@@ -103,10 +159,25 @@ class StandInGuard
      */
     private function read(string $checkout, array $keys): array
     {
+        return $this->probe($checkout, array_combine($keys, array_map(fn (string $key) => [$key, 'value', ''], $keys)));
+    }
+
+    /**
+     * Ask the app about its own config, in its own checkout, under an empty
+     * environment. Each probe is [config key, kind, argument]: `value` brings
+     * the value back, `starts_with` only whether it starts with the argument,
+     * `sha256` only its fingerprint — the last two are how a secret is asked
+     * about without it ever leaving the app.
+     *
+     * @param  array<string, array{0: string, 1: string, 2: string}>  $probes  by the name each answer comes back under
+     * @return array<string, mixed>
+     */
+    private function probe(string $checkout, array $probes): array
+    {
         // Core only — no tinker, which an app may not have installed.
         $code = sprintf(
-            'require "vendor/autoload.php"; $app = require "bootstrap/app.php"; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); $keys = %s; echo "\\n", %s, json_encode(array_combine($keys, array_map(fn ($key) => config($key), $keys))), "\\n";',
-            var_export($keys, true),
+            'require "vendor/autoload.php"; $app = require "bootstrap/app.php"; $app->make(Illuminate\\Contracts\\Console\\Kernel::class)->bootstrap(); $probes = %s; $answers = []; foreach ($probes as $name => [$key, $kind, $argument]) { $value = config($key); $answers[$name] = match ($kind) { "starts_with" => is_string($value) && $argument !== "" && str_starts_with($value, $argument), "sha256" => is_string($value) && $value !== "" ? hash("sha256", $value) : null, default => $value }; } echo "\\n", %s, json_encode($answers), "\\n";',
+            var_export($probes, true),
             var_export(self::MARKER, true),
         );
 

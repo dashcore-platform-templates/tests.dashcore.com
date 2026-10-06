@@ -237,7 +237,19 @@ surfaces (routes, Livewire components/actions, and every public method under
   `Simulation::cleanEnvironment()` (as `env -i`); an unreadable answer
   refuses. A practice fleet has no people: the sales rep is made before each
   run by sales' `dashcore:admin … --role=member` with a password for that
-  run only (`persona_command`). Journey 1 is `CustomerJourneys\Enquiry`.
+  run only (`persona_command`). Journey 1 is `CustomerJourneys\Enquiry`;
+  Journey 2, `CustomerJourneys\Payment`, walks it first (`reachSales()`),
+  then the rep's "Send to DCOS & get payment link" (sales → delivery,
+  `delivery.crm.checkout`) and "Send payment link"; the prospect's link is
+  read from sales' mail log (`mail` step), paid on Stripe Checkout with
+  4242… (`stripe_checkout` step), and the portal is waited for by
+  reloading (`seeWithin`) until dcos's webhook has won the deal. A journey
+  that pays names its app (`stripeWebhookApp()`): that app's fleet entry
+  needs `test_mode` (config key => test prefix, asked of the app as yes/no,
+  the key never leaves it) and `stripe_webhook`; the run is refused unless
+  the Stripe CLI is signed in and the app's webhook secret is the CLI's
+  (compared by SHA-256), and `StripeForwarder` runs `stripe listen
+  --forward-to` (events: `simulation.stripe.events`) only for the walk.
 
 ### Running on the fleet host — gotchas that cost real time
 
