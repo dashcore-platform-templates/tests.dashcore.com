@@ -1,6 +1,7 @@
 <?php
 
 use App\Simulation\CustomerJourneys\Enquiry;
+use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\Journeys\Finance\AddCategory;
 use App\Simulation\Journeys\Finance\AddRecurringIncome;
 use App\Simulation\Journeys\Finance\RecordExpense;
@@ -323,8 +324,37 @@ return [
                     ],
                     'persona_command' => ['dashcore:admin', '{email}', '--name={name}', '--role=member', '--password={password}'],
                 ],
+                // dcos, the catalogue's `delivery`: it signs the pay link
+                // sales hands a prospect, takes the payment through Stripe
+                // and keeps the client portal. Nobody signs in to it by
+                // persona — the customer makes their own portal account.
+                'delivery' => [
+                    'name' => 'Delivery (dcos)',
+                    'base_url' => env('SIMULATION_PRACTICE_DELIVERY_URL', "http://dcos.{$practiceDomain}.test"),
+                    'checkout' => env('SIMULATION_PRACTICE_DELIVERY_CHECKOUT', "{$practiceRoot}/dcos.{$practiceDomain}"),
+                    // Stripe test keys only: a simulated prospect pays with
+                    // a test card, and on live keys that is a real charge.
+                    // Asked of the app without the key ever leaving it.
+                    'test_mode' => ['services.stripe.secret' => 'sk_test_'],
+                    // Where the Stripe CLI forwards checkout events while a
+                    // paying journey runs, and the config key holding the
+                    // signing secret the app checks them with — which must
+                    // be the CLI's own (`stripe listen --print-secret`).
+                    'stripe_webhook' => ['path' => '/webhooks/stripe', 'secret' => 'services.stripe.webhook_secret'],
+                ],
             ],
         ],
+    ],
+
+    // The Stripe CLI, which carries a paying journey's webhooks to a
+    // stand-in that Stripe itself cannot reach (StripeForwarder). Only the
+    // events a journey's payment needs are forwarded: the CLI hears every
+    // test event on the account, and another checkout's event naming a
+    // deal id this stand-in also has would be taken as its own.
+    'stripe' => [
+        'cli' => env('SIMULATION_STRIPE_CLI', 'stripe'),
+        'events' => ['checkout.session.completed'],
+        'ready_timeout' => (int) env('SIMULATION_STRIPE_READY_TIMEOUT', 30),
     ],
 
     // Every stage of a customer's life with Dashcore, in order. One with a
@@ -333,7 +363,7 @@ return [
     // customer journey (`tests:journey --list`).
     'customer_journeys' => [
         'enquiry' => ['name' => 'Enquiry', 'journey' => Enquiry::class],
-        'payment' => ['name' => 'Payment', 'what' => 'The prospect pays for a plan, and sales and finance both see the sale.'],
+        'payment' => ['name' => 'Payment', 'journey' => Payment::class],
         'provisioning' => ['name' => 'Provisioning', 'what' => "The paid order builds the customer's own fleet."],
         'first-sign-in' => ['name' => 'First sign-in', 'what' => 'The new customer signs in to their fleet for the first time.'],
         'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],

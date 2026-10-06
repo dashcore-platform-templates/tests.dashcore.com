@@ -3,7 +3,11 @@
 namespace Tests\Feature\Simulation;
 
 use App\Simulation\CustomerJourneys\Enquiry;
+use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\Persona;
+use App\Simulation\Simulation;
+use App\Simulation\StripeForwarder;
+use Illuminate\Contracts\Process\InvokedProcess;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -19,13 +23,21 @@ class RunJourneyTest extends TestCase
     /** @var list<array<string, mixed>> what the browser reports */
     private array $events = [];
 
+    /** @var array<string, mixed> what the practice dcos answers about its Stripe keys */
+    private array $stripe = [];
+
+    /** What `stripe listen --print-secret` answers; null when the CLI is not signed in. */
+    private ?string $cliSecret = self::CLI_SECRET;
+
+    private const CLI_SECRET = 'whsec_cli_signing_secret_for_tests';
+
     protected function setUp(): void
     {
         parent::setUp();
 
         $this->root = sys_get_temp_dir().'/pg-journey-'.bin2hex(random_bytes(4));
 
-        foreach (['travischapman.practice', 'sales.travischapman.practice', 'sales.dashcore.com'] as $checkout) {
+        foreach (['travischapman.practice', 'sales.travischapman.practice', 'dcos.travischapman.practice', 'sales.dashcore.com'] as $checkout) {
             File::ensureDirectoryExists("{$this->root}/{$checkout}");
         }
 
@@ -35,10 +47,21 @@ class RunJourneyTest extends TestCase
             'simulation.fleets.practice.apps.website.base_url' => 'http://travischapman.practice.test',
             'simulation.fleets.practice.apps.sales.checkout' => "{$this->root}/sales.travischapman.practice",
             'simulation.fleets.practice.apps.sales.base_url' => 'http://sales.travischapman.practice.test',
+            'simulation.fleets.practice.apps.delivery.checkout' => "{$this->root}/dcos.travischapman.practice",
+            'simulation.fleets.practice.apps.delivery.base_url' => 'http://dcos.travischapman.practice.test',
+            'simulation.stripe.cli' => '/opt/stripe',
         ]);
 
         $safe = ['mail.default' => 'log', 'app.env' => 'local', 'mail.local_really_send' => false];
-        $this->mail = ['travischapman.practice' => json_encode($safe), 'sales.travischapman.practice' => json_encode($safe)];
+        $this->mail = [
+            'travischapman.practice' => json_encode($safe),
+            'sales.travischapman.practice' => json_encode($safe),
+            'dcos.travischapman.practice' => json_encode($safe),
+        ];
+        $this->stripe = [
+            'starts_with:services.stripe.secret' => true,
+            'sha256:services.stripe.webhook_secret' => hash('sha256', self::CLI_SECRET),
+        ];
     }
 
     protected function tearDown(): void
@@ -58,7 +81,22 @@ class RunJourneyTest extends TestCase
             $command = (array) $process->command;
 
             if (($command[1] ?? null) === '-r') {
-                return Process::result("\n@@simulation-config@@".$this->mail[basename((string) $process->path)]."\n");
+                // The mail read, or the Stripe probes: each asks for its own keys.
+                $answers = str_contains($command[2], "'starts_with'") || str_contains($command[2], "'sha256'")
+                    ? json_encode($this->stripe)
+                    : $this->mail[basename((string) $process->path)];
+
+                return Process::result("\n@@simulation-config@@{$answers}\n");
+            }
+
+            if ($command === ['/opt/stripe', 'listen', '--print-secret']) {
+                return $this->cliSecret === null
+                    ? Process::result('', 'You have not configured API keys yet.', 1)
+                    : Process::result("{$this->cliSecret}\n");
+            }
+
+            if (($command[0] ?? null) === '/opt/stripe') {
+                return Process::result('', "> Ready! Your webhook signing secret is {$this->cliSecret} (^C to quit)\n");
             }
 
             if (($command[2] ?? null) === 'dashcore:admin') {
@@ -109,7 +147,7 @@ class RunJourneyTest extends TestCase
     public function test_the_list_is_the_progress_bar_for_the_whole_customer_journey(): void
     {
         $this->artisan('tests:journey')
-            ->expectsOutputToContain('1 of 7 stages simulated')
+            ->expectsOutputToContain('2 of 7 stages simulated')
             ->expectsOutputToContain('enquiry')
             ->expectsOutputToContain('cancellation')
             ->assertSuccessful();
@@ -124,7 +162,7 @@ class RunJourneyTest extends TestCase
     {
         Process::fake();
 
-        $this->artisan('tests:journey', ['journey' => 'payment'])
+        $this->artisan('tests:journey', ['journey' => 'provisioning'])
             ->expectsOutputToContain('pending')
             ->assertFailed();
 
@@ -202,7 +240,11 @@ class RunJourneyTest extends TestCase
         });
 
         $steps = collect($walked['steps']);
-        $this->assertSame(['website' => 'http://travischapman.practice.test', 'sales' => 'http://sales.travischapman.practice.test'], $walked['base_urls']);
+        $this->assertSame('http://travischapman.practice.test', $walked['base_urls']['website']);
+        $this->assertSame('http://sales.travischapman.practice.test', $walked['base_urls']['sales']);
+
+        // It pays nobody, so no forwarder: the enquiry runs with or without Stripe.
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === '/opt/stripe');
         $this->assertSame('http://travischapman.practice.test', $walked['base_url']);
 
         // Website first, then sales; the email crosses between them as {email}.
@@ -269,5 +311,129 @@ class RunJourneyTest extends TestCase
         $this->artisan('tests:journey', ['journey' => 'enquiry', '--target' => 'nope'])->assertFailed();
 
         Process::assertNothingRan();
+    }
+
+    private function paymentSteps(): int
+    {
+        return count(app(Payment::class)->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
+    }
+
+    public function test_it_refuses_to_pay_on_a_delivery_app_with_live_stripe_keys(): void
+    {
+        $this->fakeProcesses();
+        $this->stripe['starts_with:services.stripe.secret'] = false;
+
+        $this->artisan('tests:journey', ['journey' => 'payment'])
+            ->expectsOutputToContain('dcos.travischapman.practice is not in test mode: services.stripe.secret is not a sk_test_ key.')
+            ->assertFailed();
+
+        // Refused with the rest of the guard: no forwarder, nobody made, no browser.
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === '/opt/stripe');
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('dashcore:admin', (array) $p->command, true));
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_it_refuses_to_pay_when_the_stripe_cli_is_not_signed_in(): void
+    {
+        $this->fakeProcesses();
+        $this->cliSecret = null;
+
+        $this->artisan('tests:journey', ['journey' => 'payment'])
+            ->expectsOutputToContain('the Stripe CLI is not signed in')
+            ->assertFailed();
+
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('--forward-to', (array) $p->command, true));
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_it_refuses_to_pay_when_delivery_would_refuse_the_clis_events(): void
+    {
+        $this->fakeProcesses();
+        $this->stripe['sha256:services.stripe.webhook_secret'] = hash('sha256', 'whsec_a_dashboard_endpoints_secret');
+
+        $this->artisan('tests:journey', ['journey' => 'payment'])
+            ->expectsOutputToContain("is not the Stripe CLI's signing secret")
+            ->doesntExpectOutputToContain(self::CLI_SECRET)
+            ->assertFailed();
+
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('--forward-to', (array) $p->command, true));
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_a_delivery_app_without_its_stripe_settings_is_not_paid(): void
+    {
+        $this->fakeProcesses();
+        config(['simulation.fleets.practice.apps.delivery.stripe_webhook' => null]);
+
+        $this->artisan('tests:journey', ['journey' => 'payment'])
+            ->expectsOutputToContain('has no Stripe test-mode check and webhook')
+            ->assertFailed();
+
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_it_walks_the_payment_while_the_stripe_cli_forwards_to_delivery(): void
+    {
+        $this->events = $this->aWalk($this->paymentSteps(), 'journey+abc123def456@example.com');
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'payment', '--target' => 'practice'])
+            ->expectsOutputToContain('payments in test mode')
+            ->expectsOutputToContain('forwarding test events')
+            ->expectsOutputToContain('They pay $1,250.00 with Stripe\'s test card')
+            ->expectsOutputToContain('Payment passed')
+            ->doesntExpectOutputToContain(self::CLI_SECRET)
+            ->assertSuccessful();
+
+        Process::assertRan(fn (PendingProcess $p) => (array) $p->command === [
+            '/opt/stripe', 'listen',
+            '--forward-to', 'http://dcos.travischapman.practice.test/webhooks/stripe',
+            '--events', 'checkout.session.completed',
+        ]);
+
+        $walked = null;
+        Process::assertRan(function (PendingProcess $p) use (&$walked) {
+            if (((array) $p->command)[0] !== config('simulation.node')) {
+                return false;
+            }
+
+            $walked = json_decode((string) $p->input, true);
+
+            return true;
+        });
+
+        // Every app of the fleet is reachable, and each one's mail log is
+        // where a `mail` step looks.
+        $this->assertSame('http://dcos.travischapman.practice.test', $walked['base_urls']['delivery']);
+        $this->assertSame("{$this->root}/sales.travischapman.practice/storage/logs", $walked['mail_logs']['sales']);
+
+        $steps = collect($walked['steps']);
+        $this->assertSame(['website', 'sales', 'delivery'], array_values(array_unique($steps->pluck('on')->all())));
+        $this->assertSame('/lets-talk', $steps->first()['path']);
+    }
+
+    public function test_the_forwarder_is_stopped_when_the_walk_fails(): void
+    {
+        $this->events = $this->aWalk($this->paymentSteps(), 'journey+x@example.com', failAt: 3);
+        $this->fakeProcesses();
+        $forwarder = new class(app(Simulation::class)) extends StripeForwarder
+        {
+            /** @var list<?InvokedProcess> */
+            public array $stopped = [];
+
+            public function stop(?InvokedProcess $process): void
+            {
+                $this->stopped[] = $process;
+                parent::stop($process);
+            }
+        };
+        $this->app->instance(StripeForwarder::class, $forwarder);
+
+        $this->artisan('tests:journey', ['journey' => 'payment'])
+            ->expectsOutputToContain('Payment failed after 3 of')
+            ->assertFailed();
+
+        $this->assertCount(1, $forwarder->stopped);
+        $this->assertInstanceOf(InvokedProcess::class, $forwarder->stopped[0]);
     }
 }

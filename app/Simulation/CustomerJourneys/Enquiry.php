@@ -3,9 +3,9 @@
 namespace App\Simulation\CustomerJourneys;
 
 use App\Simulation\CustomerJourney;
+use App\Simulation\Persona;
 use App\Simulation\Script;
 use Faker\Generator;
-use Illuminate\Support\Str;
 
 /**
  * Journey 1: a prospect fills in the website's contact form (/lets-talk),
@@ -15,6 +15,10 @@ use Illuminate\Support\Str;
  * (sales.capture) — the hop no single app's suite can see. The prospect's
  * address is new every run, on example.com, so a run never finds an earlier
  * run's lead and nothing it types can reach a real inbox.
+ *
+ * Later stages start where this one ends — a rep on the new lead's page —
+ * so they walk it first, through reachSales(), rather than make the lead
+ * some quicker way that would skip the hop they depend on.
  */
 class Enquiry extends CustomerJourney
 {
@@ -30,21 +34,29 @@ class Enquiry extends CustomerJourney
 
     public function script(array $people, Generator $faker): Script
     {
-        $first = $faker->firstName();
-        $last = $faker->lastName();
-        $email = 'journey+'.Str::lower(Str::random(12)).'@example.com';
-        $rep = $people['sales'];
+        $prospect = Prospect::fake($faker);
+
+        return $this->reachSales(new Script, $people['sales'], $prospect)
+            ->summary("{$prospect->name()} enquired on the website and {$people['sales']->firstName()} found them in sales");
+    }
+
+    /**
+     * The prospect enquires on the website, and the rep signs in to sales
+     * and opens the lead it made. Ends on the lead's page, in sales.
+     */
+    public function reachSales(Script $script, Persona $rep, Prospect $prospect): Script
+    {
         $who = $rep->firstName();
 
-        $script = (new Script)
+        $script
             ->on('website')
             ->visit('/lets-talk', 'The prospect opens the contact page')
-            ->fill('#df-first', $first, "They type their first name, {$first}")
-            ->fill('#df-last', $last, "They type their last name, {$last}")
-            ->fill('#df-email', $email, "They type their email, {$email}")
+            ->fill('#df-first', $prospect->first, "They type their first name, {$prospect->first}")
+            ->fill('#df-last', $prospect->last, "They type their last name, {$prospect->last}")
+            ->fill('#df-email', $prospect->email, "They type their email, {$prospect->email}")
             // What sales must show is what the form held, read back off it.
             ->remember('#df-email', 'email', 'The form holds their email')
-            ->fill('#df-company', "{$last} Workshop", "They type their company, {$last} Workshop")
+            ->fill('#df-company', $prospect->company, "They type their company, {$prospect->company}")
             ->select('#df-size', '2–10', 'They pick a company size')
             // Plain words: the website withholds anything that reads as spam
             // from sales, and a withheld lead would fail the journey for the
@@ -63,7 +75,6 @@ class Enquiry extends CustomerJourney
             ->see('{email}', "{$who} finds {email} in the list")
             ->click('tbody tr:first-child a:has-text("Open")', "{$who} opens the lead")
             ->see('{email}', "{$who} sees the lead is {email}")
-            ->see("{$first} {$last}", "{$who} sees it is {$first} {$last}")
-            ->summary("{$first} {$last} enquired on the website and {$who} found them in sales");
+            ->see($prospect->name(), "{$who} sees it is {$prospect->name()}");
     }
 }

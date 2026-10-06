@@ -7,10 +7,14 @@ use App\Simulation\JourneyWalker;
 use App\Simulation\Persona;
 use App\Simulation\Simulation;
 use App\Simulation\StandInGuard;
+use App\Simulation\StripeForwarder;
 use Faker\Factory as Faker;
+use Faker\Generator;
 use Illuminate\Console\Command;
+use Illuminate\Contracts\Process\InvokedProcess;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * Walks one stage of the customer journey across a stand-in fleet and says,
@@ -18,7 +22,9 @@ use Illuminate\Support\Str;
  * which are still pending — the progress bar for the whole journey.
  *
  * Nothing is driven until every app the journey touches is a stand-in and
- * has shown that its mail stays in its log.
+ * has shown that its mail stays in its log — and, where it takes payments,
+ * that it is on its provider's test keys. A journey that pays is walked
+ * only while the Stripe CLI carries its webhooks to the app that is paid.
  */
 class RunJourney extends Command
 {
@@ -29,7 +35,7 @@ class RunJourney extends Command
 
     protected $description = 'Walk a customer journey across a stand-in fleet, step by step';
 
-    public function handle(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker): int
+    public function handle(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker, StripeForwarder $stripe): int
     {
         $key = $this->argument('journey');
 
@@ -68,7 +74,8 @@ class RunJourney extends Command
         // exactly what will be driven. The people are placeholders until the
         // guard has passed; nobody is made in an app that might mail them.
         $placeholders = array_map(fn () => new Persona('Someone', 'someone@example.com', '', ''), $journey->signsIn());
-        $apps = array_values(array_unique([...$journey->script($placeholders, Faker::create())->apps(), ...array_keys($journey->signsIn())]));
+        // The app it pays is guarded too, even if no step visits it.
+        $apps = array_values(array_unique([...$journey->script($placeholders, Faker::create())->apps(), ...array_keys($journey->signsIn()), ...array_filter([$journey->stripeWebhookApp()])]));
 
         $this->components->info("{$stage['name']}: {$journey->name()} — on {$fleet['name']}");
 
@@ -81,8 +88,11 @@ class RunJourney extends Command
                 return self::FAILURE;
             }
 
+            $testMode = (array) ($config['test_mode'] ?? []);
+
             $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
-                ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []));
+                ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []))
+                ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode));
 
             if ($refusal !== null) {
                 $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");
@@ -90,9 +100,34 @@ class RunJourney extends Command
                 return self::FAILURE;
             }
 
-            $this->components->twoColumnDetail("{$app} <fg=gray>{$config['base_url']}</>", '<fg=green>stand-in, mail to log</>');
+            $this->components->twoColumnDetail("{$app} <fg=gray>{$config['base_url']}</>", '<fg=green>stand-in, mail to log'.($testMode === [] ? '' : ', payments in test mode').'</>');
         }
 
+        $forwarding = null;
+
+        if (($paid = $journey->stripeWebhookApp()) !== null) {
+            $forwarding = $this->forwardStripe($stripe, $guard, $key, $paid, $fleet['apps'][$paid] ?? null);
+
+            if ($forwarding === null) {
+                return self::FAILURE;
+            }
+        }
+
+        try {
+            return $this->walk($simulation, $walker, $key, $stage, $fleet, $journey, $faker);
+        } finally {
+            $stripe->stop($forwarding);
+        }
+    }
+
+    /**
+     * Make the people, walk the script, and report it.
+     *
+     * @param  array<string, mixed>  $stage
+     * @param  array<string, mixed>  $fleet
+     */
+    private function walk(Simulation $simulation, JourneyWalker $walker, string $key, array $stage, array $fleet, CustomerJourney $journey, Generator $faker): int
+    {
         $people = [];
 
         foreach ($journey->signsIn() as $app => $role) {
@@ -123,6 +158,8 @@ class RunJourney extends Command
                     }
                 }
             },
+            // A stand-in's mail is in its log; `mail` steps read it there.
+            array_map(fn (array $app) => rtrim((string) $app['checkout'], '/').'/storage/logs', array_filter($fleet['apps'], fn (array $app) => ! empty($app['checkout']))),
         );
 
         foreach (array_slice($script->steps(), count($result->steps)) as $step) {
@@ -148,6 +185,58 @@ class RunJourney extends Command
         $this->components->info(sprintf('%s passed: %d steps in %.1f s. %s', $stage['name'], $result->total, array_sum(array_column($result->steps, 'ms')) / 1000, $result->interpolate((string) $script->getSummary())));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Start the Stripe CLI forwarding test events to the app a journey pays,
+     * once it is safe to: the app has a webhook to forward to, the CLI is
+     * signed in, and the app checks events with the CLI's own signing
+     * secret — compared by fingerprint, neither printed. Its test keys were
+     * checked with the rest of the guard. Null, having said why, when not.
+     *
+     * @param  array<string, mixed>|null  $app
+     */
+    private function forwardStripe(StripeForwarder $stripe, StandInGuard $guard, string $key, string $paid, ?array $app): ?InvokedProcess
+    {
+        $webhook = (array) ($app['stripe_webhook'] ?? []);
+
+        if ($app === null || empty($app['test_mode']) || empty($webhook['path']) || empty($webhook['secret'])) {
+            $this->components->error("Refusing to walk {$key}: {$paid} has no Stripe test-mode check and webhook (test_mode, stripe_webhook) on its fleet entry.");
+
+            return null;
+        }
+
+        $secret = $stripe->signingSecret();
+
+        if ($secret === null) {
+            $this->components->error("Refusing to walk {$key}: the Stripe CLI is not signed in (run `stripe login`), so no payment would reach {$paid}.");
+
+            return null;
+        }
+
+        $holds = $guard->holdsSecret((string) $app['checkout'], (string) $webhook['secret'], $secret);
+
+        if ($holds !== true) {
+            $this->components->error($holds === null
+                ? "Refusing to walk {$key}: could not read {$paid}'s Stripe webhook secret ({$webhook['secret']})."
+                : "Refusing to walk {$key}: {$paid}'s {$webhook['secret']} is not the Stripe CLI's signing secret (`stripe listen --print-secret`), so it would refuse every forwarded event.");
+
+            return null;
+        }
+
+        $url = rtrim((string) $app['base_url'], '/').'/'.ltrim((string) $webhook['path'], '/');
+
+        try {
+            $process = $stripe->start($url);
+        } catch (Throwable $e) {
+            $this->components->error("Could not forward Stripe's webhooks to {$paid}: {$e->getMessage()}");
+
+            return null;
+        }
+
+        $this->components->twoColumnDetail("stripe listen <fg=gray>→ {$url}</>", '<fg=green>forwarding test events</>');
+
+        return $process;
     }
 
     private function list(): int

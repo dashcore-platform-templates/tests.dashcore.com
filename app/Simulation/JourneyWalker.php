@@ -18,9 +18,10 @@ class JourneyWalker
 {
     /**
      * @param  array<string, string>  $baseUrls  each app's address, by app
+     * @param  array<string, string>  $mailLogs  the folder each app logs its mail in, by app (for `mail` steps)
      * @param  callable(array{position: int, label: string, do: string, on: ?string, status: string, ms: ?int, error: ?string, url: ?string, screenshot: ?string}): void  $onStep
      */
-    public function walk(Script $script, array $baseUrls, string $shotsDir, callable $onStep): JourneyResult
+    public function walk(Script $script, array $baseUrls, string $shotsDir, callable $onStep, array $mailLogs = []): JourneyResult
     {
         File::ensureDirectoryExists($shotsDir);
 
@@ -86,6 +87,7 @@ class JourneyWalker
             ->input(json_encode([
                 'base_url' => $baseUrls[$script->apps()[0] ?? array_key_first($baseUrls)] ?? null,
                 'base_urls' => $baseUrls,
+                'mail_logs' => (object) $mailLogs,
                 'shots_dir' => $shotsDir,
                 'step_timeout_ms' => (int) config('simulation.step_timeout_ms'),
                 'steps' => $steps,

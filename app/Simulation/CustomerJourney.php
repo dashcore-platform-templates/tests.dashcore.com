@@ -37,6 +37,18 @@ abstract class CustomerJourney
     }
 
     /**
+     * The app whose Stripe webhook must hear about this journey's payments,
+     * or null when nothing in it pays. A journey that names one is walked
+     * only while the Stripe CLI forwards test events to that app (its
+     * `stripe_webhook` on the fleet entry), and only once the app has shown
+     * it is on Stripe test keys.
+     */
+    public function stripeWebhookApp(): ?string
+    {
+        return null;
+    }
+
+    /**
      * Sign in to an app of the fleet as its persona, through its login form
      * (`login` on the app's fleet entry overrides the fields).
      *

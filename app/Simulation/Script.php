@@ -106,6 +106,40 @@ final class Script
     }
 
     /**
+     * Wait for text that something outside the browser puts on the page —
+     * a webhook landing after the page loaded — reloading until it shows
+     * or $seconds have gone.
+     */
+    public function seeWithin(string $text, int $seconds, string $label): self
+    {
+        return $this->add('see', $label, ['text' => $text, 'reload_for_ms' => $seconds * 1000]);
+    }
+
+    /**
+     * Open the newest email the current app sent to $to — from the mail log
+     * in its checkout, where a stand-in's mail goes — and keep the first
+     * text in it matching $pattern (a JavaScript regular expression) as {$as}.
+     * Waits up to $seconds for it, since mail may go out from a queue.
+     */
+    public function mail(string $to, string $pattern, string $as, string $label, int $seconds = 30): self
+    {
+        return $this->add('mail', $label, ['to' => $to, 'pattern' => $pattern, 'as' => $as, 'within_ms' => $seconds * 1000]);
+    }
+
+    /**
+     * Pay on a hosted Stripe Checkout page the browser has been sent to,
+     * with a test card, and wait to be sent back. $card holds number,
+     * expiry (MM / YY), cvc, name, email and postal_code; the email and the
+     * billing fields are filled only when the page asks for them.
+     *
+     * @param  array{number: string, expiry: string, cvc: string, name: string, email: string, postal_code: string}  $card
+     */
+    public function payByCard(array $card, string $label, int $seconds = 90, string $host = 'checkout.stripe.com'): self
+    {
+        return $this->add('stripe_checkout', $label, [...$card, 'host' => $host, 'within_ms' => $seconds * 1000]);
+    }
+
+    /**
      * One line for the feed once the run passes, e.g. "Maya added lead Dana Fox".
      */
     public function summary(string $summary): self

@@ -4,7 +4,7 @@
 // stdout, which the PHP side reads as they arrive so the page can follow the
 // run step by step. Every step ends with a screenshot, pass or fail.
 //
-//   { base_url, base_urls?, shots_dir, step_timeout_ms, viewport, steps: [{ do, label, on?, ... }] }
+//   { base_url, base_urls?, mail_logs?, shots_dir, step_timeout_ms, viewport, steps: [{ do, label, on?, ... }] }
 //
 // A journey across apps names each app's address in base_urls, and a step's
 // `on` says which app it belongs to: a visit opens its path there. Steps
@@ -15,20 +15,29 @@
 //   fill   { target, value }          type into a field, then leave it (wire:model.blur)
 //   select { target, value | option } pick an option by value, or by its visible text
 //   click  { target, confirm? }       click; confirm: true accepts the browser confirm() it opens
-//   see    { text }                   wait until the text is on the page
+//   see    { text, reload_for_ms? }   wait until the text is on the page; with
+//                                     reload_for_ms, reload until it shows (what
+//                                     a webhook writes after the page loaded)
 //   gone   { target }                 wait until the element has left the page
 //   filled { target }                 wait until a field holds a value the page
 //                                     put there (a challenge widget's token)
 //   press  { key }                    press a key on the focused element
 //   remember { target, as }           keep the element's text (or a field's
 //                                     value) as {as} for later steps
+//   mail   { to, pattern, as, within_ms }
+//                                     keep the first match of pattern in the newest
+//                                     email the step's app logged to `to` (its
+//                                     mail_logs folder) as {as}
+//   stripe_checkout { host, number, expiry, cvc, name, email, postal_code, within_ms }
+//                                     pay on the hosted checkout page the browser
+//                                     was sent to, and wait to be sent back
 //
 // Any string in a step may use {name} for something remembered earlier, so a
 // journey can pick an existing record ("the first lead that needs a touch")
 // and keep working on it.
 
 import { chromium } from 'playwright';
-import { readFileSync } from 'node:fs';
+import { closeSync, openSync, readFileSync, readSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const emit = (event) => process.stdout.write(JSON.stringify(event) + '\n');
@@ -162,6 +171,113 @@ const addressOf = (step) => {
     return base === undefined ? step.path : new URL(step.path, base).href;
 };
 
+// The newest email an app logged to `to`, searched for `pattern`. A stand-in
+// keeps its mail in its log (the guard insists), one log entry per message,
+// so the entries naming the address are read newest first. Only the tail of
+// each file is read: a practice app's log grows for as long as it lives.
+const MAIL_TAIL_BYTES = 8 * 1024 * 1024;
+const LOG_ENTRY = /\n(?=\[\d{4}-\d\d-\d\d[ T][^\]]*\] )/;
+
+const tailOf = (file) => {
+    const size = statSync(file).size;
+    const length = Math.min(size, MAIL_TAIL_BYTES);
+    const buffer = Buffer.alloc(length);
+    const fd = openSync(file, 'r');
+    try {
+        readSync(fd, buffer, 0, length, size - length);
+    } finally {
+        closeSync(fd);
+    }
+    return buffer.toString('utf8');
+};
+
+const findMail = (dir, to, pattern) => {
+    const files = readdirSync(dir)
+        .filter((name) => name.endsWith('.log'))
+        .map((name) => join(dir, name))
+        .sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs);
+    const addressed = new RegExp(`^To:.*${to.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'im');
+    for (const file of files) {
+        const entries = tailOf(file).split(LOG_ENTRY).reverse();
+        for (const entry of entries) {
+            if (! addressed.test(entry)) {
+                continue;
+            }
+            const match = entry.match(pattern);
+            if (match) {
+                return match[0].replace(/&amp;/g, '&');
+            }
+        }
+    }
+    return null;
+};
+
+// Text that something outside the browser puts on the page: look, and if it
+// is not there yet, reload and look again until the time is up.
+const seeReloading = async (page, text, within) => {
+    const deadline = Date.now() + within;
+    for (;;) {
+        const seen = await page
+            .getByText(text, { exact: false })
+            .filter({ visible: true })
+            .first()
+            .waitFor({ state: 'visible', timeout: Math.max(500, Math.min(3000, deadline - Date.now())) })
+            .then(() => true, () => false);
+        if (seen) {
+            return;
+        }
+        if (Date.now() >= deadline) {
+            throw new Error(`"${text}" was not on the page after ${Math.round(within / 1000)} s of reloading`);
+        }
+        await page.reload();
+    }
+};
+
+// A hosted Stripe Checkout page, paid with a test card. Stripe varies the
+// page by account and country — an email field only when the session names
+// no customer, a payment-method accordion when more than cards are on, a
+// postal code where the country has one, Link's "save my info" — so each
+// part is filled only when it is there. Then wait to leave Stripe: where it
+// sends the payer back to is the app's own success page.
+const payByCard = async (page, step) => {
+    const within = step.within_ms ?? 90000;
+    const onCheckout = (url) => url.hostname === step.host;
+    const visible = (selector) => page.locator(selector).first().isVisible().catch(() => false);
+
+    await page.waitForURL(onCheckout, { timeout: within });
+    await page.locator('#cardNumber, #email, [data-testid="card-accordion-item-button"]').first().waitFor({ state: 'visible', timeout: within });
+
+    if (await visible('#email')) {
+        const email = page.locator('#email').first();
+        if ((await email.inputValue().catch(() => '')) === '') {
+            await email.fill(String(step.email));
+        }
+    }
+    for (const card of ['[data-testid="card-accordion-item-button"]', '#payment-method-accordion-item-title-card']) {
+        if (await visible(card)) {
+            await page.locator(card).first().click();
+            break;
+        }
+    }
+    await page.locator('#cardNumber').first().waitFor({ state: 'visible', timeout: within });
+    await page.locator('#cardNumber').first().fill(String(step.number));
+    await page.locator('#cardExpiry').first().fill(String(step.expiry));
+    await page.locator('#cardCvc').first().fill(String(step.cvc));
+    if (await visible('#billingName')) {
+        await page.locator('#billingName').first().fill(String(step.name));
+    }
+    if (await visible('#billingPostalCode')) {
+        await page.locator('#billingPostalCode').first().fill(String(step.postal_code));
+    }
+    // Never sign the prospect up to Link: it would ask for a phone number.
+    const link = page.locator('#enableStripePass').first();
+    if ((await link.isVisible().catch(() => false)) && (await link.isChecked().catch(() => false))) {
+        await link.uncheck();
+    }
+    await page.locator('[data-testid="hosted-payment-submit-button"], button.SubmitButton, button[type="submit"]').first().click();
+    await page.waitForURL((url) => ! onCheckout(url), { timeout: within });
+};
+
 const remembered = {};
 const fill = (value) =>
     typeof value === 'string' ? value.replace(/\{([a-z_]+)\}/g, (match, name) => remembered[name] ?? match) : value;
@@ -279,7 +395,36 @@ try {
                     await page.locator(step.target).first().click();
                     break;
                 case 'see':
+                    if (step.reload_for_ms) {
+                        await seeReloading(page, step.text, step.reload_for_ms);
+                        break;
+                    }
                     await page.getByText(step.text, { exact: false }).filter({ visible: true }).first().waitFor({ state: 'visible' });
+                    break;
+                case 'mail': {
+                    const dir = journey.mail_logs?.[step.on];
+                    if (dir === undefined) {
+                        throw new Error(`No mail log for the app "${step.on}"`);
+                    }
+                    const pattern = new RegExp(step.pattern);
+                    const deadline = Date.now() + (step.within_ms ?? timeout);
+                    let found = null;
+                    for (;;) {
+                        found = findMail(dir, String(step.to), pattern);
+                        if (found !== null || Date.now() >= deadline) {
+                            break;
+                        }
+                        await page.waitForTimeout(500);
+                    }
+                    if (found === null) {
+                        throw new Error(`No email to ${step.to} matching /${step.pattern}/ in ${dir}`);
+                    }
+                    remembered[step.as] = found.slice(0, 2000);
+                    emit({ event: 'remember', position, name: step.as, value: remembered[step.as] });
+                    break;
+                }
+                case 'stripe_checkout':
+                    await payByCard(page, step);
                     break;
                 case 'gone':
                     await page.locator(step.target).first().waitFor({ state: 'detached' });
