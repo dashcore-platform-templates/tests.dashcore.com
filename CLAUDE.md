@@ -250,6 +250,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   the Stripe CLI is signed in and the app's webhook secret is the CLI's
   (compared by SHA-256), and `StripeForwarder` runs `stripe listen
   --forward-to` (events: `simulation.stripe.events`) only for the walk.
+  `CustomerJourneys\Subscription` is Payment's sibling for the $300/mo
+  API + CEO plan: the rep picks the plan on the deal (`#convertPlan`), the
+  hand-off sends `deal.plan`, and the portal is checked for the plan active,
+  its price and next charge. A journey's `requires()` names config each app
+  must hold (`StandInGuard::settingRefusal`, values only, never a secret) —
+  here the plan switched on in sales and dcos (`DASHCORE_API_CEO_ENABLED`).
 
 ### Running on the fleet host — gotchas that cost real time
 

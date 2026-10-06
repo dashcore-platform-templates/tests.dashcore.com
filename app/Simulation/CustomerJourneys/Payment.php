@@ -29,10 +29,8 @@ use Illuminate\Support\Str;
  * the Stripe CLI, marks delivery's deal Won, which makes the project and
  * records the payment. The portal shows both once it has landed.
  *
- * Not the $300/month API + CEO plan: on v0.1.2 nothing in sales can make
- * one. Delivery files every CRM handoff as an Operating System deal, so an
- * API + CEO subscription starts only from a deal a person keys into
- * delivery's own deals page — a step done by hand.
+ * A one-time charge. The $300/month API + CEO plan, sold through the same
+ * hand-off, is the sibling journey Subscription.
  */
 class Payment extends CustomerJourney
 {

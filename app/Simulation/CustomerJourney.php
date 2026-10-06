@@ -49,6 +49,20 @@ abstract class CustomerJourney
     }
 
     /**
+     * Config an app of the stand-in must hold before this journey is walked,
+     * by app, as the app itself resolves it — e.g. a plan switched on that
+     * the journey sells. Checked with the rest of the guard, so a stand-in
+     * that cannot do what the journey asks is refused before anyone is made,
+     * rather than failing halfway down the script for a reason it never says.
+     *
+     * @return array<string, array<string, mixed>>
+     */
+    public function requires(): array
+    {
+        return [];
+    }
+
+    /**
      * Sign in to an app of the fleet as its persona, through its login form
      * (`login` on the app's fleet entry overrides the fields).
      *
