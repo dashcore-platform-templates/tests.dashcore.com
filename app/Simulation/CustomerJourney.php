@@ -49,6 +49,47 @@ abstract class CustomerJourney
     }
 
     /**
+     * Apps of the fleet the journey reaches outside the browser — a command
+     * run in their checkout by prepare() — so they are guarded as stand-ins
+     * with the rest before anything runs.
+     *
+     * @return list<string>
+     */
+    public function guards(): array
+    {
+        return [];
+    }
+
+    /**
+     * Apps the journey's own prepare() brings into being, which the fleet's
+     * config cannot name in advance — a customer's new fleet. They are
+     * guarded once prepare() has said where they are, before the browser
+     * goes near them.
+     *
+     * @return list<string>
+     */
+    public function providesApps(): array
+    {
+        return [];
+    }
+
+    /**
+     * Work done on this machine before the browser walks — the fleet built
+     * for a customer, say — once every app it reaches has been guarded.
+     * Returns the apps it brought into being (key => fleet entry: name,
+     * base_url, checkout), which are guarded in turn; throw to stop the run,
+     * the message saying why.
+     *
+     * @param  array<string, mixed>  $fleet  the stand-in fleet (simulation.fleets.*)
+     * @param  callable(string): void  $say  a line for the console
+     * @return array<string, array<string, mixed>>
+     */
+    public function prepare(array $fleet, callable $say): array
+    {
+        return [];
+    }
+
+    /**
      * Config an app of the stand-in must hold before this journey is walked,
      * by app, as the app itself resolves it — e.g. a plan switched on that
      * the journey sells. Checked with the rest of the guard, so a stand-in
