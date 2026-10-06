@@ -253,10 +253,26 @@ const payByCard = async (page, step) => {
             await email.fill(String(step.email));
         }
     }
-    for (const card of ['[data-testid="card-accordion-item-button"]', '#payment-method-accordion-item-title-card']) {
-        if (await visible(card)) {
-            await page.locator(card).first().click();
-            break;
+    // Stripe lists payment methods as an accordion (Card, Klarna, Cash App,
+    // Bank). Its radio dot is a decorative, aria-hidden span that a click
+    // never lands on, so the row is chosen by what a person reads: its label.
+    // Tried in turn, because Stripe changes the markup without notice.
+    if (! (await visible('#cardNumber'))) {
+        const choices = [
+            page.locator('[data-testid="card-accordion-item-button"]'),
+            page.getByRole('radio', { name: /^card$/i }),
+            page.getByRole('button', { name: /^(pay with )?card$/i }),
+            page.getByText('Card', { exact: true }),
+        ];
+        // Stripe lays a full-row AccordionButton over the label, so a click
+        // on the label is refused as intercepted. A person's click lands on
+        // that button; `force` clicks where the label is, and the mouse event
+        // reaches the button on top exactly as theirs would.
+        for (const choice of choices) {
+            if (await choice.first().isVisible().catch(() => false)) {
+                await choice.first().click({ force: true });
+                break;
+            }
         }
     }
     await page.locator('#cardNumber').first().waitFor({ state: 'visible', timeout: within });
