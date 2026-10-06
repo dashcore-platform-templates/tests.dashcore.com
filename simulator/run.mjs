@@ -245,7 +245,11 @@ const payByCard = async (page, step) => {
     const visible = (selector) => page.locator(selector).first().isVisible().catch(() => false);
 
     await page.waitForURL(onCheckout, { timeout: within });
-    await page.locator('#cardNumber, #email, [data-testid="card-accordion-item-button"]').first().waitFor({ state: 'visible', timeout: within });
+    // Ready when any way in shows: the card form, an email to fill, or the
+    // Card row's label. A subscription page shows the email as read-only
+    // text and keeps the row's button hidden under its label, so neither of
+    // the first three is ever visible there.
+    await page.locator('#cardNumber, #email, [data-testid="card-accordion-item-button"], #payment-method-label-card').first().waitFor({ state: 'visible', timeout: within });
 
     if (await visible('#email')) {
         const email = page.locator('#email').first();
