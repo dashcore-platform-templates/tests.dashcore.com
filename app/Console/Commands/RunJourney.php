@@ -3,8 +3,10 @@
 namespace App\Console\Commands;
 
 use App\Simulation\CustomerJourney;
+use App\Simulation\JourneyResult;
 use App\Simulation\JourneyWalker;
 use App\Simulation\Persona;
+use App\Simulation\Script;
 use App\Simulation\Simulation;
 use App\Simulation\StandInGuard;
 use App\Simulation\StripeForwarder;
@@ -104,7 +106,7 @@ class RunJourney extends Command
                 return self::FAILURE;
             }
 
-            return $this->walk($simulation, $walker, $key, $stage, $fleet, $journey, $faker);
+            return $this->walk($simulation, $walker, $key, $stage, $fleet, $journey, $faker, $apps);
         } finally {
             $stripe->stop($forwarding);
         }
@@ -180,12 +182,14 @@ class RunJourney extends Command
     }
 
     /**
-     * Make the people, walk the script, and report it.
+     * Make the people, walk the script — and each one the journey has next
+     * (CustomerJourney::next) — and report it.
      *
      * @param  array<string, mixed>  $stage
      * @param  array<string, mixed>  $fleet
+     * @param  list<string>  $guarded  the apps of the stand-in guarded before prepare()
      */
-    private function walk(Simulation $simulation, JourneyWalker $walker, string $key, array $stage, array $fleet, CustomerJourney $journey, Generator $faker): int
+    private function walk(Simulation $simulation, JourneyWalker $walker, string $key, array $stage, array $fleet, CustomerJourney $journey, Generator $faker, array $guarded): int
     {
         $people = [];
 
@@ -199,8 +203,57 @@ class RunJourney extends Command
             $people[$app] = $person;
         }
 
+        $guarded = [...$guarded, ...$journey->providesApps()];
         $script = $journey->script($people, $faker);
-        $shots = rtrim((string) config('simulation.screenshots'), '/')."/journeys/{$key}-".now()->format('Ymd-His');
+        $started = now()->format('Ymd-His');
+        $steps = 0;
+        $ms = 0;
+
+        for ($walk = 1; ; $walk++) {
+            $unguarded = array_diff($script->apps(), $guarded);
+
+            if ($unguarded !== []) {
+                $this->components->error("{$stage['name']}'s walk {$walk} drives ".implode(', ', $unguarded).', which nothing guarded. Name it in guards().');
+
+                return self::FAILURE;
+            }
+
+            $result = $this->walkOnce($walker, $stage['name'], $script, $fleet, rtrim((string) config('simulation.screenshots'), '/')."/journeys/{$key}-{$started}".($walk > 1 ? "-{$walk}" : ''));
+
+            if ($result === null) {
+                return self::FAILURE;
+            }
+
+            $steps += $result->total;
+            $ms += array_sum(array_column($result->steps, 'ms'));
+            $summary = $result->interpolate((string) $script->getSummary());
+
+            try {
+                $script = $journey->next($fleet, $people, $faker, fn (string $line) => $this->line("  <fg=gray>{$line}</>"));
+            } catch (Throwable $e) {
+                $this->components->error($e->getMessage());
+
+                return self::FAILURE;
+            }
+
+            if ($script === null) {
+                break;
+            }
+        }
+
+        $this->components->info(sprintf('%s passed: %d steps in %.1f s. %s', $stage['name'], $steps, $ms / 1000, $summary));
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * One script walked and reported step by step: its result, or null
+     * having said how it failed.
+     *
+     * @param  array<string, mixed>  $fleet
+     */
+    private function walkOnce(JourneyWalker $walker, string $name, Script $script, array $fleet, string $shots): ?JourneyResult
+    {
         $this->newLine();
 
         $result = $walker->walk(
@@ -236,14 +289,12 @@ class RunJourney extends Command
         }
 
         if (! $result->passed()) {
-            $this->components->error(sprintf('%s failed after %d of %d steps. Screenshots: %s', $stage['name'], count(array_filter($result->steps, fn ($s) => $s['status'] === 'passed')), $result->total, $result->shotsDir));
+            $this->components->error(sprintf('%s failed after %d of %d steps. Screenshots: %s', $name, count(array_filter($result->steps, fn ($s) => $s['status'] === 'passed')), $result->total, $result->shotsDir));
 
-            return self::FAILURE;
+            return null;
         }
 
-        $this->components->info(sprintf('%s passed: %d steps in %.1f s. %s', $stage['name'], $result->total, array_sum(array_column($result->steps, 'ms')) / 1000, $result->interpolate((string) $script->getSummary())));
-
-        return self::SUCCESS;
+        return $result;
     }
 
     /**

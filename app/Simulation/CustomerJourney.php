@@ -90,6 +90,23 @@ abstract class CustomerJourney
     }
 
     /**
+     * What happens between walks, and the walk after it — for a journey
+     * whose middle is not in a browser: a release pushed, a subscription
+     * cancelled. Called each time a walk passes, with the same people and
+     * the fleet as prepare() left it; returns the next script to walk, or
+     * null when the journey is done. Throw to fail the run, the message
+     * saying why. A later script may only drive apps already guarded.
+     *
+     * @param  array<string, mixed>  $fleet
+     * @param  array<string, Persona>  $people
+     * @param  callable(string): void  $say
+     */
+    public function next(array $fleet, array $people, Generator $faker, callable $say): ?Script
+    {
+        return null;
+    }
+
+    /**
      * Config an app of the stand-in must hold before this journey is walked,
      * by app, as the app itself resolves it — e.g. a plan switched on that
      * the journey sells. Checked with the rest of the guard, so a stand-in

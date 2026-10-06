@@ -5,6 +5,7 @@ use App\Simulation\CustomerJourneys\FirstSignIn;
 use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\CustomerJourneys\Provisioning;
 use App\Simulation\CustomerJourneys\Subscription;
+use App\Simulation\CustomerJourneys\Upgrade;
 use App\Simulation\Journeys\Finance\AddCategory;
 use App\Simulation\Journeys\Finance\AddRecurringIncome;
 use App\Simulation\Journeys\Finance\RecordExpense;
@@ -309,6 +310,15 @@ return [
             'fleets_checkout' => env('SIMULATION_FLEETS_CHECKOUT', "{$practiceRoot}/fleets.dashcore.com"),
             'provisioning_timeout' => (int) env('SIMULATION_PROVISIONING_TIMEOUT', 3600),
             'client_root' => $practiceRoot,
+            // The upgrade journey: the client app fleets moves, from which
+            // Templates release to which. Real releases, never cut for it.
+            'upgrade' => [
+                'app' => 'ceo',
+                'from' => env('SIMULATION_UPGRADE_FROM', 'v1.0.0'),
+                'to' => env('SIMULATION_UPGRADE_TO', 'v1.1.0'),
+            ],
+            // Where a client fleet's releases live (fleets' FLEET_SOURCE_OWNER).
+            'releases_owner' => env('SIMULATION_RELEASES_OWNER', 'dashcore-platform-templates'),
             'apps' => [
                 // The marketing site, at the fleet's apex. It posts the
                 // contact form to sales over the bridge (sales.capture).
@@ -381,7 +391,7 @@ return [
         'provisioning' => ['name' => 'Provisioning', 'journey' => Provisioning::class],
         'first-sign-in' => ['name' => 'First sign-in', 'journey' => FirstSignIn::class],
         'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],
-        'upgrade' => ['name' => 'Upgrade', 'what' => 'The customer moves to a bigger plan, and their fleet grows to match.'],
+        'upgrade' => ['name' => 'Upgrade', 'journey' => Upgrade::class],
         'cancellation' => ['name' => 'Cancellation', 'what' => 'The customer cancels, and their fleet winds down cleanly.'],
     ],
 

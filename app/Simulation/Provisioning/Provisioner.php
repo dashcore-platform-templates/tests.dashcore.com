@@ -79,6 +79,18 @@ class Provisioner
      */
     public function intake(string $fleetsCheckout, string $source, int $timeout, callable $say): bool
     {
+        return $this->fleets($fleetsCheckout, ['fleet:intake', $source], $timeout, $say);
+    }
+
+    /**
+     * One of fleets' own commands, in its checkout, its output passed on
+     * line by line.
+     *
+     * @param  list<string>  $command
+     * @param  callable(string): void  $say
+     */
+    private function fleets(string $fleetsCheckout, array $command, int $timeout, callable $say): bool
+    {
         if (! is_dir($fleetsCheckout) || ! is_file("{$fleetsCheckout}/artisan")) {
             throw new RuntimeException("There is no fleets.dashcore.com checkout at {$fleetsCheckout}.");
         }
@@ -86,7 +98,7 @@ class Provisioner
         return Process::path($fleetsCheckout)
             ->env($this->simulation->cleanEnvironment())
             ->timeout($timeout)
-            ->start(['php', 'artisan', 'fleet:intake', $source, '--no-interaction'], function (string $type, string $output) use ($say): void {
+            ->start(['php', 'artisan', ...$command, '--no-interaction'], function (string $type, string $output) use ($say): void {
                 foreach (preg_split('/\R/', rtrim($output)) ?: [] as $line) {
                     if (trim($line) !== '') {
                         $say($line);
@@ -95,6 +107,41 @@ class Provisioner
             })
             ->wait()
             ->successful();
+    }
+
+    /**
+     * Have fleets move one app of a client fleet to a release and deploy it
+     * (`fleet:push`), which succeeds only once the app is found running that
+     * release's commit. Its output is passed on, as intake's is.
+     *
+     * @param  callable(string): void  $say
+     */
+    public function push(string $fleetsCheckout, string $install, string $app, string $release, int $timeout, callable $say): bool
+    {
+        return $this->fleets($fleetsCheckout, ['fleet:push', $install, $app, $release], $timeout, $say);
+    }
+
+    /**
+     * Have the cockpit look its release up again now (`install:check-release
+     * --fresh`), rather than show a lookup cached from before it moved —
+     * the daily schedule's job, done for the journey.
+     *
+     * @param  array<string, mixed>  $cockpit  a fleet entry, as cockpit() made it
+     *
+     * @throws RuntimeException when the cockpit could not be asked
+     */
+    public function checkRelease(array $cockpit): string
+    {
+        $result = Process::path((string) $cockpit['checkout'])
+            ->env($this->simulation->cleanEnvironment())
+            ->timeout(60)
+            ->run(['php', 'artisan', 'install:check-release', '--fresh', '--no-interaction']);
+
+        if (! $result->successful()) {
+            throw new RuntimeException("`install:check-release` in {$cockpit['checkout']} failed: ".trim($result->errorOutput() ?: $result->output()));
+        }
+
+        return trim($result->output());
     }
 
     /**
