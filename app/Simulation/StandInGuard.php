@@ -168,6 +168,22 @@ class StandInGuard
     }
 
     /**
+     * Whether an app's config value starts with a prefix — that it holds a
+     * key of a given kind (`github_pat_`, say) — answered yes or no inside
+     * the app, so the value never leaves it. Null when it could not be asked.
+     */
+    public function startsWith(string $checkout, string $key, string $prefix): ?bool
+    {
+        try {
+            $answers = $this->probe($checkout, ["starts_with:{$key}" => [$key, 'starts_with', $prefix]]);
+        } catch (Throwable) {
+            return null;
+        }
+
+        return is_bool($answers["starts_with:{$key}"] ?? null) ? $answers["starts_with:{$key}"] : null;
+    }
+
+    /**
      * Whether an app holds the same secret as this process does — the Stripe
      * CLI's webhook signing secret, say — compared by fingerprint so neither
      * value is printed or passed to the other side. Null when it could not

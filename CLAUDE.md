@@ -271,6 +271,21 @@ surfaces (routes, Livewire components/actions, and every public method under
   they are — a practice host (`*.practice.test`), a `.practice` checkout and
   mail to the log, or nothing is driven. Only a practice fleet's sales are
   ever built (`Provisioner::source`).
+  A journey whose middle is not in a browser walks more than once:
+  `next()` is called after each walk passes, does its host-side work and
+  returns the next script (null when done); a later script drives only
+  apps already guarded. `CustomerJourneys\Upgrade` takes the newest built
+  fleet, has fleets put its cockpit's ceo on `upgrade.from` (`fleet:push`,
+  v1.0.0), and refuses unless the cockpit now reads `release.repository`
+  from Templates (`releases_owner`) and holds a `github_pat_` read token
+  (`StandInGuard::startsWith`; Templates is private, and fleets hands every
+  client cockpit Dashcore's one token,
+  `fleets.dashcore.com__TEMPLATES_READ_TOKEN__production`).
+  The owner (password set for the run by the cockpit's `app:make-admin
+  --password`) sees Settings › System say "Upgrade available"; `next()`
+  pushes `upgrade.to` (v1.1.0), and the second walk sees it running, "Up
+  to date", and the notice gone. `install:check-release --fresh` after
+  each push stands in for the cockpit's daily check.
 
 ### Running on the fleet host — gotchas that cost real time
 
