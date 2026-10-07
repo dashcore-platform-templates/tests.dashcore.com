@@ -3,6 +3,8 @@
 namespace App\Simulation\Provisioning;
 
 use App\Simulation\Simulation;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 
@@ -119,6 +121,32 @@ class Provisioner
     public function push(string $fleetsCheckout, string $install, string $app, string $release, int $timeout, callable $say): bool
     {
         return $this->fleets($fleetsCheckout, ['fleet:push', $install, $app, $release], $timeout, $say);
+    }
+
+    /**
+     * Have fleets take in what the source fleet's dcos says was cancelled
+     * (`fleet:offboard-intake`): a practice sale is taken down there and
+     * then, and reported offboarded.
+     *
+     * @param  callable(string): void  $say
+     */
+    public function offboard(string $fleetsCheckout, string $source, int $timeout, callable $say): bool
+    {
+        return $this->fleets($fleetsCheckout, ['fleet:offboard-intake', $source], $timeout, $say);
+    }
+
+    /**
+     * Whether an app still answers at its address: any successful page.
+     * A site Herd no longer has a folder for answers 404, and a refused
+     * connection is an answer too — that nothing is there.
+     */
+    public function answers(string $url): bool
+    {
+        try {
+            return Http::timeout(10)->get(rtrim($url, '/').'/login')->successful();
+        } catch (ConnectionException) {
+            return false;
+        }
     }
 
     /**

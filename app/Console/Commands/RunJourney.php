@@ -92,7 +92,7 @@ class RunJourney extends Command
         $forwarding = null;
 
         if (($paid = $journey->stripeWebhookApp()) !== null) {
-            $forwarding = $this->forwardStripe($stripe, $guard, $key, $paid, $fleet['apps'][$paid] ?? null);
+            $forwarding = $this->forwardStripe($stripe, $guard, $key, $paid, $fleet['apps'][$paid] ?? null, $journey->stripeEvents());
 
             if ($forwarding === null) {
                 return self::FAILURE;
@@ -305,8 +305,9 @@ class RunJourney extends Command
      * checked with the rest of the guard. Null, having said why, when not.
      *
      * @param  array<string, mixed>|null  $app
+     * @param  list<string>  $events
      */
-    private function forwardStripe(StripeForwarder $stripe, StandInGuard $guard, string $key, string $paid, ?array $app): ?InvokedProcess
+    private function forwardStripe(StripeForwarder $stripe, StandInGuard $guard, string $key, string $paid, ?array $app, array $events): ?InvokedProcess
     {
         $webhook = (array) ($app['stripe_webhook'] ?? []);
 
@@ -337,7 +338,7 @@ class RunJourney extends Command
         $url = rtrim((string) $app['base_url'], '/').'/'.ltrim((string) $webhook['path'], '/');
 
         try {
-            $process = $stripe->start($url);
+            $process = $stripe->start($url, $events);
         } catch (Throwable $e) {
             $this->components->error("Could not forward Stripe's webhooks to {$paid}: {$e->getMessage()}");
 

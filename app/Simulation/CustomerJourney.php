@@ -49,6 +49,18 @@ abstract class CustomerJourney
     }
 
     /**
+     * The Stripe events forwarded while it is walked. Only what it needs: the
+     * CLI hears every test event on the account, and another journey's event
+     * naming something this stand-in also has would be taken as its own.
+     *
+     * @return list<string>
+     */
+    public function stripeEvents(): array
+    {
+        return array_values((array) config('simulation.stripe.events'));
+    }
+
+    /**
      * Apps of the fleet the journey reaches outside the browser — a command
      * run in their checkout by prepare() — so they are guarded as stand-ins
      * with the rest before anything runs.
