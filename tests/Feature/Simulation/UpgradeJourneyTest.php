@@ -230,7 +230,9 @@ class UpgradeJourneyTest extends TestCase
 
         $this->assertSame(1, $exit, $output);
         $this->assertStringContainsString('Templates is private and it holds no read-only token', $output);
-        $this->assertStringContainsString('ceo.acme-care.practice__RELEASE_TOKEN__local', $output);
+        $this->assertStringContainsString('fleets.dashcore.com__TEMPLATES_READ_TOKEN__production', $output);
+        $this->assertStringContainsString('https://keys.dashcore.com.test/keys/new?app=fleets.dashcore.com&environment=production&variable=TEMPLATES_READ_TOKEN&provider=GitHub', $output);
+        $this->assertStringNotContainsString('__RELEASE_TOKEN__', $output);
 
         $this->assertSame([], $this->walks);
     }

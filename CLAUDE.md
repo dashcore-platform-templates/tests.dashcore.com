@@ -278,8 +278,9 @@ surfaces (routes, Livewire components/actions, and every public method under
   fleet, has fleets put its cockpit's ceo on `upgrade.from` (`fleet:push`,
   v1.0.0), and refuses unless the cockpit now reads `release.repository`
   from Templates (`releases_owner`) and holds a `github_pat_` read token
-  (`StandInGuard::startsWith`; filed in keys as
-  `ceo.<company>.practice__RELEASE_TOKEN__local` — Templates is private).
+  (`StandInGuard::startsWith`; Templates is private, and fleets hands every
+  client cockpit Dashcore's one token,
+  `fleets.dashcore.com__TEMPLATES_READ_TOKEN__production`).
   The owner (password set for the run by the cockpit's `app:make-admin
   --password`) sees Settings › System say "Upgrade available"; `next()`
   pushes `upgrade.to` (v1.1.0), and the second walk sees it running, "Up

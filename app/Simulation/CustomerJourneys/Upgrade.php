@@ -29,8 +29,8 @@ use RuntimeException;
  * The cockpit can only say so if it reads its releases from Templates and
  * may read them there: a fleet built by a fleets without
  * Environment::releases still reads dashcoretech's, and Templates is
- * private, so it needs a read-only token (RELEASE_TOKEN, filed in keys under
- * the cockpit's name). Both are checked once the first push has rewritten
+ * private, so it needs a read-only token (RELEASE_TOKEN) — Dashcore's one
+ * Templates read token, which fleets hands every client cockpit. Both are checked once the first push has rewritten
  * its environment, before anybody signs in — and refused, the cockpit is
  * put back on the newer release rather than left behind.
  *
@@ -50,6 +50,11 @@ class Upgrade extends CustomerJourney
     private array $releases = ['app' => 'ceo', 'from' => 'v1.0.0', 'to' => 'v1.1.0'];
 
     private bool $upgraded = false;
+
+    /** fleets' one key for every client cockpit (fleets.dashcore.com TemplatesToken), and where it is added. */
+    private const TEMPLATES_TOKEN = 'fleets.dashcore.com__TEMPLATES_READ_TOKEN__production';
+
+    private const TEMPLATES_TOKEN_ADD = 'https://keys.dashcore.com.test/keys/new?app=fleets.dashcore.com&environment=production&variable=TEMPLATES_READ_TOKEN&provider=GitHub';
 
     public function __construct(private Provisioner $provisioner, private StandInGuard $guard) {}
 
@@ -189,11 +194,11 @@ class Upgrade extends CustomerJourney
 
         if ($this->guard->startsWith((string) $cockpit['checkout'], 'release.token', 'github_pat_') !== true) {
             throw new RuntimeException(sprintf(
-                '%s cannot read %s: Templates is private and it holds no read-only token. File a fine-grained token (Contents: read on %s) in keys as %s__RELEASE_TOKEN__local, and fleets hands it over on the next push.',
+                '%s cannot read %s: Templates is private and it holds no read-only token. fleets hands every client cockpit Dashcore\'s one Templates read token; add it in keys as %s (%s) and it reaches this cockpit on the next push.',
                 basename((string) $cockpit['checkout']),
                 $repository,
-                $repository,
-                basename((string) $cockpit['checkout']),
+                self::TEMPLATES_TOKEN,
+                self::TEMPLATES_TOKEN_ADD,
             ));
         }
     }
