@@ -49,6 +49,47 @@ class StripeSubscriptions
     }
 
     /**
+     * The customer's test-mode subscription for $sold that Stripe has already
+     * cancelled, if there is exactly one — what a re-run finds when an earlier
+     * run cancelled it but stopped before its forwarder delivered the event.
+     *
+     * @return array{id: string, description: string}|null
+     */
+    public function cancelled(string $email, string $sold): ?array
+    {
+        $found = [];
+
+        foreach ($this->list(['customers', 'list', "--email={$email}", '--limit=10']) as $customer) {
+            foreach ($this->list(['subscriptions', 'list', "--customer={$customer['id']}", '--status=canceled', '--limit=10']) as $subscription) {
+                if (($subscription['livemode'] ?? true) === false && str_starts_with((string) ($subscription['description'] ?? ''), $sold)) {
+                    $found[] = ['id' => (string) $subscription['id'], 'description' => (string) $subscription['description']];
+                }
+            }
+        }
+
+        return count($found) === 1 ? $found[0] : null;
+    }
+
+    /**
+     * Ask Stripe to send a cancelled subscription's customer.subscription.deleted
+     * event again, to the forwarder this journey runs.
+     *
+     * @throws RuntimeException when there is no such event to resend
+     */
+    public function resendCancellation(string $id): void
+    {
+        foreach ($this->list(['events', 'list', '--type=customer.subscription.deleted', '--limit=50']) as $event) {
+            if (($event['data']['object']['id'] ?? null) === $id && ($event['livemode'] ?? true) === false) {
+                $this->run(['events', 'resend', (string) $event['id']]);
+
+                return;
+            }
+        }
+
+        throw new RuntimeException("Stripe has no customer.subscription.deleted event for {$id} to send again.");
+    }
+
+    /**
      * Cancel it now, as the customer would — not at the end of its period —
      * so Stripe sends customer.subscription.deleted while the journey runs.
      *
@@ -56,12 +97,37 @@ class StripeSubscriptions
      */
     public function cancel(string $id): void
     {
-        $result = $this->run(['subscriptions', 'cancel', $id, '--confirm']);
-        $said = json_decode($result, true);
+        // Already cancelled in test mode — a re-run after a journey that
+        // stopped later on — is the state this step exists to reach.
+        $now = self::json($this->run(['get', "/v1/subscriptions/{$id}"]));
 
-        if (! is_array($said) || ($said['status'] ?? null) !== 'canceled' || ($said['livemode'] ?? true) !== false) {
+        if (($now['status'] ?? null) === 'canceled' && ($now['livemode'] ?? true) === false) {
+            return;
+        }
+
+        $result = $this->run(['subscriptions', 'cancel', $id, '--confirm']);
+        $said = self::json($result);
+
+        if (($said['status'] ?? null) !== 'canceled' || ($said['livemode'] ?? true) !== false) {
             throw new RuntimeException("Stripe did not cancel {$id}: ".mb_substr(trim($result), 0, 300));
         }
+    }
+
+    /**
+     * The object the CLI printed. A command that acts on an account first
+     * prints which one ("This command will be executed on the account with
+     * the following details: > Mode: Test …"), so the JSON starts at the
+     * first brace, not the first byte — the first live cancellation was a
+     * success read as a failure.
+     *
+     * @return array<string, mixed>
+     */
+    private static function json(string $output): array
+    {
+        $start = strpos($output, '{');
+        $said = $start === false ? null : json_decode(substr($output, $start), true);
+
+        return is_array($said) ? $said : [];
     }
 
     /**
@@ -70,9 +136,9 @@ class StripeSubscriptions
      */
     private function list(array $arguments): array
     {
-        $said = json_decode($this->run($arguments), true);
+        $said = self::json($this->run($arguments));
 
-        if (! is_array($said) || ! is_array($said['data'] ?? null)) {
+        if (! is_array($said['data'] ?? null)) {
             throw new RuntimeException('`stripe '.implode(' ', array_slice($arguments, 0, 2)).'` did not answer with a list.');
         }
 
