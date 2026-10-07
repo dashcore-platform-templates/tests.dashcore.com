@@ -31,7 +31,8 @@ use RuntimeException;
  * Environment::releases still reads dashcoretech's, and Templates is
  * private, so it needs a read-only token (RELEASE_TOKEN, filed in keys under
  * the cockpit's name). Both are checked once the first push has rewritten
- * its environment, before anybody signs in.
+ * its environment, before anybody signs in — and refused, the cockpit is
+ * put back on the newer release rather than left behind.
  *
  * The owner signs in with a password set for this run by the cockpit's own
  * `app:make-admin --password` — as a practice fleet's sales rep is made —
@@ -91,7 +92,17 @@ class Upgrade extends CustomerJourney
             throw new RuntimeException("fleets could not put {$install}'s {$app} on {$from}; its output above says why.");
         }
 
-        $this->refuseUnlessItCanSee($cockpit, (string) ($fleet['releases_owner'] ?? 'dashcore-platform-templates'), $install);
+        try {
+            $this->refuseUnlessItCanSee($cockpit, (string) ($fleet['releases_owner'] ?? 'dashcore-platform-templates'));
+        } catch (RuntimeException $refused) {
+            // Not left behind on the older release for nothing.
+            $back = $this->provisioner->push((string) $fleet['fleets_checkout'], $install, $app, $to, (int) $fleet['provisioning_timeout'], $say);
+
+            throw new RuntimeException($refused->getMessage().' '.($back
+                ? "fleets put it back on {$to}."
+                : "It is left on {$from}: `php artisan fleet:push {$install} {$app} {$to}` in fleets puts it back."));
+        }
+
         $say($this->provisioner->checkRelease($cockpit));
 
         return ['cockpit' => $this->cockpit = [
@@ -168,23 +179,21 @@ class Upgrade extends CustomerJourney
      *
      * @param  array<string, mixed>  $cockpit
      */
-    private function refuseUnlessItCanSee(array $cockpit, string $owner, string $install): void
+    private function refuseUnlessItCanSee(array $cockpit, string $owner): void
     {
         $repository = "{$owner}/ceo.dashcore.com";
-        $left = "It is left on {$this->releases['from']}: `php artisan fleet:push {$install} {$this->releases['app']} {$this->releases['to']}` in fleets puts it back.";
 
         if (($refusal = $this->guard->settingRefusal((string) $cockpit['checkout'], ['release.repository' => $repository])) !== null) {
-            throw new RuntimeException("{$refusal} The fleets that built it does not tell a client's apps where their releases are (Environment::releases). {$left}");
+            throw new RuntimeException("{$refusal} The fleets that built it does not tell a client's apps where their releases are (Environment::releases).");
         }
 
         if ($this->guard->startsWith((string) $cockpit['checkout'], 'release.token', 'github_pat_') !== true) {
             throw new RuntimeException(sprintf(
-                '%s cannot read %s: Templates is private and it holds no read-only token. File a fine-grained token (Contents: read on %s) in keys as %s__RELEASE_TOKEN__local, and fleets hands it over on the next push. %s',
+                '%s cannot read %s: Templates is private and it holds no read-only token. File a fine-grained token (Contents: read on %s) in keys as %s__RELEASE_TOKEN__local, and fleets hands it over on the next push.',
                 basename((string) $cockpit['checkout']),
                 $repository,
                 $repository,
                 basename((string) $cockpit['checkout']),
-                $left,
             ));
         }
     }

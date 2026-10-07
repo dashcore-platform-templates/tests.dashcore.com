@@ -213,9 +213,10 @@ class UpgradeJourneyTest extends TestCase
         $this->assertSame(1, $exit, $output);
         $this->assertStringContainsString('release.repository is "dashcoretech\\/ceo.dashcore.com"', $output);
         $this->assertStringContainsString('Environment::releases', $output);
-        $this->assertStringContainsString('fleet:push acme-care ceo v1.1.0', $output);
+        $this->assertStringContainsString('fleets put it back on v1.1.0.', $output);
 
-        $this->assertSame([['acme-care', 'ceo', 'v1.0.0']], $this->pushes);
+        // Not left on the older release for nothing.
+        $this->assertSame([['acme-care', 'ceo', 'v1.0.0'], ['acme-care', 'ceo', 'v1.1.0']], $this->pushes);
         $this->assertSame([], $this->walks);
         Process::assertDidntRun(fn (PendingProcess $p) => in_array('app:make-admin', (array) $p->command, true));
     }
