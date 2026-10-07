@@ -35,6 +35,13 @@ $practiceRoot = rtrim((string) (env('SIMULATION_PRACTICE_ROOT') ?: env('SCANNER_
 return [
 
     /*
+    | The company's clock (FLEET.md rule 9): what every fleet app shows dates
+    | in, so what a journey expects to read on their pages. This app itself is
+    | still on UTC.
+    */
+    'company_clock' => env('SIMULATION_COMPANY_CLOCK', 'America/Los_Angeles'),
+
+    /*
     |--------------------------------------------------------------------------
     | Proving Ground
     |--------------------------------------------------------------------------

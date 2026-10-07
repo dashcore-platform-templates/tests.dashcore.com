@@ -74,8 +74,10 @@ class Subscription extends CustomerJourney
         // For their portal, typed twice and never shown.
         $password = Str::password(20, symbols: false);
         // Stripe bills a month on from today, clamped to a short month's end
-        // the way Stripe clamps it; the portal prints it in the app's zone.
-        $nextCharge = now()->addMonthNoOverflow()->format('M j, Y');
+        // the way Stripe clamps it; the portal prints it on the company's
+        // clock, which this app (still on UTC) does not share — after 5 pm
+        // Pacific the two disagree on what "today" is.
+        $nextCharge = now(config('simulation.company_clock'))->addMonthNoOverflow()->format('M j, Y');
 
         return $this->enquiry->reachSales(new Script, $rep, $prospect)
             // ── Sales: a plan deal, handed to delivery for its pay link ──

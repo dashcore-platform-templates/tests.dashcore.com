@@ -106,9 +106,20 @@ class Cancellation extends CustomerJourney
         $uuid = (string) $this->built['uuid'];
         $delivery = $fleet['apps']['delivery'];
 
-        $subscription = $this->stripe->active((string) $this->built['owner_email'], 'API + CEO');
-        $say("They cancel {$subscription['description']} ({$subscription['id']}) on Stripe.");
-        $this->stripe->cancel($subscription['id']);
+        $owner = (string) $this->built['owner_email'];
+        $earlier = $this->stripe->cancelled($owner, 'API + CEO');
+
+        if ($earlier !== null) {
+            // An earlier run cancelled it and stopped before its forwarder
+            // delivered the event: dcos is told again rather than the journey
+            // giving up on a customer who has, in fact, cancelled.
+            $say("{$earlier['description']} ({$earlier['id']}) is already cancelled on Stripe; it sends the cancellation to dcos again.");
+            $this->stripe->resendCancellation($earlier['id']);
+        } else {
+            $subscription = $this->stripe->active($owner, 'API + CEO');
+            $say("They cancel {$subscription['description']} ({$subscription['id']}) on Stripe.");
+            $this->stripe->cancel($subscription['id']);
+        }
 
         $heard = $this->waitFor($delivery, $uuid, ['cancelled', 'offboarding', 'offboarded']);
         $say("dcos has it {$heard['status']}.");

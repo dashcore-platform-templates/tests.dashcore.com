@@ -34,6 +34,14 @@ class CancellationJourneyTest extends TestCase
 
     private bool $cancelRan = false;
 
+    /** @var list<array<string, mixed>> Subscriptions Stripe already cancelled, for --status=canceled. */
+    private array $cancelledSubscriptions = [];
+
+    /** @var list<array<string, mixed>> */
+    private array $events = [];
+
+    private ?string $resent = null;
+
     /** What the cockpit's address answers once it is taken down: Herd's 404 for a folder it no longer has. */
     private int $cockpitAfter = 404;
 
@@ -107,8 +115,11 @@ class CancellationJourneyTest extends TestCase
                 return match ($command[1].' '.$command[2]) {
                     'listen --print-secret' => Process::result(self::CLI_SECRET."\n"),
                     'customers list' => Process::result(json_encode(['data' => [['id' => 'cus_acme', 'email' => 'jane@acmecare.test']]])),
-                    'subscriptions list' => Process::result(json_encode(['data' => $this->subscriptions])),
-                    'subscriptions cancel' => ($this->cancelRan = true) ? Process::result(json_encode(['id' => $command[3], 'status' => 'canceled', 'livemode' => false])) : null,
+                    'subscriptions list' => Process::result(json_encode(['data' => in_array('--status=canceled', $command, true) ? $this->cancelledSubscriptions : $this->subscriptions])),
+                    'events list' => Process::result(json_encode(['data' => $this->events])),
+                    'events resend' => ($this->resent = $command[3]) ? Process::result(json_encode(['id' => $command[3]])) : null,
+                    // As the real CLI answers: which account first, then the object.
+                    'subscriptions cancel' => ($this->cancelRan = true) ? Process::result("This command will be executed on the account with the following details:\n> Mode: Test\n> Account Name: Dashcore\n\n".json_encode(['id' => $command[3], 'status' => 'canceled', 'livemode' => false])) : null,
                     default => Process::result('', "> Ready! Your webhook signing secret is ... (^C to quit)\n"),
                 };
             }
@@ -173,6 +184,23 @@ class CancellationJourneyTest extends TestCase
 
         // The cockpit answered before, through the browser, and was asked again after.
         Http::assertSent(fn ($request) => $request->url() === 'http://ceo.acme-care.practice.test/login');
+    }
+
+    public function test_a_subscription_an_earlier_run_cancelled_has_its_cancellation_sent_to_dcos_again(): void
+    {
+        // The first live run cancelled it and stopped before its forwarder
+        // delivered the event; dcos still had the fleet as built.
+        $this->subscriptions = [];
+        $this->cancelledSubscriptions = [['id' => 'sub_acme', 'description' => 'API + CEO — Acme Care', 'livemode' => false, 'status' => 'canceled']];
+        $this->events = [['id' => 'evt_deleted', 'livemode' => false, 'data' => ['object' => ['id' => 'sub_acme']]]];
+        $this->fakeProcesses();
+
+        [$exit, $output] = $this->journey();
+
+        $this->assertSame(0, $exit, $output);
+        $this->assertStringContainsString('is already cancelled on Stripe; it sends the cancellation to dcos again.', $output);
+        $this->assertSame('evt_deleted', $this->resent);
+        $this->assertFalse($this->cancelRan);
     }
 
     public function test_a_dcos_that_never_hears_the_cancellation_fails_before_fleets_is_asked(): void
