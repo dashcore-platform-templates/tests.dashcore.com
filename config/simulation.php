@@ -1,5 +1,6 @@
 <?php
 
+use App\Simulation\CustomerJourneys\Cancellation;
 use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\CustomerJourneys\FirstSignIn;
 use App\Simulation\CustomerJourneys\Payment;
@@ -392,7 +393,7 @@ return [
         'first-sign-in' => ['name' => 'First sign-in', 'journey' => FirstSignIn::class],
         'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],
         'upgrade' => ['name' => 'Upgrade', 'journey' => Upgrade::class],
-        'cancellation' => ['name' => 'Cancellation', 'what' => 'The customer cancels, and their fleet winds down cleanly.'],
+        'cancellation' => ['name' => 'Cancellation', 'journey' => Cancellation::class],
     ],
 
     /*

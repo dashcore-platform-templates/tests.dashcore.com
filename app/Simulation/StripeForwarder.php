@@ -46,10 +46,13 @@ class StripeForwarder
     }
 
     /**
-     * Start forwarding test events to $url, and return once the CLI says it
-     * is ready — an event fired before then would be lost.
+     * Start forwarding test events to $url — the journey's own, else
+     * `simulation.stripe.events` — and return once the CLI says it is ready:
+     * an event fired before then would be lost.
+     *
+     * @param  list<string>|null  $events
      */
-    public function start(string $url): InvokedProcess
+    public function start(string $url, ?array $events = null): InvokedProcess
     {
         $said = '';
 
@@ -58,7 +61,7 @@ class StripeForwarder
             ->start([
                 $this->cli(), 'listen',
                 '--forward-to', $url,
-                '--events', implode(',', (array) config('simulation.stripe.events')),
+                '--events', implode(',', $events ?? (array) config('simulation.stripe.events')),
             ], function (string $type, string $output) use (&$said) {
                 $said .= $output;
             });

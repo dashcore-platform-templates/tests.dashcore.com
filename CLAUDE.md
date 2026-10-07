@@ -286,6 +286,17 @@ surfaces (routes, Livewire components/actions, and every public method under
   pushes `upgrade.to` (v1.1.0), and the second walk sees it running, "Up
   to date", and the notice gone. `install:check-release --fresh` after
   each push stands in for the cockpit's daily check.
+  `CustomerJourneys\Cancellation` takes the newest built fleet and sees
+  its cockpit answer; `next()` finds the owner's one active test-mode
+  "API + CEO" subscription with the Stripe CLI (`StripeSubscriptions`, by
+  email; livemode is never touched, `--live` never passed), cancels it now
+  (`stripe subscriptions cancel --confirm`), waits for dcos to have the
+  install `cancelled` (its webhook hears customer.subscription.deleted —
+  a journey forwards only its own `stripeEvents()`), runs
+  `fleet:offboard-intake <practice install>` in the fleets checkout, and
+  holds only when dcos says `offboarded` and the cockpit's `/login` no
+  longer answers. It takes a fleet down for good: walk `subscription` and
+  `provisioning` first so the newest fleet is one made for it.
 
 ### Running on the fleet host — gotchas that cost real time
 

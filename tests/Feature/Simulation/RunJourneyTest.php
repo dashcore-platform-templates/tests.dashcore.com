@@ -148,7 +148,7 @@ class RunJourneyTest extends TestCase
     public function test_the_list_is_the_progress_bar_for_the_whole_customer_journey(): void
     {
         $this->artisan('tests:journey')
-            ->expectsOutputToContain('6 of 8 stages simulated')
+            ->expectsOutputToContain('7 of 8 stages simulated')
             ->expectsOutputToContain('enquiry')
             ->expectsOutputToContain('cancellation')
             ->assertSuccessful();
