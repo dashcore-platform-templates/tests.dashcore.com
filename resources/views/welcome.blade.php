@@ -90,7 +90,7 @@
             color: #475569 !important;
         }
 
-        /* Section eyebrow ("FEATURES" / "ACCESS CONTROL") accent in light mode */
+        /* Section eyebrow accent in light mode */
         body.theme-light .section-eyebrow {
             color: #0284c7 !important;
         }
@@ -118,7 +118,7 @@
             background: linear-gradient(90deg, transparent, #0ea5e9, transparent);
         }
 
-        /* Soft wash for the features & roles sections — same watercolor language as the hero, lighter */
+        /* Soft wash for sections — same watercolor language as the hero, lighter */
         .section-wash {
             position: absolute;
             inset: 0;
@@ -135,7 +135,7 @@
                 radial-gradient(ellipse 50% 50% at 100% 50%, rgb(56 189 248 / 0.15), transparent 70%);
         }
 
-        /* Small pill badge — matches the hero "Built on Laravel 13" badge */
+        /* Small pill badge */
         .pill-badge {
             display: inline-flex;
             align-items: center;
@@ -153,49 +153,16 @@
             color: #0369a1;
         }
 
-        /* Permission matrix — translucent table */
-        .perm-matrix {
-            background-color: rgba(15, 23, 42, 0.4);
-            backdrop-filter: blur(20px) saturate(140%);
-            -webkit-backdrop-filter: blur(20px) saturate(140%);
-            box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.3), inset 0 1px 0 0 rgba(255, 255, 255, 0.04);
+        /* Journey stage cards in light mode */
+        body.theme-light .journey-card {
+            background-color: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
         }
-        body.theme-light .perm-matrix {
-            background-color: rgba(255, 255, 255, 0.5);
-            border-color: rgba(203, 213, 225, 0.5) !important;
-            box-shadow: 0 8px 24px -8px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+        body.theme-light .journey-card .text-surface-100 {
+            color: #0f172a !important;
         }
-
-        .perm-dot {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #38bdf8, #0ea5e9);
-            box-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
-        }
-        .perm-dot-view {
-            background: transparent;
-            border: 1.5px solid #0ea5e9;
-            box-shadow: 0 0 6px rgba(14, 165, 233, 0.3);
-        }
-        .perm-dash {
-            display: inline-block;
-            color: #475569;
-            font-weight: 500;
-            user-select: none;
-        }
-        body.theme-light .perm-dot {
-            background: linear-gradient(135deg, #0ea5e9, #0284c7);
-            box-shadow: 0 0 8px rgba(14, 165, 233, 0.4);
-        }
-        body.theme-light .perm-dot-view {
-            background: transparent;
-            border-color: #0284c7;
-            box-shadow: 0 0 6px rgba(14, 165, 233, 0.25);
-        }
-        body.theme-light .perm-dash {
-            color: #94a3b8;
+        body.theme-light .journey-card .text-surface-500 {
+            color: #64748b !important;
         }
 
         /* Glowing pulse dot — hero badge */
@@ -234,8 +201,8 @@
                 <a href="/" class="text-sm font-bold tracking-widest uppercase text-surface-100 shrink-0">{{ config('app.name') }}</a>
 
                 <div class="hidden md:flex items-center gap-8 text-sm font-medium text-surface-400">
-                    <a href="#features" class="hover:text-surface-100 transition-colors">Features</a>
-                    <a href="#roles" class="hover:text-surface-100 transition-colors">Roles</a>
+                    <a href="#what-it-does" class="hover:text-surface-100 transition-colors">What it does</a>
+                    <a href="#customer-journey" class="hover:text-surface-100 transition-colors">Customer journey</a>
                 </div>
 
                 <div class="flex items-center gap-2 shrink-0">
@@ -266,14 +233,9 @@
                             Dashboard
                         </a>
                     @else
-                        <a href="{{ route('login') }}" wire:navigate class="px-3 py-1.5 text-sm font-medium text-surface-300 hover:text-surface-100 transition-colors">
-                            Log in
+                        <a href="{{ route('login') }}" wire:navigate class="px-5 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
+                            Sign in
                         </a>
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" wire:navigate class="px-5 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
-                                Sign up
-                            </a>
-                        @endif
                     @endauth
                 </div>
             </div>
@@ -286,13 +248,18 @@
 
         <div class="relative max-w-5xl mx-auto px-4 sm:px-6 pt-32 pb-24 lg:pt-40 lg:pb-32 text-center">
             <div class="relative z-10">
+                <span class="pill-badge mb-5">
+                    <span class="pulse-dot-glow"></span>
+                    Fleet test coverage plane
+                </span>
+
                 <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-5 leading-[1.1]">
-                    <span class="text-accent-400">Your Business,</span><br>
-                    <span class="text-surface-100">Ready to Run</span>
+                    <span class="text-accent-400">No app can judge</span><br>
+                    <span class="text-surface-100">its own tests</span>
                 </h1>
 
                 <p class="text-base text-surface-400 max-w-xl mx-auto mb-8 leading-relaxed">
-                    One secure place for your team to sign in, see what they're allowed to, and run the day-to-day of {{ config('app.name') }}. New tools can be added as you grow.
+                    Every fleet app reports green about itself. This one scans them all from outside with the same yardstick, so lost coverage shows up as a regression, not a guess.
                 </p>
 
                 <div class="flex items-center justify-center gap-3">
@@ -301,12 +268,7 @@
                             Go to Dashboard
                         </a>
                     @else
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" wire:navigate class="px-5 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
-                                Get started
-                            </a>
-                        @endif
-                        <a href="{{ route('login') }}" wire:navigate class="px-5 py-2.5 bg-surface-900/80 border border-surface-800 text-surface-200 text-sm font-medium rounded-full hover:bg-surface-800 transition-colors">
+                        <a href="{{ route('login') }}" wire:navigate class="px-5 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
                             Sign in
                         </a>
                     @endauth
@@ -315,155 +277,126 @@
         </div>
     </section>
 
-    {{-- ═══ FEATURES GRID ═══ --}}
-    <section id="features" class="relative overflow-hidden">
+    {{-- ═══ WHAT IT DOES ═══ --}}
+    <section id="what-it-does" class="relative overflow-hidden">
         <div class="section-wash"></div>
         <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-24">
             <div class="max-w-2xl mx-auto text-center mb-14">
                 <span class="pill-badge mb-5">
                     <span class="pulse-dot-glow"></span>
-                    What you get
+                    What it does
                 </span>
                 <h2 class="text-3xl sm:text-4xl font-bold text-surface-100 mb-3 tracking-tight">
-                    <span class="text-accent-400">Everything</span> your team needs from day one
+                    <span class="text-accent-400">Six jobs</span> no single app can do about itself
                 </h2>
-                <p class="text-surface-400 leading-relaxed">The essentials are built in, so {{ config('app.name') }} is ready to use right away.</p>
+                <p class="text-surface-400 leading-relaxed">Each one answers a different part of "is this code actually proven?" — across the fleet, every night.</p>
             </div>
 
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {{-- Authentication --}}
+            {{-- Scan --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">Secure sign-in</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Everyone on your team gets their own secure login, can reset a forgotten password, and update their own details — no IT help needed.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Scan</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">Nightly, each app's default branch runs in a throwaway worktree with a probe that records which routes, Livewire actions and methods every test reaches.</p>
             </div>
 
-            {{-- Role-Based Access --}}
+            {{-- Judge --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">The right access for everyone</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Give each person the right level of access, from full control to view-only, so people only see what they should.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Judge</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">Every surface is marked Tested, Weak or Missing. Tested methods get their body mutated — a surviving mutant downgrades the verdict to Weak.</p>
             </div>
 
-            {{-- Smart Permissions --}}
+            {{-- Ratchet --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">Control down to the detail</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Choose exactly which areas each person can use, and fine-tune it for individuals whenever you need to.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Ratchet</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">Each scan diffs against the last. Lost coverage and new untested surfaces are regressions — named, not averaged away.</p>
             </div>
 
-            {{-- Dark & Light Themes --}}
+            {{-- Build --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.42 15.17l-5.1-3.06a1.5 1.5 0 01-.42-2.08l.68-1.14a1.5 1.5 0 012.08-.42l5.1 3.06m-2.34 3.64l5.1 3.06a1.5 1.5 0 002.08-.42l.68-1.14a1.5 1.5 0 00-.42-2.08l-5.1-3.06m-2.34 3.64l2.34-3.64M4.5 19.5h15M4.5 19.5v-15a2.25 2.25 0 012.25-2.25h10.5A2.25 2.25 0 0119.5 4.5v15" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">Light or dark, their choice</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Each person can switch between a light or dark look to suit how they like to work.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Build</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">An AI agent writes tests for gaps, verifies them itself — reach, mutation, full suite — then opens one PR per app for a person to review.</p>
             </div>
 
-            {{-- Plugin Architecture --}}
+            {{-- Library --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 01-.657.643 48.39 48.39 0 01-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 01-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 00-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 01-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 00.657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 01-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.401.604-.401.959v0c0 .333.277.599.61.58a48.1 48.1 0 005.427-.63 48.05 48.05 0 00.582-4.717.532.532 0 00-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.959.401v0a.656.656 0 00.658-.663 48.422 48.422 0 00-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 01-.61-.58v0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">Grows with you</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Add new tools and features over time — they appear in the menu ready to use, with no disruption.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Library</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">Every test of every app — read straight from git, with its revision history, outcome over 30 scans and how many surfaces it proves.</p>
             </div>
 
-            {{-- Team Management --}}
+            {{-- Proving Ground --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
                 <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.91 11.672a.375.375 0 010 .656l-5.603 3.113a.375.375 0 01-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112z" />
                     </svg>
                 </div>
-                <h3 class="text-base font-semibold text-surface-100 mb-2">Manage your team</h3>
-                <p class="text-sm text-surface-400 leading-relaxed">Invite people, set what each person can do, and remove access — all from one simple settings page.</p>
+                <h3 class="text-base font-semibold text-surface-100 mb-2">Proving Ground</h3>
+                <p class="text-sm text-surface-400 leading-relaxed">Scripted personas walk the real UI in a headless browser. Failed steps, server errors and clicks with no loading feedback become findings.</p>
             </div>
         </div>
         </div>
     </section>
 
-    {{-- ═══ ROLE HIERARCHY ═══ --}}
-    <section id="roles" class="relative overflow-hidden">
+    {{-- ═══ CUSTOMER JOURNEY ═══ --}}
+    <section id="customer-journey" class="relative overflow-hidden">
         <div class="section-wash"></div>
         <div class="relative max-w-7xl mx-auto px-4 sm:px-6 pb-24">
             <div class="max-w-2xl mx-auto text-center mb-12">
                 <span class="pill-badge mb-5">
                     <span class="pulse-dot-glow"></span>
-                    Who can do what
+                    End to end
                 </span>
                 <h2 class="text-3xl sm:text-4xl font-bold text-surface-100 mb-3 tracking-tight">
-                    <span class="text-accent-400">Access</span> that fits each role
+                    <span class="text-accent-400">One customer,</span> start to finish
                 </h2>
-                <p class="text-surface-400 leading-relaxed">Everyone gets the right level of access. More senior roles can do everything the roles below them can — and more.</p>
+                <p class="text-surface-400 leading-relaxed">Every stage of a customer's life — from first enquiry to cancellation — walked across every app it touches in a stand-in fleet.</p>
             </div>
 
-            <div class="perm-matrix max-w-4xl mx-auto rounded-2xl border border-surface-800/40 p-1.5 sm:p-2">
-                <table class="w-full">
-                    <thead>
-                        <tr class="border-b border-surface-800/60">
-                            <th class="text-left py-4 pl-4 sm:pl-5 pr-2 text-[11px] uppercase tracking-widest text-surface-500 font-medium">Feature</th>
-                            <th class="px-2 sm:px-4 py-4 text-center text-sm font-semibold text-accent-400">Owner</th>
-                            <th class="px-2 sm:px-4 py-4 text-center text-sm font-semibold text-surface-200">Admin</th>
-                            <th class="px-2 sm:px-4 py-4 text-center text-sm font-semibold text-surface-200">Finance</th>
-                            <th class="px-2 sm:px-4 py-4 pr-4 sm:pr-5 text-center text-sm font-semibold text-surface-200">Member</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-surface-800/40">
-                        @php
-                            $matrix = [
-                                ['Dashboard', 'Main overview', ['owner' => 'full', 'admin' => 'full', 'finance' => 'full', 'member' => 'full']],
-                                ['Profile', 'Personal settings', ['owner' => 'full', 'admin' => 'full', 'finance' => 'full', 'member' => 'full']],
-                                ['Team', 'Manage members', ['owner' => 'full', 'admin' => 'full', 'finance' => 'none', 'member' => 'none']],
-                                ['Permissions', 'Set what each person can do', ['owner' => 'full', 'admin' => 'full', 'finance' => 'none', 'member' => 'none']],
-                                ['Billing', 'Plans & invoices', ['owner' => 'full', 'admin' => 'view', 'finance' => 'full', 'member' => 'none']],
-                                ['Reports', 'Analytics & data', ['owner' => 'full', 'admin' => 'full', 'finance' => 'full', 'member' => 'view']],
-                            ];
-                        @endphp
-                        @foreach ($matrix as [$name, $desc, $access])
-                            <tr class="hover:bg-surface-900/30 transition-colors">
-                                <td class="py-3.5 pl-4 sm:pl-5 pr-2">
-                                    <div class="text-sm font-medium text-surface-100">{{ $name }}</div>
-                                    <div class="text-xs text-surface-500">{{ $desc }}</div>
-                                </td>
-                                @foreach (['owner', 'admin', 'finance', 'member'] as $role)
-                                    <td class="px-2 sm:px-4 py-3.5 text-center {{ $loop->last ? 'pr-4 sm:pr-5' : '' }}">
-                                        @if ($access[$role] === 'full')
-                                            <span class="perm-dot perm-dot-full" title="Full access"></span>
-                                        @elseif ($access[$role] === 'view')
-                                            <span class="perm-dot perm-dot-view" title="View only"></span>
-                                        @else
-                                            <span class="perm-dash" title="No access">—</span>
-                                        @endif
-                                    </td>
-                                @endforeach
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+            @php
+                $stages = config('simulation.customer_journeys', []);
+            @endphp
 
-                <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-5 py-4 mt-1 border-t border-surface-800/40 text-xs text-surface-500">
-                    <span class="inline-flex items-center gap-2"><span class="perm-dot perm-dot-full"></span> Full access</span>
-                    <span class="inline-flex items-center gap-2"><span class="perm-dot perm-dot-view"></span> View only</span>
-                    <span class="inline-flex items-center gap-2"><span class="perm-dash">—</span> No access</span>
-                </div>
+            <div class="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3">
+                @foreach ($stages as $key => $stage)
+                    @php $built = isset($stage['journey']); @endphp
+                    <div class="journey-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-4 text-center">
+                        <div class="flex items-center justify-center mb-3">
+                            @if ($built)
+                                <span class="w-2.5 h-2.5 rounded-full bg-success-500 shadow-[0_0_6px_rgba(34,197,94,0.4)]"></span>
+                            @else
+                                <span class="w-2.5 h-2.5 rounded-full bg-surface-700"></span>
+                            @endif
+                        </div>
+                        <h3 class="text-sm font-medium text-surface-100">{{ $stage['name'] }}</h3>
+                        <p class="text-xs text-surface-500 mt-1">{{ $built ? 'Built' : 'Pending' }}</p>
+                    </div>
+                @endforeach
             </div>
         </div>
     </section>
@@ -481,12 +414,9 @@
                     @auth
                         <a href="{{ route('dashboard') }}" wire:navigate class="hover:text-accent-400 transition-colors">Dashboard</a>
                     @else
-                        <a href="{{ route('login') }}" wire:navigate class="hover:text-accent-400 transition-colors">Log in</a>
-                        @if (Route::has('register'))
-                            <a href="{{ route('register') }}" wire:navigate class="hover:text-accent-400 transition-colors">Register</a>
-                        @endif
+                        <a href="{{ route('login') }}" wire:navigate class="hover:text-accent-400 transition-colors">Sign in</a>
                     @endauth
-                    <span class="text-surface-700">·</span>
+                    <span class="text-surface-700">&middot;</span>
                     <span>&copy; {{ date('Y') }}</span>
                 </div>
             </div>
