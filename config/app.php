@@ -118,6 +118,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Platform Admin
+    |--------------------------------------------------------------------------
+    |
+    | Used by `php artisan app:make-admin` so it can run with no arguments
+    | on the deploy target.  Set ADMIN_EMAIL and ADMIN_NAME in the env.
+    |
+    */
+
+    'admin' => [
+        'email' => env('ADMIN_EMAIL'),
+        'name' => env('ADMIN_NAME'),
+    ],
+
     'maintenance' => [
         'driver' => env('APP_MAINTENANCE_DRIVER', 'file'),
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
