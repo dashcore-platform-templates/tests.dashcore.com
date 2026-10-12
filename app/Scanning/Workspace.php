@@ -290,9 +290,14 @@ class Workspace
             }
 
             // Only a head start: if the copy fails or crawls, the install
-            // below builds the directory from scratch instead.
+            // below builds the directory from scratch instead. -c is macOS's
+            // APFS clone flag and GNU cp rejects it, so elsewhere the same
+            // copy-on-write is asked for with --reflink=auto, which falls
+            // back to a plain copy on a filesystem that cannot clone.
+            $clone = PHP_OS_FAMILY === 'Darwin' ? ['-cR'] : ['-R', '--reflink=auto'];
+
             try {
-                $copied = Process::timeout(1200)->run(['cp', '-cR', $repo.'/'.$dir, $this->path.'/'.$dir])->successful();
+                $copied = Process::timeout(1200)->run(['cp', ...$clone, $repo.'/'.$dir, $this->path.'/'.$dir])->successful();
             } catch (ProcessTimedOutException) {
                 $copied = false;
             }

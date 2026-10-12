@@ -1,0 +1,35 @@
+name: lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  pint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.5'
+          extensions: sodium, mbstring
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+
+      # `pint` on its own is the FIXER: it rewrites files inside the runner,
+      # exits 0, and the result is thrown away — a check that cannot go red.
+      # hr.dashcore.com shipped exactly that and let 115 files drift out of
+      # style unnoticed. --test only reports, and fails the build.
+      - name: Check formatting
+        run: vendor/bin/pint --test
