@@ -153,7 +153,10 @@ class Cancellation extends CustomerJourney
      */
     private function waitFor(array $delivery, string $uuid, array $statuses): array
     {
-        $deadline = time() + $this->hearWithin;
+        // Laravel's clock, not time(): a test that stands in for the pause
+        // moves this clock, so the wait ends when its window has passed
+        // rather than spinning for real seconds.
+        $deadline = now()->getTimestamp() + $this->hearWithin;
 
         do {
             $request = $this->provisioner->show($delivery, $uuid);
@@ -163,7 +166,7 @@ class Cancellation extends CustomerJourney
             }
 
             ($this->sleep)(2);
-        } while (time() < $deadline);
+        } while (now()->getTimestamp() < $deadline);
 
         throw new RuntimeException("dcos never heard the subscription end: after {$this->hearWithin} s it still has {$this->built['company']}'s install ".($request['status'] ?? 'unknown').'. Is its webhook getting customer.subscription.deleted?');
     }
