@@ -1,0 +1,98 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor composer.json declares — and what production (Laravel
+        # Cloud) and the dev machines run. Without the floor in the matrix,
+        # that constraint is a claim nothing ever checks.
+        php-version: ['8.5']
+
+    services:
+      # The suite runs on this database: phpunit.xml forces DB_CONNECTION=pgsql
+      # and DB_DATABASE=tests_dashcore_testing. The username comes from
+      # .env.example (root).
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: root
+          POSTGRES_DB: tests_dashcore_testing
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U root -d tests_dashcore_testing"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          # sodium is not optional: dashcore/bridge signs every fleet request
+          # with Ed25519 and declares ext-sodium.
+          extensions: sodium, pdo_pgsql, pgsql, mbstring, bcmath, intl
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php-version }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php-version }}-
+
+      # --no-scripts because post-autoload-dump runs package:discover, which
+      # boots the application — and at this point there is no .env for it to
+      # boot with. Laravel rebuilds the package manifest on demand when it is
+      # missing, so nothing is lost by skipping it here.
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-scripts
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      # public/build is gitignored, so it exists only where something builds
+      # it. Any test that renders a Blade view calls @vite and throws "Vite
+      # manifest not found" without it — which is exactly how three of these
+      # suites failed with 19 errors each when first run in a fresh checkout.
+      # Built even where this suite renders nothing today, because the test
+      # that does gets added on an ordinary Tuesday.
+      - name: Build assets
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          # .env.example names the database a developer uses locally, which
+          # does not exist in a runner. Pointed at the one CI provides rather
+          # than creating a second database nothing else would ever use.
+          sed -i 's|^DB_CONNECTION=.*|DB_CONNECTION=pgsql|' .env
+          sed -i 's|^DB_DATABASE=.*|DB_DATABASE=tests_dashcore_testing|' .env
+          grep -q '^DB_USERNAME=' .env && sed -i 's|^DB_USERNAME=.*|DB_USERNAME=root|' .env || echo 'DB_USERNAME=root' >> .env
+          php artisan key:generate
+
+      - name: Run tests
+        run: php artisan test
