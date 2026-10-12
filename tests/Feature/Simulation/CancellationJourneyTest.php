@@ -70,8 +70,10 @@ class CancellationJourneyTest extends TestCase
         $this->subscriptions = [['id' => 'sub_acme', 'description' => 'API + CEO — Acme Care', 'livemode' => false, 'status' => 'active']];
 
         $this->app->resolving(Cancellation::class, function (Cancellation $journey) {
-            $journey->sleep = fn (int $seconds) => null;
-            $journey->hearWithin = 1;
+            // The pause passes simulated time, so a wait that never hears
+            // gives up after its window instead of spinning for real.
+            $journey->sleep = fn (int $seconds) => $this->travel($seconds)->seconds();
+            $journey->hearWithin = 10;
         });
     }
 
