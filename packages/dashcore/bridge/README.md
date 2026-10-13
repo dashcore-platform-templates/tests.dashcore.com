@@ -286,6 +286,34 @@ who), whether the `sso_subject` column exists, which resolver is bound,
 whether it would create accounts, and the sign-in page a failure lands on.
 Read-only. fleets runs it through each app's hosting to show the rollout.
 
+## Security headers
+
+Every app that installs the bridge sends the security headers `standards`
+grades for, from one global middleware (`SetSecurityHeaders`):
+
+| Header | Default | Notes |
+|---|---|---|
+| Content-Security-Policy | `frame-ancestors 'self'; base-uri 'self'; object-src 'none'` | Restricts framing, `<base>` and plugins; does not restrict scripts or styles. |
+| Referrer-Policy | `strict-origin-when-cross-origin` | |
+| Permissions-Policy | `camera=(self), microphone=(self), geolocation=(), usb=()` | Camera and mic stay open to the app itself; payment is left alone so Stripe's wallet buttons work. |
+| Cross-Origin-Opener-Policy | `same-origin-allow-popups` | HTML pages only; still allows OAuth and payment popups. |
+| Cross-Origin-Resource-Policy | `same-site` | HTML pages only, so images and files another site loads aren't blocked. |
+| X-DNS-Prefetch-Control | `off` | |
+| Strict-Transport-Security | `max-age=31536000` | HTTPS requests only. |
+
+Cross-Origin-Embedder-Policy is not sent: it breaks third-party embeds, and
+`standards` treats it as optional.
+
+A header the app sets itself is never overridden. Change one per app with its
+env variable (`BRIDGE_CSP`, `BRIDGE_HSTS`, `BRIDGE_REFERRER_POLICY`,
+`BRIDGE_PERMISSIONS_POLICY`, `BRIDGE_COOP`, `BRIDGE_CORP`,
+`BRIDGE_DNS_PREFETCH_CONTROL`), or turn them all off with
+`BRIDGE_SECURITY_HEADERS=false`.
+
+The bridge also serves `/.well-known/security.txt` (RFC 9116), with the
+contact in `BRIDGE_SECURITY_CONTACT` (default `mailto:travis@dashcore.com`) and
+an expiry a year out. An app's own static file takes precedence.
+
 ## Source of truth
 
 This repository. `api.dashcore.com` used to vendor the package under

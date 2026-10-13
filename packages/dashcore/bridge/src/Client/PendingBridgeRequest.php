@@ -86,24 +86,38 @@ class PendingBridgeRequest
     {
         $path = static::PREFIX.'/'.ltrim($path, '/');
         $body = $data === null ? '' : json_encode($data);
+        $retries = max(0, (int) config('bridge.connect_retries', 1));
 
-        $pending = Http::withHeaders([
-            ...BridgeHeaders::sign($method, $path, $query, $body),
-            'Accept' => 'application/json',
-        ])->timeout($this->timeout ?? config('bridge.timeout'));
+        for ($attempt = 0; ; $attempt++) {
+            // Signed afresh on every attempt: the peer refuses a nonce it has
+            // seen, and a retried request carrying the first one's headers
+            // would come back as a signature rejection instead of an answer.
+            $pending = Http::withHeaders([
+                ...BridgeHeaders::sign($method, $path, $query, $body),
+                'Accept' => 'application/json',
+            ])->timeout($this->timeout ?? config('bridge.timeout'));
 
-        if ($this->retryTimes !== null) {
-            $pending = $pending->retry($this->retryTimes, $this->retryBackoff, throw: false);
-        }
+            if ($this->retryTimes !== null) {
+                $pending = $pending->retry($this->retryTimes, $this->retryBackoff, throw: false);
+            }
 
-        if ($body !== '') {
-            $pending = $pending->withBody($body, 'application/json');
-        }
+            if ($body !== '') {
+                $pending = $pending->withBody($body, 'application/json');
+            }
 
-        try {
-            $response = $pending->send($method, rtrim($this->baseUrl, '/').$path, ['query' => $query]);
-        } catch (ConnectionException $e) {
-            throw new PeerUnreachable("Peer [{$this->appId}] is unreachable: {$e->getMessage()}", previous: $e);
+            try {
+                $response = $pending->send($method, rtrim($this->baseUrl, '/').$path, ['query' => $query]);
+
+                break;
+            } catch (ConnectionException $e) {
+                if ($attempt < $retries && static::neverReached($e)) {
+                    usleep(500_000);
+
+                    continue;
+                }
+
+                throw new PeerUnreachable("Peer [{$this->appId}] is unreachable: {$e->getMessage()}", previous: $e);
+            }
         }
 
         return match (true) {
@@ -118,5 +132,16 @@ class PendingBridgeRequest
             ),
             default => $response,
         };
+    }
+
+    /**
+     * Whether a failed call never got as far as the peer: no connection, no
+     * name, or a connection that timed out while being made. A timeout after
+     * the request was sent ("Operation timed out … bytes received") is not
+     * one of these — the peer may have acted on it — so it is never retried.
+     */
+    protected static function neverReached(ConnectionException $e): bool
+    {
+        return preg_match('/Could not resolve host|Failed to connect|Connection refused|Connection timed out after|Couldn\'t connect/i', $e->getMessage()) === 1;
     }
 }

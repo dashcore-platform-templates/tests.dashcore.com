@@ -30,13 +30,19 @@ final class Catalogue
 
     /**
      * The apps every install has, listed or not: the control plane, the
-     * fleet's own sign-in, and the apps that hold it to the standard, its
-     * tests and its look. A client fleet without login comes up with nobody
-     * able to sign in, so these are never left to the order form.
+     * fleet's own sign-in, and the auditor that holds it to the standard. A
+     * client fleet without login comes up with nobody able to sign in, so
+     * these are never left to the order form.
+     *
+     * tests and design were required in 0.11.19 and are not now. Neither was
+     * ready to be a peer — design carries no bridge, tests had no deployment
+     * — so every hub planned two apps that could never answer, the empty
+     * panel this fleet keeps mistaking for a quiet one. One goes back on this
+     * list when it can enrol on deploy.
      *
      * @var list<string>
      */
-    public const REQUIRED = [self::CONTROL_PLANE, 'login', 'standards', 'tests', 'design'];
+    public const REQUIRED = [self::CONTROL_PLANE, 'login', 'standards'];
 
     /**
      * Keyed by short name. A null subdomain is the domain's apex — the

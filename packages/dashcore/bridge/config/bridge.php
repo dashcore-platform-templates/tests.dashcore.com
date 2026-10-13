@@ -52,6 +52,11 @@ return [
 
     'manifest_ttl' => env('BRIDGE_MANIFEST_TTL', 300),
 
+    // How old the last good manifest may be and still be served while a
+    // fresh one is fetched after the response. Past this a caller waits for
+    // the control plane again, so a revoked key cannot outlive it by more.
+    'manifest_max_stale' => env('BRIDGE_MANIFEST_MAX_STALE', 3600),
+
     /*
     |--------------------------------------------------------------------------
     | Peers (static keyset driver)
@@ -112,6 +117,14 @@ return [
     'allow_insecure' => env('BRIDGE_ALLOW_INSECURE', false),
 
     'timeout' => env('BRIDGE_TIMEOUT', 10),
+
+    // A call that never reached the peer — it could not connect, or the
+    // connection timed out before anything was sent — is tried again this
+    // many times, freshly signed each time. A blip on the network between
+    // two apps is not an outage, and reporting it as one failed the fleet's
+    // readiness bar for a day (7 Oct 2026). A call the peer did receive is
+    // never retried here: it may have acted on it.
+    'connect_retries' => (int) env('BRIDGE_CONNECT_RETRIES', 1),
 
     /*
     |--------------------------------------------------------------------------
@@ -297,9 +310,68 @@ return [
             'api/bridge/v1/ping',
             'api/bridge/v1/health',
             'api/bridge/v1/telemetry',
+            'api/bridge/v1/emails',
             'up',
         ],
 
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mail ledger
+    |--------------------------------------------------------------------------
+    |
+    | Every email this app sends is written down before it is handed to the
+    | transport and shipped to the telemetry collector (`health`), which joins
+    | it to what the provider says happened next. Catches the sends a provider
+    | never sees: a missing key, a network failure, a mailer left on `log`.
+    |
+    */
+
+    'mail' => [
+        'enabled' => env('BRIDGE_MAIL_LEDGER', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Security headers
+    |--------------------------------------------------------------------------
+    |
+    | The headers `standards` grades every app for, set once here instead of
+    | in twenty-one apps that each forgot (its first full run, 2026-10-07:
+    | every app missing every one). Each value can be changed per app by its
+    | env variable, or set to null to send nothing for that header.
+    |
+    | Chosen not to break anything the fleet already does: the CSP restricts
+    | framing, <base> and plugins, not scripts or styles; camera and
+    | microphone stay open to the app itself (ceo's calls use both), and
+    | payment is left alone so Stripe's wallet buttons work (dcos); COOP
+    | still allows the popups OAuth and payment flows open. HSTS is sent on
+    | HTTPS requests only. COEP is not sent — it breaks third-party embeds,
+    | and `standards` treats it as optional.
+    |
+    */
+
+    'security_headers' => [
+        'enabled' => env('BRIDGE_SECURITY_HEADERS', true),
+        'strict_transport_security' => env('BRIDGE_HSTS', 'max-age=31536000'),
+        'content_security_policy' => env('BRIDGE_CSP', "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"),
+        'referrer_policy' => env('BRIDGE_REFERRER_POLICY', 'strict-origin-when-cross-origin'),
+        'permissions_policy' => env('BRIDGE_PERMISSIONS_POLICY', 'camera=(self), microphone=(self), geolocation=(), usb=()'),
+        'cross_origin_opener_policy' => env('BRIDGE_COOP', 'same-origin-allow-popups'),
+        'cross_origin_resource_policy' => env('BRIDGE_CORP', 'same-site'),
+        'x_dns_prefetch_control' => env('BRIDGE_DNS_PREFETCH_CONTROL', 'off'),
+    ],
+
+    /*
+    | /.well-known/security.txt (RFC 9116): where to report a vulnerability.
+    | The owner chose the contact on 2026-10-07. Null serves no file, and an
+    | app that ships its own public/.well-known/security.txt is served that
+    | file by the web server before this route is reached.
+    */
+
+    'security_txt' => [
+        'contact' => env('BRIDGE_SECURITY_CONTACT', 'mailto:travis@dashcore.com'),
     ],
 
 ];

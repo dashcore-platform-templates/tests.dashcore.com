@@ -50,3 +50,19 @@ if (SsoMode::isOn()) {
         Route::get(config('bridge.sso.callback_path', 'auth/sso/callback'), CallbackController::class)->name('bridge.sso.callback');
     });
 }
+
+// Where to report a vulnerability (RFC 9116), so every app publishes one
+// without each remembering to. An app that ships its own static file is
+// served that by the web server first; a null contact serves nothing.
+if (filled(config('bridge.security_txt.contact'))) {
+    Route::get('.well-known/security.txt', function () {
+        $contact = (string) config('bridge.security_txt.contact');
+
+        return response(implode("\n", [
+            'Contact: '.(str_contains($contact, ':') ? $contact : 'mailto:'.$contact),
+            'Expires: '.now()->addYear()->startOfDay()->toIso8601ZuluString(),
+            'Preferred-Languages: en',
+            'Canonical: '.url('/.well-known/security.txt'),
+        ])."\n", 200, ['Content-Type' => 'text/plain; charset=utf-8', 'Cache-Control' => 'public, max-age=86400']);
+    })->name('bridge.security-txt');
+}

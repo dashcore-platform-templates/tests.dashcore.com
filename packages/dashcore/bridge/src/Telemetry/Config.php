@@ -71,6 +71,7 @@ final class Config
             'api/bridge/v1/ping',
             'api/bridge/v1/health',
             'api/bridge/v1/telemetry',
+            'api/bridge/v1/emails',
             'up',
         ]);
     }
