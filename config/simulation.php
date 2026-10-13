@@ -214,13 +214,13 @@ return [
             'login' => ['email' => 'input[name="email"]', 'password' => 'input[name="password"]', 'submit' => 'button[data-test="login-button"]', 'landed' => 'Dashboard'],
             'password' => env('SIMULATION_HR_PASSWORD', 'password'),
             // Read only for now: the fake HR app mails through Resend for real
-            // and its people have @dashcore.com addresses, so requesting or
+            // and its people have real addresses, so requesting or
             // approving time off, inviting or assigning training would reach
             // real inboxes. The tour changes nothing; signing in sends nothing.
-            'explore_off' => 'the fake HR app sends real email (MAIL_MAILER=resend) to @dashcore.com addresses; switch it to log first.',
+            'explore_off' => 'the fake HR app sends real email (MAIL_MAILER=resend) to its people’s real addresses; switch it to log first.',
             'personas' => [
-                ['name' => 'Jane Holloway', 'email' => 'jane@dashcore.com', 'role' => 'HR manager'],
-                ['name' => 'Marcus Reyes', 'email' => 'marcus@dashcore.com', 'role' => 'Manager'],
+                ['name' => 'Jane Holloway', 'email' => env('SIMULATION_HR_MANAGER_EMAIL', 'jane.holloway@example.com'), 'role' => 'HR manager'],
+                ['name' => 'Marcus Reyes', 'email' => env('SIMULATION_HR_LINE_MANAGER_EMAIL', 'marcus.reyes@example.com'), 'role' => 'Manager'],
             ],
             // Every module is off on a fresh install (Pennant, per company);
             // switch them on for the fake company before touring.

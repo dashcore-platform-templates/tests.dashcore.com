@@ -28,7 +28,7 @@ new #[Layout('layouts.guest')] class extends Component
 <div>
     <div class="text-center mb-6">
         <h1 class="text-2xl font-bold text-surface-100 tracking-tight mb-1">Welcome back</h1>
-        <p class="text-sm text-surface-400">Sign in to your DashCore account</p>
+        <p class="text-sm text-surface-400">Sign in to your Dashcore account</p>
     </div>
 
     <!-- Session Status -->
@@ -42,7 +42,7 @@ new #[Layout('layouts.guest')] class extends Component
 
     @if (SsoMode::isOn())
         <a href="{{ route('bridge.sso.redirect') }}" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors mb-4">
-            Sign in with DashCore
+            Sign in with Dashcore
         </a>
     @endif
 
