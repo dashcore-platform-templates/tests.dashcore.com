@@ -21,6 +21,8 @@ class PendingBridgeRequest
 
     protected int $retryBackoff = 100;
 
+    protected ?int $connectRetries = null;
+
     public function __construct(
         protected string $appId,
         protected string $baseUrl,
@@ -37,6 +39,18 @@ class PendingBridgeRequest
     {
         $this->retryTimes = $times;
         $this->retryBackoff = $backoff;
+
+        return $this;
+    }
+
+    /**
+     * How many more times a call that never reached its peer is tried, for
+     * this call only — bridge.connect_retries otherwise. A caller that runs
+     * its own retry around the call passes 0, or the two multiply.
+     */
+    public function connectRetries(int $times): static
+    {
+        $this->connectRetries = $times;
 
         return $this;
     }
@@ -86,7 +100,7 @@ class PendingBridgeRequest
     {
         $path = static::PREFIX.'/'.ltrim($path, '/');
         $body = $data === null ? '' : json_encode($data);
-        $retries = max(0, (int) config('bridge.connect_retries', 1));
+        $retries = max(0, $this->connectRetries ?? (int) config('bridge.connect_retries', 1));
 
         for ($attempt = 0; ; $attempt++) {
             // Signed afresh on every attempt: the peer refuses a nonce it has
