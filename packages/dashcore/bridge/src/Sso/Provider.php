@@ -51,13 +51,19 @@ final class Provider
         return $domain === '' ? 'login' : 'login.'.$domain;
     }
 
-    /** This app's own address, as the fleet publishes it. */
+    /**
+     * This app's own address, as the fleet publishes it. Falls back to
+     * APP_URL when the manifest does not carry this app — the control plane
+     * publishes the manifest but is not a peer of itself.
+     */
     public function selfUrl(): string
     {
         $appId = $this->identity->appId()
             ?? throw new SsoUnavailable('This app has no bridge identity, so it cannot sign in through the fleet.');
 
-        return rtrim($this->keys->urlFor($appId) ?? throw new SsoUnavailable("The manifest publishes no address for {$appId}."), '/');
+        $url = $this->keys->urlFor($appId) ?? config('app.url');
+
+        return rtrim($url ?? throw new SsoUnavailable("The manifest publishes no address for {$appId}, and APP_URL is not set."), '/');
     }
 
     /**

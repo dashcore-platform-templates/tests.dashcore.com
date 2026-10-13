@@ -33,8 +33,7 @@ class DoctorCommand extends Command
 
         if ($keys instanceof ManifestKeysetResolver) {
             try {
-                $keys->refresh();
-                $manifest = $keys->manifest();
+                $manifest = $keys->fetchNow();
                 $this->components->info('Fleet manifest fetched and verified (issued '.($manifest['issued_at'] ?? 'unknown').').');
             } catch (\Throwable $e) {
                 $this->components->error("Fleet manifest unavailable: {$e->getMessage()}");
@@ -43,7 +42,18 @@ class DoctorCommand extends Command
             }
         }
 
+        // A local tool lives on the owner's Mac and answers nothing, so a ping
+        // to it can only fail — and a doctor that is always red is one nobody
+        // reads on the day a real peer goes down.
+        $localTools = $keys instanceof ManifestKeysetResolver ? $keys->localTools() : [];
+
         foreach ($keys->peers() as $peer) {
+            if (in_array($peer, $localTools, true)) {
+                $this->components->twoColumnDetail($peer, 'local tool · caller only, not pinged');
+
+                continue;
+            }
+
             try {
                 $started = microtime(true);
                 $response = $bridge->to($peer)->timeout(5)->get('/ping');

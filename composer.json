@@ -95,16 +95,16 @@
     "minimum-stability": "stable",
     "prefer-stable": true,
     "repositories": [{
-        "name": "dashcore-testkit",
+        "name": "dashcore-bridge",
         "type": "path",
-        "url": "packages/dashcore/testkit",
+        "url": "packages/dashcore/bridge",
         "options": {
             "symlink": false
         }
     },{
-        "name": "dashcore-bridge",
+        "name": "dashcore-testkit",
         "type": "path",
-        "url": "packages/dashcore/bridge",
+        "url": "packages/dashcore/testkit",
         "options": {
             "symlink": false
         }

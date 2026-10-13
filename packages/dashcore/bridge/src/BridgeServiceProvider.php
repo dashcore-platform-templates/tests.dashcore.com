@@ -11,10 +11,12 @@ use Dashcore\Bridge\Console\InstallCommand;
 use Dashcore\Bridge\Console\KeysGenerateCommand;
 use Dashcore\Bridge\Console\KeysRotateCommand;
 use Dashcore\Bridge\Console\ReportCallsCommand;
+use Dashcore\Bridge\Console\ReportMailCommand;
 use Dashcore\Bridge\Console\ReportTelemetryCommand;
 use Dashcore\Bridge\Console\SsoStatusCommand;
 use Dashcore\Bridge\Http\Middleware\EnsureBridgeScope;
 use Dashcore\Bridge\Http\Middleware\SendSignInToSso;
+use Dashcore\Bridge\Http\Middleware\SetSecurityHeaders;
 use Dashcore\Bridge\Http\Middleware\VerifyBridgeRequest;
 use Dashcore\Bridge\Contracts\ResolvesSsoUser;
 use Dashcore\Bridge\Identity\IdentityResolver;
@@ -25,11 +27,13 @@ use Dashcore\Bridge\Sso\DatabaseUserResolver;
 use Dashcore\Bridge\Sso\PasswordSignIn;
 use Dashcore\Bridge\Sso\Provider;
 use Dashcore\Bridge\Sso\SsoFlow;
+use Dashcore\Bridge\Mail\MailRecorder;
 use Dashcore\Bridge\Telemetry\Config as TelemetryConfig;
 use Dashcore\Bridge\Telemetry\Listeners as TelemetryListeners;
 use Dashcore\Bridge\Telemetry\Recorder;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\ServiceProvider;
 
 class BridgeServiceProvider extends ServiceProvider
@@ -55,6 +59,7 @@ class BridgeServiceProvider extends ServiceProvider
         $this->app->singleton(TelemetryConfig::class);
         $this->app->singleton(Recorder::class);
         $this->app->singleton(TelemetryListeners::class);
+        $this->app->singleton(MailRecorder::class);
     }
 
     public function boot(): void
@@ -71,6 +76,17 @@ class BridgeServiceProvider extends ServiceProvider
         // provider boot, before an app has had a chance to set it — and would
         // make the switch a restart rather than a setting.
         $this->app->make(TelemetryListeners::class)->subscribe($this->app['events']);
+        $this->app->make(MailRecorder::class)->subscribe($this->app['events']);
+
+        // Scheduled here rather than in each app's console routes: a mail
+        // ledger that covers only the apps that remembered a line is the
+        // kind of gap it exists to close.
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('bridge:report-mail --prune')
+                ->everyTwoMinutes()
+                ->withoutOverlapping()
+                ->runInBackground();
+        });
 
         // The same, for sso required: both check the mode when they run, and
         // do nothing unless it is `required`.
@@ -80,6 +96,11 @@ class BridgeServiceProvider extends ServiceProvider
         $kernel = $this->app->make(HttpKernel::class);
         if ($kernel instanceof Kernel) {
             $kernel->appendMiddlewareToGroup('web', SendSignInToSso::class);
+
+            // Global, not the web group: an API answer and an error page are
+            // pages a browser reads too. The middleware checks the switch per
+            // request, so turning it off is a setting rather than a restart.
+            $kernel->pushMiddleware(SetSecurityHeaders::class);
         }
 
         $this->publishes([
@@ -96,7 +117,7 @@ class BridgeServiceProvider extends ServiceProvider
         ], 'bridge-sso-migration');
 
         if ($this->app->runningInConsole()) {
-            $this->commands([KeysGenerateCommand::class, KeysRotateCommand::class, InstallCommand::class, ConnectCommand::class, DoctorCommand::class, DemoRefreshCommand::class, ReportCallsCommand::class, CheckContractsCommand::class, ReportTelemetryCommand::class, SsoStatusCommand::class]);
+            $this->commands([KeysGenerateCommand::class, KeysRotateCommand::class, InstallCommand::class, ConnectCommand::class, DoctorCommand::class, DemoRefreshCommand::class, ReportCallsCommand::class, CheckContractsCommand::class, ReportTelemetryCommand::class, ReportMailCommand::class, SsoStatusCommand::class]);
         }
     }
 }
