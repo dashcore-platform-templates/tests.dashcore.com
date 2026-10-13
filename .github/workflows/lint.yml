@@ -2,9 +2,9 @@ name: lint
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'maintain/**']
   pull_request:
-    branches: [main]
+    branches: [main, 'maintain/**']
 
 permissions:
   contents: read
