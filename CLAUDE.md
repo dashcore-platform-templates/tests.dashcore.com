@@ -298,6 +298,27 @@ surfaces (routes, Livewire components/actions, and every public method under
   longer answers. It takes a fleet down for good: walk `subscription` and
   `provisioning` first so the newest fleet is one made for it.
 
+- **Workflows** — `app/Workflows`, pages `/workflows` (permission
+  `workflows`, owner + admin): browser tests built per install as records
+  (`workflows`: start URL, `steps` JSON, `frequency`, `active`, `notify`,
+  `alert_after`), none shipped — the standard fleet tests above are the base,
+  workflows are what an install adds IF it needs one. Steps are a subset of
+  run.mjs's kinds (`Steps::KINDS`: visit, fill, select, click, see, gone,
+  filled, press) with fake-data `[[tokens]]`; `[[email]]` is
+  `workflows.fake_email` (`WORKFLOWS_FAKE_EMAIL`). The wizard
+  (`Livewire\Workflows\Wizard`) is four stages: where, steps, schedule,
+  review. `tests:workflows` runs every minute and walks each due workflow
+  **inline in the tick** (no queue worker — the tests workers are paused on
+  this host): due = `run_requested_at` set ("Run now") or active with
+  `next_run_at` passed; each is claimed under a lock before it walks.
+  `WorkflowRunner` records `workflow_runs`/`workflow_run_steps`, screenshots
+  in `storage/workflows.noindex`; `Alerts` mails `notify` once after
+  `alert_after` failures in a row and once on recovery. Workflows may hit
+  live sites — they bypass `StandInGuard` by design (PURPOSE.md). Live
+  Turnstile does not hand a headless browser a token (seen 2026-10-13 on
+  dashcore.com/lets-talk), so a workflow that must send such a form needs
+  the site to recognise it first.
+
 ### Running on the fleet host — gotchas that cost real time
 
 - **Resume point:** `.claude/PROGRESS.md` holds the current state and next action.

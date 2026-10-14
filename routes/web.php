@@ -1,7 +1,10 @@
 <?php
 
 use App\Models\SimulationRun;
+use App\Models\Workflow;
+use App\Models\WorkflowRun;
 use App\Simulation\Simulation;
+use App\Workflows\WorkflowRunner;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
 
@@ -45,6 +48,21 @@ Route::middleware(['auth', 'verified', 'permission:fleet-tests'])->group(functio
 
         return response()->file($path, ['Cache-Control' => 'private, max-age=86400, immutable']);
     })->where('file', '[0-9]{3}\\.jpg')->name('simulation.screenshot');
+});
+
+// Browser-test workflows: built and kept per install, owners and admins only.
+Route::middleware(['auth', 'verified', 'permission:workflows'])->group(function () {
+    Route::view('workflows', 'workflows.index')->name('workflows.index');
+    Route::view('workflows/new', 'workflows.wizard')->name('workflows.create');
+    Route::get('workflows/{workflow}', fn (Workflow $workflow) => view('workflows.show', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.show');
+    Route::get('workflows/{workflow}/edit', fn (Workflow $workflow) => view('workflows.wizard', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.edit');
+    Route::get('workflows/runs/{run}/{file}', function (WorkflowRun $run, string $file) {
+        $path = WorkflowRunner::screenshotDirectory($run).'/'.$file;
+
+        abort_if($run->screenshots_pruned || ! is_file($path), 404);
+
+        return response()->file($path, ['Cache-Control' => 'private, max-age=86400, immutable']);
+    })->where('file', '[0-9]{3}\\.jpg')->name('workflows.screenshot');
 });
 
 Volt::route('invitations/{token}', 'pages.invitations.accept')
