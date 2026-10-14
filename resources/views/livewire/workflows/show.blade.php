@@ -16,6 +16,8 @@
         <a href="{{ route('workflows.index') }}" wire:navigate class="text-sm text-surface-400 hover:text-surface-200">&larr; Workflows</a>
     </div>
 
+    @include('livewire.workflows.partials.stale-schedule', ['active' => $workflow->active])
+
     @if (session('workflow-notice'))
         <div class="card-os mb-4 px-4 py-3 text-sm text-surface-200" role="status">{{ session('workflow-notice') }}</div>
     @endif

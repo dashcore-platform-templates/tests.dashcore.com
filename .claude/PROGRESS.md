@@ -6,6 +6,7 @@ _Updated: 2026-10-13 evening · `main` (anchor `~/Herd/tests.dashcore.com`) — 
 **Building:** Workflows — an optional per-install area where an owner/admin builds browser tests as records and the schedule walks them. The standardized fleet tests stay the base; workflows are added IF needed (no clients table — owner's call).
 
 **Verified complete:**
+- Dead-man heartbeat for workflows (#64): `App\Workflows\Heartbeat`, every scheduled tick; in-page stale-schedule warning.
 - Workflows feature merged (#61), polish merged (#63: add-step picker width, "next run due now", pages poll while a run is due).
 - `SCANNER_NIGHTLY` switch (#62); anchor `.env` has `SCANNER_NIGHTLY=false` because the scan workers are paused on this host.
 - fleets #163: `tests.dashcore.com` is back in `fleet.host.schedulers`; `fleet:host install` re-run; `run-schedulers.sh` lists it and `.locks/tests.dashcore.com.out` shows `tests:workflows` running each minute.
@@ -14,6 +15,10 @@ _Updated: 2026-10-13 evening · `main` (anchor `~/Herd/tests.dashcore.com`) — 
 - Owner's workflow **#1 "Lets-talk form is ready"** built through the wizard in Chrome: https://dashcore.com, hourly, alerts to travis@dashcore.com after 2 failures. Steps: open /lets-talk, type first/last/email/company/need, pick size 11–50. **Stops before Turnstile and send.** First scheduled run 19:50 passed 7/7 in 7.0s, by the host scheduler on its own.
 
 **Next action:** wait for the owner. The open decision is whether to let a workflow actually **send** lets-talk: live Turnstile never gives headless Chromium a token (observed), and a real submission emails travis@/regine@/info@ + the typed address via Resend directly, makes a real sales lead and a paid research run. That needs the dashcore.com website (and sales, if the hop should be proven) to recognise workflow traffic — e.g. a signed header → skip Turnstile, skip both emails, mark synthetic. Website: `SubmissionController.php`, `TurnstileVerifier.php`, `LeadNotifier.php`, `ResendMailer.php`; sales: `CaptureLead.php`, `LeadObserver.php`. Owner declined this on 2026-10-13 for now.
+
+**Waiting on the owner — heartbeat URL:** the dead-man check (#64) is built but silent until the owner creates a check on the same Healthchecks.io-style account herd uses (period ~5 min, grace ~5 min, SMS on) and stores its ping URL in Bitwarden as `tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local`, then runs `php artisan keys:scan` in keys. tests picks it up within the hour (no restart). Until then only the in-page "schedule is not running" warning exists.
+
+**Health as the home for workflows — assessed 2026-10-13, not now:** health.dashcore.com (Laravel Cloud, Dashcore Fleet, production) owns uptime/SSL/findings checks and paging (mail + Twilio SMS) and has no heartbeat/check-in receiver. Blockers to hosting workflows there: no Chromium in any Cloud build (nobody has tried; the only off-Mac browser runner is ceo's GitHub Actions `demo-path.yml`), no queue worker, and **hibernation ON** in cloud's mirror (2026-10-05) — cloud's own standards say a hibernating app runs no scheduled tasks while asleep, so health's own 5-minute checks may not be running. **Owner should check health's hibernation in the Cloud dashboard** — it matters beyond workflows. If tests ever enrols with the hub, health's `FleetSiteSync` would start uptime-checking tests.dashcore.com (which the Mac does not serve) unless it is exempted like fleets/work/memory.
 
 **Blocked / red:** nothing red.
 
