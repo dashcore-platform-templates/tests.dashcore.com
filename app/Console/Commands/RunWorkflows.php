@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\SimulationStatus;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
+use App\Workflows\Heartbeat;
 use App\Workflows\WorkflowRunner;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -23,7 +24,7 @@ class RunWorkflows extends Command
 
     protected $description = 'Walk the browser-test workflows that are due (or one, now)';
 
-    public function handle(WorkflowRunner $runner): int
+    public function handle(WorkflowRunner $runner, Heartbeat $heartbeat): int
     {
         $this->settleAbandonedRuns();
 
@@ -42,22 +43,41 @@ class RunWorkflows extends Command
             return self::SUCCESS;
         }
 
-        foreach (Workflow::query()->due()->orderBy('id')->pluck('id') as $id) {
-            [$workflow, $trigger] = $this->claim($id) ?? [null, null];
+        $walked = 0;
+        $broken = [];
 
-            if ($workflow === null) {
-                continue;
+        try {
+            foreach (Workflow::query()->due()->orderBy('id')->pluck('id') as $id) {
+                [$workflow, $trigger] = $this->claim($id) ?? [null, null];
+
+                if ($workflow === null) {
+                    continue;
+                }
+
+                try {
+                    $run = $runner->run($workflow, $trigger);
+                    $walked++;
+                    $this->report($run, $workflow);
+
+                    if ($this->browserNeverRan($run)) {
+                        $broken[] = "{$workflow->name}: the browser never ran a step — {$run->error}";
+                    }
+                } catch (Throwable $e) {
+                    report($e);
+                    $this->error("{$workflow->name}: {$e->getMessage()}");
+                    $broken[] = "{$workflow->name}: {$e->getMessage()}";
+                }
             }
 
-            try {
-                $this->report($runner->run($workflow, $trigger), $workflow);
-            } catch (Throwable $e) {
-                report($e);
-                $this->error("{$workflow->name}: {$e->getMessage()}");
-            }
+            $this->prune();
+        } catch (Throwable $e) {
+            report($e);
+            $broken[] = 'tests:workflows failed: '.$e->getMessage();
         }
 
-        $this->prune();
+        $heartbeat->beat($broken === [], $broken === []
+            ? ($walked === 0 ? 'Tick: nothing due.' : "Tick: walked {$walked} workflow(s).")
+            : implode("\n", $broken));
 
         return self::SUCCESS;
     }
@@ -86,6 +106,17 @@ class RunWorkflows extends Command
 
             return [$workflow, $trigger];
         });
+    }
+
+    /**
+     * A failed run in which the browser reported no step at all: it never
+     * started (no Chromium, Playwright missing) or died before the first
+     * page. That is this machine's fault, not the site's.
+     */
+    private function browserNeverRan(WorkflowRun $run): bool
+    {
+        return $run->status !== SimulationStatus::Passed
+            && $run->steps()->where('status', '!=', SimulationStatus::Skipped)->doesntExist();
     }
 
     private function report(WorkflowRun $run, Workflow $workflow): void

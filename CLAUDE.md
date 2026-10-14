@@ -313,7 +313,13 @@ surfaces (routes, Livewire components/actions, and every public method under
   `next_run_at` passed; each is claimed under a lock before it walks.
   `WorkflowRunner` records `workflow_runs`/`workflow_run_steps`, screenshots
   in `storage/workflows.noindex`; `Alerts` mails `notify` once after
-  `alert_after` failures in a row and once on recovery. Workflows may hit
+  `alert_after` failures in a row and once on recovery. `Heartbeat` pings a
+  Healthchecks.io-style URL every scheduled tick (`/fail` only when the
+  machinery is broken — the browser never ran a step, or the command threw;
+  never for a site failing), read from keys as
+  `tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local` at most hourly
+  (cached encrypted; `WORKFLOWS_HEARTBEAT_URL` overrides), and records
+  `workflows.last_tick` for the pages' "schedule is not running" warning. Workflows may hit
   live sites — they bypass `StandInGuard` by design (PURPOSE.md). Live
   Turnstile does not hand a headless browser a token (seen 2026-10-13 on
   dashcore.com/lets-talk), so a workflow that must send such a form needs

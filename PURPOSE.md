@@ -67,7 +67,10 @@ decide what the next batch of tests should cover. The jobs it does:
   tests above are the standard every install runs the same way and change
   only when the fleet does; workflows are an empty list until someone needs
   one. The schedule walks the due ones itself (`tests:workflows`, every
-  minute) in the same browser runner as the Proving Ground.
+  minute) in the same browser runner as the Proving Ground. Each tick also pings a
+  Healthchecks.io-style service off this machine (`Heartbeat`), so the
+  schedule going quiet — the Mac asleep, off or offline — is noticed from
+  outside, and the pages warn when it has not ticked for five minutes.
 
 A feature belongs here if it answers "does this app's code have proof behind
 it, and is that proof getting better or worse?" across the fleet.
@@ -116,10 +119,10 @@ close.
 
 ## Where it sits in the fleet
 
-Group: **Assurance**, beside `security` and `standards`. It is in the catalogue
-but not one of the apps every install must have: the catalogue dropped it from
-the required list because it had no deployment and so could never answer as a
-peer. On 2026-10-04 it runs on the fleet host — a Mac under Herd, with launchd
+Group: **Assurance**, beside `security` and `standards`. It is in the catalogue,
+and since dashcore/bridge v0.11.30 (2026-10-13) one of the apps every install
+must have again — it had been dropped in 0.11.24 for having no deployment, and
+api's FleetPlan still lists it as not yet deployed. On 2026-10-04 it runs on the fleet host — a Mac under Herd, with launchd
 keeping its queue workers and the simulation worker alive — because it needs
 local checkouts of every app (`SCANNER_ROOT`), Herd's Xdebug, `gh` and Claude
 Code. Treat it as not deployed until that changes.

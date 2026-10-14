@@ -34,4 +34,17 @@ return [
 
     'run_timeout' => (int) env('WORKFLOWS_RUN_TIMEOUT', 180),
 
+    // A Healthchecks.io-style ping URL: pinged every tick of tests:workflows,
+    // at /fail when the machinery is broken. The service texts when pings
+    // fail or stop — so it also catches this machine being off. Normally
+    // unset: the URL is read from Bitwarden through keys
+    // (tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local). This overrides it.
+    'heartbeat_url' => env('WORKFLOWS_HEARTBEAT_URL'),
+
+    // The keys.dashcore.com checkout that reads it.
+    'keys_checkout' => env('WORKFLOWS_KEYS_CHECKOUT', rtrim((string) (env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/').'/keys.dashcore.com'),
+
+    // The page warns when the schedule has not ticked for this long.
+    'stale_after_minutes' => (int) env('WORKFLOWS_STALE_AFTER_MINUTES', 5),
+
 ];

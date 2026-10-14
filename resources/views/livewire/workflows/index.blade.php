@@ -15,6 +15,8 @@
         @endif
     </div>
 
+    @include('livewire.workflows.partials.stale-schedule', ['active' => $workflows->contains('active', true)])
+
     @if (session('workflow-notice'))
         <div class="card-os mb-4 px-4 py-3 text-sm text-surface-200" role="status">{{ session('workflow-notice') }}</div>
     @endif
