@@ -93,7 +93,7 @@
             <x-input-error :messages="$errors->get('steps')" class="mt-2" />
 
             <div class="mt-4 flex flex-wrap items-center gap-2" x-data="{ kind: 'click' }">
-                <select x-model="kind" aria-label="Kind of step to add" class="{{ $input }} w-56">
+                <select x-model="kind" aria-label="Kind of step to add" class="{{ str_replace('w-full', 'w-56', $input) }}">
                     @foreach ($kinds as $value => $k)
                         <option value="{{ $value }}">{{ $k['name'] }}</option>
                     @endforeach

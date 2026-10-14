@@ -236,4 +236,22 @@ class WorkflowPagesTest extends TestCase
         Livewire::actingAs(User::factory()->create())->test(Index::class)->call('runNow', $workflow->id)->assertForbidden();
         $this->assertNull($workflow->refresh()->run_requested_at);
     }
+
+    public function test_a_switched_on_workflow_whose_turn_has_come_says_so_and_keeps_watching(): void
+    {
+        $workflow = Workflow::factory()->active()->create();
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('workflows.show', $workflow))
+            ->assertOk()
+            ->assertSee('next run due now')
+            ->assertSee('wire:poll.5s', false);
+
+        $workflow->update(['next_run_at' => now()->addHour()]);
+
+        $this->actingAs(User::factory()->admin()->create())
+            ->get(route('workflows.show', $workflow))
+            ->assertDontSee('due now')
+            ->assertDontSee('wire:poll', false);
+    }
 }

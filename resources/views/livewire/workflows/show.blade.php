@@ -11,7 +11,7 @@
     };
 @endphp
 
-<div @if ($busy) wire:poll.2s @endif>
+<div @if ($busy) wire:poll.2s @elseif ($workflow->isDue()) wire:poll.5s @endif>
     <div class="mb-6">
         <a href="{{ route('workflows.index') }}" wire:navigate class="text-sm text-surface-400 hover:text-surface-200">&larr; Workflows</a>
     </div>
@@ -25,7 +25,8 @@
             <h1 class="text-2xl font-bold text-surface-100">{{ $workflow->name }}</h1>
             <p class="text-sm text-surface-400 mt-1">
                 <span class="font-mono">{{ $workflow->base_url }}</span> · {{ $workflow->frequency->label() }}
-                @if ($workflow->active && $workflow->next_run_at) · next run {{ $workflow->next_run_at->diffForHumans() }} @endif
+                @if ($workflow->isDue()) · next run due now
+                @elseif ($workflow->active && $workflow->next_run_at) · next run {{ $workflow->next_run_at->diffForHumans() }} @endif
             </p>
             @if ($workflow->description)
                 <p class="text-sm text-surface-300 mt-2 max-w-2xl">{{ $workflow->description }}</p>
