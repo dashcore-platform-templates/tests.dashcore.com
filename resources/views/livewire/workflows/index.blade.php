@@ -1,9 +1,10 @@
 @php
     $workflows = $this->workflows;
     $busy = $workflows->contains(fn ($w) => $w->isBusy());
+    $due = $workflows->contains(fn ($w) => $w->isDue());
 @endphp
 
-<div @if ($busy) wire:poll.3s @endif>
+<div @if ($busy) wire:poll.3s @elseif ($due) wire:poll.5s @endif>
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
             <h1 class="text-2xl font-bold text-surface-100">Workflows</h1>

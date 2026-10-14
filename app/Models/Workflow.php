@@ -87,6 +87,14 @@ class Workflow extends Model
     }
 
     /**
+     * Switched on and its turn has come, waiting for the schedule to take it.
+     */
+    public function isDue(): bool
+    {
+        return $this->active && $this->next_run_at !== null && $this->next_run_at->lte(now());
+    }
+
+    /**
      * Whether a walk has been asked for or is underway.
      */
     public function isBusy(): bool
