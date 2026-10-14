@@ -28,6 +28,7 @@ class AppServiceProvider extends ServiceProvider
         $registry->register('Tests', 'Fleet coverage', 'fleet.index', 'beaker', 1, 'fleet-tests');
         $registry->register('Tests', 'Test library', 'library.index', 'book-open', 2, 'fleet-tests');
         $registry->register('Tests', 'Proving Ground', 'simulation.index', 'play-circle', 3, 'fleet-tests');
+        $registry->register('Tests', 'Workflows', 'workflows.index', 'cursor-arrow-rays', 4, 'workflows');
         $registry->register('Settings', 'Team', 'team', 'users', 1, 'team-management');
         $registry->register('Settings', 'Permissions', 'permissions', 'shield-check', 2, 'permissions');
     }

@@ -35,3 +35,7 @@ Schedule::command('tests:scan-prs')->everyTenMinutes()->withoutOverlapping()
 Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();
 
 Schedule::command('tests:prune')->dailyAt('05:00')->withoutOverlapping();
+
+// Browser-test workflows built on /workflows: each one due is walked here,
+// in the tick itself (seconds to a minute each), never in the background.
+Schedule::command('tests:workflows')->everyMinute()->withoutOverlapping(30);

@@ -93,6 +93,12 @@ return [
         'member' => 'view',
     ],
 
+    // Browser-test workflows: built per install by owners and admins.
+    'workflows' => [
+        'owner' => 'full',
+        'admin' => 'full',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Modules
@@ -113,6 +119,7 @@ return [
         ],
         'Tests' => [
             'fleet-tests',
+            'workflows',
         ],
         'Settings' => [
             'team-management',

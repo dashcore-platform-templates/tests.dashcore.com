@@ -59,6 +59,16 @@ decide what the next batch of tests should cover. The jobs it does:
   a stand-in fleet (a practice fleet, or the fake company). The list of
   stages, pending ones included, is the progress bar for the whole journey.
 
+- **Workflows (optional, per install).** `/workflows` is where an owner or
+  admin builds their own browser tests as records — a start URL, steps
+  ("open /lets-talk", "type [[email]] into #df-email", "see Thank you"),
+  how often, and who is emailed when one breaks and when it works again.
+  Nothing there ships with the app or carries between installs: the fleet
+  tests above are the standard every install runs the same way and change
+  only when the fleet does; workflows are an empty list until someone needs
+  one. The schedule walks the due ones itself (`tests:workflows`, every
+  minute) in the same browser runner as the Proving Ground.
+
 A feature belongs here if it answers "does this app's code have proof behind
 it, and is that proof getting better or worse?" across the fleet.
 
@@ -93,10 +103,14 @@ close.
   Composer, npm, databases — is `herd` (local only).
 - **Not the fleet roster.** Which apps exist is the hub's manifest; this app
   reads it and keeps no list of its own.
-- **Not a place to test against real data.** The Proving Ground and customer
-  journeys drive only local stand-in apps (*.fakecompany.com, *.practice)
-  with fake data, never a real app or a production install — and never one
-  that has not shown its mail goes to its log.
+- **Not a place to test against real data — except workflows, on purpose.**
+  The Proving Ground and customer journeys drive only local stand-in apps
+  (*.fakecompany.com, *.practice) with fake data, never a real app or a
+  production install — and never one that has not shown its mail goes to its
+  log. Workflows are the one exception, decided by the owner on 2026-10-13:
+  they run against whatever site their record names, live ones included, and
+  a form they send is a real submission there with everything that site does
+  next. No guard stands in front of them; the person who builds one decides.
 - **Not a writer of application code.** The builder may touch only tests and
   factories; anything else it changes is thrown away before verification.
 
@@ -135,6 +149,9 @@ The live grants are `FleetPlan` in api.dashcore.com (`/admin/fleet/plan`).
   and it keeps at most one PR per app in front of a person.
 - **The probe must never break a suite.** It runs inside every app's test
   process; every hook stays wrapped.
+- **Workflows never share the stand-in guard's path.** `StandInGuard` stays
+  as strict as it is; a workflow is its own record, runner and schedule, and
+  nothing a workflow allows loosens a journey.
 - **Fake data only in the Proving Ground.** Any process started in a target's
   checkout gets the target's environment, never this app's, or its migrations
   run against this app's database.
