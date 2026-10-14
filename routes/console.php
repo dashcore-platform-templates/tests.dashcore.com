@@ -12,7 +12,9 @@ Artisan::command('inspire', function () {
 Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 
 // Every scannable app, every night, from its default branch.
-Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping();
+// Off with SCANNER_NIGHTLY=false where the scan workers are paused.
+Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping()
+    ->when(fn () => (bool) config('scanner.nightly'));
 
 // Scans and builds run on their own long-lived worker, the launchd agent
 // com.dashcore.queue-tests (KeepAlive) — not from here. The fleet host runs
