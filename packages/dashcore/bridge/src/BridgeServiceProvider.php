@@ -84,7 +84,10 @@ class BridgeServiceProvider extends ServiceProvider
         $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
             $schedule->command('bridge:report-mail --prune')
                 ->everyTwoMinutes()
-                ->withoutOverlapping()
+                // Minutes, never the 24-hour default: a run killed by a deploy
+                // leaves its lock behind, and the default stops the ledger
+                // for a day in every app (13 October 2026).
+                ->withoutOverlapping(10)
                 ->runInBackground();
         });
 

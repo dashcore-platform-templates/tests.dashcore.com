@@ -5,6 +5,7 @@ namespace Dashcore\Bridge\Client;
 use Dashcore\Bridge\Crypto\BridgeHeaders;
 use Dashcore\Bridge\Exceptions\PeerDeniedScope;
 use Dashcore\Bridge\Exceptions\PeerError;
+use Dashcore\Bridge\Exceptions\PeerForbidden;
 use Dashcore\Bridge\Exceptions\PeerRejectedSignature;
 use Dashcore\Bridge\Exceptions\PeerUnreachable;
 use Illuminate\Http\Client\ConnectionException;
@@ -138,8 +139,11 @@ class PendingBridgeRequest
             $response->status() === 401 => throw new PeerRejectedSignature(
                 "Peer [{$this->appId}] rejected this app's signature: ".$response->json('error', 'unknown').' — run bridge:doctor.'
             ),
-            $response->status() === 403 => throw new PeerDeniedScope(
+            $response->status() === 403 && $response->json('error') === 'BRIDGE_SCOPE_DENIED' => throw new PeerDeniedScope(
                 "Peer [{$this->appId}] denied the call: ".$response->json('detail', 'missing ability grant')
+            ),
+            $response->status() === 403 => throw new PeerForbidden(
+                "Peer [{$this->appId}] refused [{$method} {$path}] with 403 before its grant check — an edge firewall or the app itself, not a missing grant."
             ),
             $response->serverError() => throw new PeerError(
                 "Peer [{$this->appId}] returned {$response->status()} for [{$method} {$path}]."
