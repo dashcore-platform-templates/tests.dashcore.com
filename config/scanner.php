@@ -76,6 +76,11 @@ return [
 
     'timeout' => (int) env('SCANNER_TIMEOUT', 7200),
 
+    // The nightly scan of every app (01:00). Off on a host whose scan
+    // workers are paused: it would only queue a night's scans for nobody,
+    // and they would all start at once the day the workers came back.
+    'nightly' => (bool) env('SCANNER_NIGHTLY', true),
+
     /*
     |--------------------------------------------------------------------------
     | The test database
