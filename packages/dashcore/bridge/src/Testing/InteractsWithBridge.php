@@ -18,8 +18,12 @@ trait InteractsWithBridge
         $pair = Keypair::generate();
         $keyId = "{$appId}-test";
 
-        config()->set("bridge.peers.{$appId}", ['url' => $url, 'keys' => [$keyId => $pair->publicKey]]);
-        config()->set("bridge.grants.{$appId}", $grants);
+        // Keyed by the whole id, never through a dotted config path: peers
+        // are hostnames, and `bridge.peers.work.dashcore.com` would nest the
+        // entry under work → dashcore → com, where the resolver (which reads
+        // by the whole id) finds no keys and every signed call is a 401.
+        config()->set('bridge.peers', [...config('bridge.peers', []), $appId => ['url' => $url, 'keys' => [$keyId => $pair->publicKey]]]);
+        config()->set('bridge.grants', [...config('bridge.grants', []), $appId => $grants]);
 
         $this->bridgePeerKeys[$appId] = [$keyId, $pair];
 
