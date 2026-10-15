@@ -14,6 +14,7 @@
 <div @if ($busy) wire:poll.2s @elseif ($workflow->isDue()) wire:poll.5s @endif>
     <div class="mb-6">
         <a href="{{ route('workflows.index') }}" wire:navigate class="text-sm text-surface-400 hover:text-surface-200">&larr; Workflows</a>
+        <a href="{{ route('workflows.health', ['workflow' => $workflow->id]) }}" wire:navigate class="ml-4 text-sm text-accent-400 hover:text-accent-500">Health &amp; log</a>
     </div>
 
     @include('livewire.workflows.partials.stale-schedule', ['active' => $workflow->active])

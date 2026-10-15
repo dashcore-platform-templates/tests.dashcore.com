@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Workflows;
 
+use App\Enums\WorkflowEventType;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
 use App\Services\PermissionService;
+use App\Workflows\EventLog;
 use App\Workflows\WorkflowRunner;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -42,7 +44,7 @@ class Show extends Component
     {
         abort_unless($this->canManage, 403);
 
-        $this->workflow->update(['run_requested_at' => now()]);
+        $this->workflow->requestRun();
         $this->runId = null;
         unset($this->workflow);
     }
@@ -59,7 +61,10 @@ class Show extends Component
         $workflow = $this->workflow;
         $directories = $workflow->runs()->get()->map(fn (WorkflowRun $run) => WorkflowRunner::screenshotDirectory($run));
 
-        DB::transaction(fn () => $workflow->delete());
+        DB::transaction(function () use ($workflow) {
+            EventLog::record(WorkflowEventType::Deleted, $workflow, 'Deleted, with its '.$workflow->runs()->count().' run(s). Its lines in this log stay.');
+            $workflow->delete();
+        });
         $directories->each(fn (string $directory) => File::deleteDirectory($directory));
 
         session()->flash('workflow-notice', "Deleted \"{$workflow->name}\".");

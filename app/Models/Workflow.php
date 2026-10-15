@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\SimulationStatus;
+use App\Enums\WorkflowEventType;
 use App\Enums\WorkflowFrequency;
+use App\Workflows\EventLog;
 use Database\Factories\WorkflowFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -12,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A browser test built here as a record: where it starts, the steps it
@@ -81,9 +84,30 @@ class Workflow extends Model
      */
     public function toggleActive(): void
     {
-        $this->active = ! $this->active;
-        $this->next_run_at = $this->active && $this->frequency->minutes() !== null ? now() : null;
-        $this->save();
+        DB::transaction(function () {
+            $this->active = ! $this->active;
+            $this->next_run_at = $this->active && $this->frequency->minutes() !== null ? now() : null;
+            $this->save();
+
+            EventLog::record(
+                $this->active ? WorkflowEventType::SwitchedOn : WorkflowEventType::SwitchedOff,
+                $this,
+                $this->active
+                    ? ($this->frequency->minutes() === null ? 'Switched on, but it only runs by hand.' : 'Switched on: '.lcfirst($this->frequency->label()).', first run now.')
+                    : 'Switched off: no more runs on its own.',
+            );
+        });
+    }
+
+    /**
+     * Ask the schedule to walk it on its next tick, whatever its schedule.
+     */
+    public function requestRun(): void
+    {
+        DB::transaction(function () {
+            $this->update(['run_requested_at' => now()]);
+            EventLog::record(WorkflowEventType::RunRequested, $this, 'Asked to run now.');
+        });
     }
 
     /**

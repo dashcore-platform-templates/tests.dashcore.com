@@ -2,9 +2,11 @@
 
 namespace App\Livewire\Workflows;
 
+use App\Enums\WorkflowEventType;
 use App\Enums\WorkflowFrequency;
 use App\Models\Workflow;
 use App\Services\PermissionService;
+use App\Workflows\EventLog;
 use App\Workflows\Steps;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -155,6 +157,10 @@ class Wizard extends Component
                 'alert_after' => $this->alertAfter,
             ]);
 
+            $isNew = ! $workflow->exists;
+            $changed = array_keys($workflow->getDirty());
+            $switchingOn = $switchOn && ! $workflow->active;
+
             if ($switchOn) {
                 $workflow->active = true;
             }
@@ -166,6 +172,16 @@ class Wizard extends Component
                 : null;
 
             $workflow->save();
+
+            EventLog::record(
+                $isNew ? WorkflowEventType::Created : WorkflowEventType::Updated,
+                $workflow,
+                $isNew ? 'Built in the wizard.' : EventLog::describeChanges($changed),
+            );
+
+            if ($switchingOn) {
+                EventLog::record(WorkflowEventType::SwitchedOn, $workflow, 'Switched on as it was saved.');
+            }
 
             return $workflow;
         });
