@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dashcore\Bridge\Reporting;
 
 use Dashcore\Bridge\Facades\Bridge;
+use Dashcore\Bridge\Fleet\PeerLocator;
 use Dashcore\Bridge\Identity\IdentityResolver;
 use Dashcore\Bridge\Models\BridgeCall;
 use Illuminate\Support\Collection;
@@ -60,7 +61,9 @@ class CallReporter
             return ['sent' => 0, 'skipped' => null];
         }
 
-        $control = (string) config('bridge.control_app', 'api');
+        // A fleet key, not a peer id: the hub is `api.dashcore.com` here and
+        // `api.dashcore.com.test` locally, and asking for `api` found neither.
+        $control = app(PeerLocator::class)->find((string) config('bridge.control_app', 'api'));
 
         try {
             $response = Bridge::to($control)->timeout(20)->post('/call-reports', [

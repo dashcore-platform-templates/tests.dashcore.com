@@ -72,6 +72,7 @@ final class Catalogue
         'website' => ['subdomain' => null, 'group' => 'Surface', 'repo' => 'dashcoretech/dashcore.com'],
         'team' => ['subdomain' => 'team', 'group' => 'Surface', 'repo' => 'dashcoretech/team.dashcore.com'],
         'audit' => ['subdomain' => 'audit', 'group' => 'Delivery', 'repo' => 'dashcoretech/audit.dashcore.com'],
+        'onboarding' => ['subdomain' => 'onboarding', 'group' => 'Delivery', 'repo' => 'dashcoretech/onboarding.dashcore.com'],
         'security' => ['subdomain' => 'security', 'group' => 'Assurance', 'repo' => 'dashcoretech/security.dashcore.com'],
         'standards' => ['subdomain' => 'standards', 'group' => 'Assurance', 'repo' => 'dashcoretech/standards.dashcore.com'],
         'tests' => ['subdomain' => 'tests', 'group' => 'Assurance', 'repo' => 'dashcoretech/tests.dashcore.com'],
