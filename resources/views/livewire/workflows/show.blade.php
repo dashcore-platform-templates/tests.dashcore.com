@@ -41,6 +41,7 @@
                     <x-spinner wire:loading wire:target="runNow" class="mr-2 h-3 w-3" />
                     {{ $busy ? 'Running…' : 'Run now' }}
                 </x-secondary-button>
+                <a href="{{ route('workflows.export-one', $workflow) }}" download class="inline-flex items-center px-4 py-2 bg-surface-800 border border-surface-700 rounded-md font-semibold text-xs text-surface-300 uppercase tracking-widest hover:bg-surface-700">Export</a>
                 <a href="{{ route('workflows.edit', $workflow) }}" wire:navigate class="inline-flex items-center px-4 py-2 bg-surface-800 border border-surface-700 rounded-md font-semibold text-xs text-surface-300 uppercase tracking-widest hover:bg-surface-700">Change</a>
                 <span class="text-xs text-surface-400">{{ $workflow->active ? 'On' : 'Off' }}</span>
                 <button type="button" wire:click="toggle" wire:loading.attr="disabled" wire:target="toggle"
