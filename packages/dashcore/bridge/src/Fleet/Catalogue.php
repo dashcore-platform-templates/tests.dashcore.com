@@ -42,9 +42,17 @@ final class Catalogue
      * Templates. Both carry the bridge and are released now, so they are
      * back.
      *
+     * memory joined in 0.11.33: it is where a fleet's memory is kept — what
+     * its sessions learn, what the team knows, the plan — and a fleet that
+     * learns has to have somewhere to put it from its first day.
+     *
+     * onboarding joined in 0.11.34: it is how a fleet gets its set-up and
+     * the client's company data, in one session on a call, so no fleet
+     * opens empty.
+     *
      * @var list<string>
      */
-    public const REQUIRED = [self::CONTROL_PLANE, 'login', 'standards', 'tests', 'design'];
+    public const REQUIRED = [self::CONTROL_PLANE, 'login', 'standards', 'tests', 'design', 'memory', 'onboarding'];
 
     /**
      * Keyed by short name. A null subdomain is the domain's apex — the
@@ -59,6 +67,7 @@ final class Catalogue
         'api' => ['subdomain' => 'api', 'group' => 'Control plane', 'repo' => 'dashcoretech/api.dashcore.com'],
         'brain' => ['subdomain' => 'brain', 'group' => 'Agent platform', 'repo' => 'dashcoretech/brain.dashcore.com'],
         'agents' => ['subdomain' => 'agents', 'group' => 'Agent platform', 'repo' => 'dashcoretech/agents.dashcore.com'],
+        'memory' => ['subdomain' => 'memory', 'group' => 'Agent platform', 'repo' => 'dashcoretech/memory.dashcore.com'],
         'finance' => ['subdomain' => 'finance', 'group' => 'Domain service', 'repo' => 'dashcoretech/finance.dashcore.com'],
         'hr' => ['subdomain' => 'hr', 'group' => 'Domain service', 'repo' => 'dashcoretech/hr.dashcore.com'],
         'email' => ['subdomain' => 'email', 'group' => 'Domain service', 'repo' => 'dashcoretech/email.dashcore.com'],
