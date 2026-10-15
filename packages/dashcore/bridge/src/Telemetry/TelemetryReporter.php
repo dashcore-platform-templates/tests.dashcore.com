@@ -5,9 +5,8 @@ declare(strict_types=1);
 namespace Dashcore\Bridge\Telemetry;
 
 use Dashcore\Bridge\Facades\Bridge;
-use Dashcore\Bridge\Fleet\Catalogue;
+use Dashcore\Bridge\Fleet\PeerLocator;
 use Dashcore\Bridge\Identity\IdentityResolver;
-use Dashcore\Bridge\Keys\KeysetResolver;
 use Dashcore\Bridge\Models\ErrorGroup;
 use Dashcore\Bridge\Models\RouteStat;
 use Illuminate\Database\Eloquent\Builder;
@@ -191,40 +190,11 @@ final class TelemetryReporter
     /**
      * The collector's peer id in this environment.
      *
-     * `config('bridge.telemetry.collector')` names a fleet app key (`health`),
-     * and peer ids are hostnames that differ per environment. This used to be
-     * `config("services.fleet.{$key}") ?: $key` — and only one app in the
-     * fleet defined that key, so every other app asked for a peer called
-     * `health`, which does not exist, and no report ever arrived. Now: an
-     * explicit services.fleet entry still wins; a key that already is a peer id
-     * is used as is; otherwise the peer in the manifest whose hostname is that
-     * app's subdomain. The collector itself reports to its own id.
+     * `config('bridge.telemetry.collector')` names a fleet app key (`health`);
+     * PeerLocator turns it into the hostname the manifest knows it by.
      */
     public function collector(): string
     {
-        $key = $this->config->collector();
-        $configured = config("services.fleet.{$key}");
-
-        if (filled($configured)) {
-            return (string) $configured;
-        }
-
-        $peers = app(KeysetResolver::class)->peers();
-
-        if (in_array($key, $peers, true)) {
-            return $key;
-        }
-
-        $subdomain = Catalogue::has($key) ? Catalogue::app($key)['subdomain'] : null;
-
-        if ($subdomain !== null) {
-            foreach ([$this->identity->appId(), ...$peers] as $id) {
-                if (is_string($id) && str_starts_with($id, $subdomain.'.')) {
-                    return $id;
-                }
-            }
-        }
-
-        return $key;
+        return app(PeerLocator::class)->find($this->config->collector());
     }
 }
