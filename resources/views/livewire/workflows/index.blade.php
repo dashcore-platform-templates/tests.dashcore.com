@@ -10,10 +10,29 @@
             <h1 class="text-2xl font-bold text-surface-100">Workflows</h1>
             <p class="text-sm text-surface-400 mt-1">Browser tests you build yourself: a real browser walks your site on a schedule and tells you when something stops working.</p>
         </div>
-        @if ($this->canManage)
-            <a href="{{ route('workflows.create') }}" wire:navigate class="inline-flex items-center px-4 py-2 bg-accent-500 rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-accent-600">New workflow</a>
-        @endif
+        <div class="flex flex-wrap items-center gap-3">
+            @if ($workflows->isNotEmpty())
+                <a href="{{ route('workflows.export') }}" download class="text-xs font-medium text-accent-400 hover:text-accent-500">Export all</a>
+            @endif
+            @if ($this->canManage)
+                <label class="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-accent-400 hover:text-accent-500">
+                    <x-spinner wire:loading wire:target="file" class="h-3 w-3" />
+                    <span wire:loading.remove wire:target="file">Import</span>
+                    <span wire:loading wire:target="file">Importing…</span>
+                    <input type="file" wire:model="file" accept=".json,application/json" class="sr-only" wire:loading.attr="disabled" wire:target="file">
+                </label>
+                <a href="{{ route('workflows.create') }}" wire:navigate class="inline-flex items-center px-4 py-2 bg-accent-500 rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-accent-600">New workflow</a>
+            @endif
+        </div>
     </div>
+
+    @error('file')
+        <div class="card-os mb-4 px-4 py-3 text-sm text-red-400" role="alert">Could not import: {{ $message }}</div>
+    @enderror
+
+    @if ($notice)
+        <div class="card-os mb-4 px-4 py-3 text-sm text-surface-200" role="status">{{ $notice }}</div>
+    @endif
 
     @include('livewire.workflows.partials.stale-schedule', ['active' => $workflows->contains('active', true)])
 

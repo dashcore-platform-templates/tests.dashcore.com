@@ -4,6 +4,7 @@ use App\Models\SimulationRun;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
 use App\Simulation\Simulation;
+use App\Workflows\Transfer;
 use App\Workflows\WorkflowRunner;
 use Illuminate\Support\Facades\Route;
 use Livewire\Volt\Volt;
@@ -56,6 +57,8 @@ Route::middleware(['auth', 'verified', 'permission:workflows'])->group(function 
     Route::view('workflows/new', 'workflows.wizard')->name('workflows.create');
     Route::get('workflows/{workflow}', fn (Workflow $workflow) => view('workflows.show', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.show');
     Route::get('workflows/{workflow}/edit', fn (Workflow $workflow) => view('workflows.wizard', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.edit');
+    Route::get('workflows/export', fn () => Transfer::download(Workflow::query()->orderBy('name')->get()))->name('workflows.export');
+    Route::get('workflows/{workflow}/export', fn (Workflow $workflow) => Transfer::download(collect([$workflow])))->whereNumber('workflow')->name('workflows.export-one');
     Route::get('workflows/runs/{run}/{file}', function (WorkflowRun $run, string $file) {
         $path = WorkflowRunner::screenshotDirectory($run).'/'.$file;
 

@@ -319,7 +319,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   never for a site failing), read from keys as
   `tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local` at most hourly
   (cached encrypted; `WORKFLOWS_HEARTBEAT_URL` overrides), and records
-  `workflows.last_tick` for the pages' "schedule is not running" warning. Workflows may hit
+  `workflows.last_tick` for the pages' "schedule is not running" warning. Workflows travel as JSON
+  (`Transfer`, format `dashcore-workflows` v1): "Export all" on the list,
+  "Export" on one (`workflows.export`, `workflows.export-one`), "Import" on
+  the list (managers only) — the definition only, never runs or state; an
+  import is all-or-nothing, arrives switched off, and a taken name gets
+  " (2)". Workflows may hit
   live sites — they bypass `StandInGuard` by design (PURPOSE.md). Live
   Turnstile does not hand a headless browser a token (seen 2026-10-13 on
   dashcore.com/lets-talk), so a workflow that must send such a form needs
