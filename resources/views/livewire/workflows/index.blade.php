@@ -12,6 +12,7 @@
         </div>
         <div class="flex flex-wrap items-center gap-3">
             @if ($workflows->isNotEmpty())
+                <a href="{{ route('workflows.health') }}" wire:navigate class="text-xs font-medium text-accent-400 hover:text-accent-500">Health &amp; log</a>
                 <a href="{{ route('workflows.export') }}" download class="text-xs font-medium text-accent-400 hover:text-accent-500">Export all</a>
             @endif
             @if ($this->canManage)

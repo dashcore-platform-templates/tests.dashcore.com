@@ -30,6 +30,10 @@ return [
     // Run records older than this are deleted outright.
     'prune_days' => (int) env('WORKFLOWS_PRUNE_DAYS', 90),
 
+    // Lines in the workflows' log (runs, alerts, changes, schedule gaps)
+    // are kept this long — longer than the runs they point at.
+    'event_days' => (int) env('WORKFLOWS_EVENT_DAYS', 365),
+
     'step_timeout_ms' => (int) env('WORKFLOWS_STEP_TIMEOUT_MS', 20000),
 
     'run_timeout' => (int) env('WORKFLOWS_RUN_TIMEOUT', 180),

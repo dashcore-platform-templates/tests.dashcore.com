@@ -3,6 +3,7 @@
 namespace App\Workflows;
 
 use App\Enums\SimulationStatus;
+use App\Enums\WorkflowEventType;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
 use App\Models\WorkflowRunStep;
@@ -209,6 +210,8 @@ class WorkflowRunner
                 'alerting' => $alert === Alerts::BROKE ? true : ($alert === Alerts::RECOVERED ? false : $workflow->alerting),
             ])->save();
 
+            EventLog::record($passed ? WorkflowEventType::RunPassed : WorkflowEventType::RunFailed, $workflow, self::summary($run), $run);
+
             return [$run, $workflow, $alert];
         });
 
@@ -217,5 +220,18 @@ class WorkflowRunner
         }
 
         return $run;
+    }
+
+    /**
+     * One line for the log: how far it got, how long it took, who asked.
+     */
+    private static function summary(WorkflowRun $run): string
+    {
+        $how = $run->trigger === WorkflowRun::TRIGGER_MANUAL ? 'run by hand' : 'on schedule';
+        $took = number_format($run->duration_ms / 1000, 1).'s';
+
+        return $run->status === SimulationStatus::Passed
+            ? "Passed all {$run->steps_total} steps in {$took}, {$how}."
+            : "Failed after {$run->steps_passed} of {$run->steps_total} steps ({$took}, {$how}): {$run->error}";
     }
 }

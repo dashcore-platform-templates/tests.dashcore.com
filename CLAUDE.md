@@ -324,7 +324,19 @@ surfaces (routes, Livewire components/actions, and every public method under
   "Export" on one (`workflows.export`, `workflows.export-one`), "Import" on
   the list (managers only) — the definition only, never runs or state; an
   import is all-or-nothing, arrives switched off, and a taken name gets
-  " (2)". Workflows may hit
+  " (2)". Everything that happens to a workflow is a line in
+  `workflow_events` (`EventLog::record`, never allowed to break what it
+  logs; types `WorkflowEventType`): each run's result, alerts sent / not
+  sent, created/changed/imported/deleted/switched/run-asked (with who),
+  runs cut off, the browser never starting, and the schedule coming back
+  after a gap. Lines keep the workflow's name and outlive it and its runs
+  (`event_days`, default 365). `/workflows/health` (`Workflows\Health`,
+  stats from `App\Workflows\Health`) shows each workflow's pass rate over
+  24h/7d/30d, its last 48 runs, typical and p95 time, the step it breaks at
+  most and its streak, above the log (filter by workflow and kind). Workflow
+  files live in the repo under `workflows/` (the customer journey in
+  `workflows/customer-journey/`, numbered); `WorkflowFilesTest` keeps each
+  importable, and `tests:import-workflows <files>` imports them. Workflows may hit
   live sites — they bypass `StandInGuard` by design (PURPOSE.md). Live
   Turnstile does not hand a headless browser a token (seen 2026-10-13 on
   dashcore.com/lets-talk), so a workflow that must send such a form needs

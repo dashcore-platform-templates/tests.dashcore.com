@@ -2,6 +2,7 @@
 
 namespace App\Workflows;
 
+use App\Enums\WorkflowEventType;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
 use App\Notifications\WorkflowAlert;
@@ -21,8 +22,13 @@ class Alerts
     public function send(Workflow $workflow, WorkflowRun $run, string $kind): void
     {
         $recipients = array_values(array_filter($workflow->notify ?? [], fn ($email) => filter_var($email, FILTER_VALIDATE_EMAIL)));
+        $what = $kind === self::BROKE
+            ? 'it failed '.$workflow->consecutive_failures.' '.str('time')->plural($workflow->consecutive_failures).' in a row'
+            : 'it passes again';
 
         if ($recipients === []) {
+            EventLog::record(WorkflowEventType::AlertNotSent, $workflow, "Nobody to tell that {$what}: the workflow has no addresses to alert.", $run);
+
             return;
         }
 
@@ -30,6 +36,16 @@ class Alerts
             Notification::route('mail', $recipients)->notify(new WorkflowAlert($workflow, $run, $kind));
         } catch (Throwable $e) {
             report($e);
+            EventLog::record(WorkflowEventType::AlertNotSent, $workflow, "The mail that {$what} could not go out: {$e->getMessage()}", $run);
+
+            return;
         }
+
+        EventLog::record(
+            $kind === self::BROKE ? WorkflowEventType::AlertSent : WorkflowEventType::RecoverySent,
+            $workflow,
+            'Mailed '.implode(', ', $recipients).": {$what}.",
+            $run,
+        );
     }
 }

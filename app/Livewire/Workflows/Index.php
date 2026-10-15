@@ -36,7 +36,7 @@ class Index extends Component
     {
         abort_unless($this->canManage, 403);
 
-        Workflow::query()->findOrFail($workflowId)->update(['run_requested_at' => now()]);
+        Workflow::query()->findOrFail($workflowId)->requestRun();
 
         unset($this->workflows);
     }
@@ -52,7 +52,7 @@ class Index extends Component
         try {
             $this->validate(['file' => ['required', 'file', 'extensions:json', 'max:1024']], attributes: ['file' => 'file']);
 
-            $imported = Transfer::import((string) file_get_contents($this->file->getRealPath()), auth()->user());
+            $imported = Transfer::import((string) file_get_contents($this->file->getRealPath()), auth()->user(), $this->file->getClientOriginalName());
         } finally {
             $this->file = null;
         }

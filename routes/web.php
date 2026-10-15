@@ -55,6 +55,7 @@ Route::middleware(['auth', 'verified', 'permission:fleet-tests'])->group(functio
 Route::middleware(['auth', 'verified', 'permission:workflows'])->group(function () {
     Route::view('workflows', 'workflows.index')->name('workflows.index');
     Route::view('workflows/new', 'workflows.wizard')->name('workflows.create');
+    Route::view('workflows/health', 'workflows.health')->name('workflows.health');
     Route::get('workflows/{workflow}', fn (Workflow $workflow) => view('workflows.show', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.show');
     Route::get('workflows/{workflow}/edit', fn (Workflow $workflow) => view('workflows.wizard', ['workflow' => $workflow]))->whereNumber('workflow')->name('workflows.edit');
     Route::get('workflows/export', fn () => Transfer::download(Workflow::query()->orderBy('name')->get()))->name('workflows.export');

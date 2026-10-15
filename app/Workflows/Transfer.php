@@ -2,6 +2,7 @@
 
 namespace App\Workflows;
 
+use App\Enums\WorkflowEventType;
 use App\Enums\WorkflowFrequency;
 use App\Models\User;
 use App\Models\Workflow;
@@ -83,7 +84,7 @@ class Transfer
      *
      * @throws ValidationException naming what is wrong, keyed `file`
      */
-    public static function import(string $json, ?User $by = null): Collection
+    public static function import(string $json, ?User $by = null, ?string $source = null): Collection
     {
         $data = json_decode($json, true);
 
@@ -121,14 +122,14 @@ class Transfer
             throw ValidationException::withMessages(['file' => self::describe($validator->errors()->messages(), $data)]);
         }
 
-        return DB::transaction(function () use ($data, $by) {
+        return DB::transaction(function () use ($data, $by, $source) {
             $taken = Workflow::query()->pluck('name')->map(fn (string $name) => Str::lower($name))->all();
 
-            return collect($data['workflows'])->map(function (array $entry) use (&$taken, $by) {
+            return collect($data['workflows'])->map(function (array $entry) use (&$taken, $by, $source) {
                 $name = self::freeName(trim($entry['name']), $taken);
                 $taken[] = Str::lower($name);
 
-                return Workflow::query()->create([
+                $workflow = Workflow::query()->create([
                     'name' => $name,
                     'description' => trim((string) ($entry['description'] ?? '')) ?: null,
                     'base_url' => rtrim(trim($entry['base_url']), '/'),
@@ -139,6 +140,12 @@ class Transfer
                     'active' => false,
                     'created_by' => $by?->id,
                 ]);
+
+                EventLog::record(WorkflowEventType::Imported, $workflow, $source !== null
+                    ? "Imported from {$source}, switched off."
+                    : 'Imported from a file, switched off.');
+
+                return $workflow;
             });
         });
     }

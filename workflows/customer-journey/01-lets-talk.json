@@ -1,0 +1,60 @@
+{
+    "format": "dashcore-workflows",
+    "version": 1,
+    "exported_at": "2026-10-15T14:26:20-07:00",
+    "workflows": [
+        {
+            "name": "Lets-talk form is ready",
+            "description": "The lets-talk page loads and every field takes input. Stops before sending: live Turnstile blocks headless browsers, and a real submission emails staff and makes a sales lead.",
+            "base_url": "https://dashcore.com",
+            "steps": [
+                {
+                    "do": "visit",
+                    "label": "Open the contact page",
+                    "path": "/lets-talk"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type a first name",
+                    "target": "#df-first",
+                    "value": "[[first]]"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type a last name",
+                    "target": "#df-last",
+                    "value": "[[last]]"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type an email",
+                    "target": "#df-email",
+                    "value": "[[email]]"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type a company",
+                    "target": "#df-company",
+                    "value": "[[company]]"
+                },
+                {
+                    "do": "fill",
+                    "label": "Say what they need",
+                    "target": "#df-need",
+                    "value": "Checking the form still works. (A workflow from tests.dashcore.com; never sent.)"
+                },
+                {
+                    "do": "select",
+                    "label": "Pick a company size",
+                    "target": "#df-size",
+                    "value": "11–50"
+                }
+            ],
+            "frequency": "1h",
+            "notify": [
+                "travis@dashcore.com"
+            ],
+            "alert_after": 2
+        }
+    ]
+}

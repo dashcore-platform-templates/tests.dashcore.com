@@ -3,10 +3,14 @@
 namespace App\Console\Commands;
 
 use App\Enums\SimulationStatus;
+use App\Enums\WorkflowEventType;
 use App\Models\Workflow;
+use App\Models\WorkflowEvent;
 use App\Models\WorkflowRun;
+use App\Workflows\EventLog;
 use App\Workflows\Heartbeat;
 use App\Workflows\WorkflowRunner;
+use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -43,6 +47,8 @@ class RunWorkflows extends Command
             return self::SUCCESS;
         }
 
+        $this->noticeScheduleGap();
+
         $walked = 0;
         $broken = [];
 
@@ -61,11 +67,13 @@ class RunWorkflows extends Command
 
                     if ($this->browserNeverRan($run)) {
                         $broken[] = "{$workflow->name}: the browser never ran a step — {$run->error}";
+                        EventLog::record(WorkflowEventType::CouldNotRun, $workflow, "The browser never ran a step, so this machine — not the site — is at fault: {$run->error}", $run);
                     }
                 } catch (Throwable $e) {
                     report($e);
                     $this->error("{$workflow->name}: {$e->getMessage()}");
                     $broken[] = "{$workflow->name}: {$e->getMessage()}";
+                    EventLog::record(WorkflowEventType::CouldNotRun, $workflow, "The run could not start: {$e->getMessage()}");
                 }
             }
 
@@ -134,18 +142,51 @@ class RunWorkflows extends Command
     private function settleAbandonedRuns(): void
     {
         WorkflowRun::query()
+            ->with('workflow')
             ->where('status', SimulationStatus::Running)
             ->where('started_at', '<', now()->subSeconds((int) config('workflows.run_timeout') * 2 + 60))
-            ->update([
-                'status' => SimulationStatus::Stopped,
-                'error' => 'The run was cut off before it finished.',
-                'finished_at' => now(),
-            ]);
+            ->get()
+            ->each(function (WorkflowRun $run) {
+                DB::transaction(function () use ($run) {
+                    $run->update([
+                        'status' => SimulationStatus::Stopped,
+                        'error' => 'The run was cut off before it finished.',
+                        'finished_at' => now(),
+                    ]);
+
+                    EventLog::record(WorkflowEventType::RunStopped, $run->workflow, 'Cut off before it finished — the machine slept or the process was killed — after starting '.$run->started_at->diffForHumans().'.', $run);
+                });
+            });
+    }
+
+    /**
+     * When the schedule comes back after not running (the Mac asleep, off,
+     * or the scheduler broken), log how long nothing was checked.
+     */
+    private function noticeScheduleGap(): void
+    {
+        $last = Heartbeat::lastTick();
+
+        if ($last === null || $last->gte(now()->subMinutes((int) config('workflows.stale_after_minutes')))) {
+            return;
+        }
+
+        if (Workflow::query()->where('active', true)->doesntExist()) {
+            return;
+        }
+
+        EventLog::record(WorkflowEventType::ScheduleResumed, null, sprintf(
+            'The schedule did not run for %s (%s to %s), so no workflow was checked.',
+            $last->diffForHumans(now(), syntax: CarbonInterface::DIFF_ABSOLUTE, parts: 2),
+            $last->format('M j H:i'),
+            now()->format('M j H:i'),
+        ));
     }
 
     /**
      * Each workflow keeps pictures for its newest runs only, and no run
-     * record outlives prune_days.
+     * record outlives prune_days. The log keeps its lines for event_days,
+     * longer than the runs, so a year's health can still be read.
      */
     private function prune(): void
     {
@@ -173,5 +214,9 @@ class RunWorkflows extends Command
                 File::deleteDirectory(WorkflowRunner::screenshotDirectory($run));
                 $run->delete();
             });
+
+        WorkflowEvent::query()
+            ->where('created_at', '<', now()->subDays(max(1, (int) config('workflows.event_days'))))
+            ->delete();
     }
 }
