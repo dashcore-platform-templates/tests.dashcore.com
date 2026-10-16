@@ -31,6 +31,7 @@ use Dashcore\Bridge\Mail\MailRecorder;
 use Dashcore\Bridge\Telemetry\Config as TelemetryConfig;
 use Dashcore\Bridge\Telemetry\Listeners as TelemetryListeners;
 use Dashcore\Bridge\Telemetry\Recorder;
+use Dashcore\Bridge\Testing\WorktreeTestDatabase;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Foundation\Http\Kernel;
 use Illuminate\Console\Scheduling\Schedule;
@@ -41,6 +42,10 @@ class BridgeServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->mergeConfigFrom(__DIR__.'/../config/bridge.php', 'bridge');
+
+        // Before anything connects: a worktree's tests get a database of
+        // their own. See WorktreeTestDatabase.
+        WorktreeTestDatabase::apply($this->app);
 
         $this->app->singleton(KeysetResolver::class, fn ($app) => match ($app['config']->get('bridge.driver', 'config')) {
             'control' => new ManifestKeysetResolver,
