@@ -94,6 +94,7 @@ final class Catalogue
         'design' => ['subdomain' => 'design', 'group' => 'Surface', 'repo' => 'dashcoretech/design.dashcore.com'],
         'login' => ['subdomain' => 'login', 'group' => 'Identity', 'repo' => 'dashcoretech/login.dashcore.com'],
         'services' => ['subdomain' => 'services', 'group' => 'Domain service', 'repo' => 'dashcoretech/services.dashcore.com'],
+        'dashboards' => ['subdomain' => 'dashboards', 'group' => 'Surface', 'repo' => 'dashcoretech/dashboards.dashcore.com'],
     ];
 
     /**
