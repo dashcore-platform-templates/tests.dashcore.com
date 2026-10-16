@@ -61,7 +61,13 @@ final class Catalogue
      * deploys the mirror of the same name in dashcore-fleet, not this
      * repository: the builder swaps the owner, so the name is all it needs.
      *
-     * @var array<string, array{subdomain: ?string, group: string, repo: string}>
+     * `template`, where set, is the repository a client's install deploys
+     * instead. The website is the one: dashcore.com is Dashcore's own site,
+     * and a client's fleet gets a site of its own built from
+     * website.dashcore.com. Dashcore's fleet keeps `repo`, and so does every
+     * tool that reads the catalogue for Dashcore's checkouts.
+     *
+     * @var array<string, array{subdomain: ?string, group: string, repo: string, template?: string}>
      */
     public const APPS = [
         'api' => ['subdomain' => 'api', 'group' => 'Control plane', 'repo' => 'dashcoretech/api.dashcore.com'],
@@ -78,7 +84,7 @@ final class Catalogue
         'coaching' => ['subdomain' => 'coaching', 'group' => 'Domain service', 'repo' => 'dashcoretech/coaching.dashcore.com'],
         'delivery' => ['subdomain' => 'dcos', 'group' => 'Delivery', 'repo' => 'dashcoretech/dcos.dashcore.com'],
         'ceo' => ['subdomain' => 'ceo', 'group' => 'Surface', 'repo' => 'dashcoretech/ceo.dashcore.com'],
-        'website' => ['subdomain' => null, 'group' => 'Surface', 'repo' => 'dashcoretech/dashcore.com'],
+        'website' => ['subdomain' => null, 'group' => 'Surface', 'repo' => 'dashcoretech/dashcore.com', 'template' => 'dashcoretech/website.dashcore.com'],
         'team' => ['subdomain' => 'team', 'group' => 'Surface', 'repo' => 'dashcoretech/team.dashcore.com'],
         'audit' => ['subdomain' => 'audit', 'group' => 'Delivery', 'repo' => 'dashcoretech/audit.dashcore.com'],
         'onboarding' => ['subdomain' => 'onboarding', 'group' => 'Delivery', 'repo' => 'dashcoretech/onboarding.dashcore.com'],
@@ -104,11 +110,22 @@ final class Catalogue
     }
 
     /**
-     * @return array{subdomain: ?string, group: string, repo: string}
+     * @return array{subdomain: ?string, group: string, repo: string, template?: string}
      */
     public static function app(string $key): array
     {
         return self::APPS[$key] ?? throw self::unknown([$key]);
+    }
+
+    /**
+     * The repository a client's install deploys this app from, by its
+     * development name: its `template` where it has one, otherwise `repo`.
+     */
+    public static function templateRepo(string $key): string
+    {
+        $app = self::app($key);
+
+        return $app['template'] ?? $app['repo'];
     }
 
     /**
