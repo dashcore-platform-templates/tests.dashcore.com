@@ -385,6 +385,11 @@ return [
         'ready_timeout' => (int) env('SIMULATION_STRIPE_READY_TIMEOUT', 30),
     ],
 
+    // `tests:launch`: a client's signup flown whole, stage after stage, each
+    // starting where the last left the fleet. Subscription walks the
+    // enquiry first (Enquiry::reachSales), so it is not flown on its own.
+    'launch' => ['subscription', 'provisioning', 'first-sign-in'],
+
     // Every stage of a customer's life with Dashcore, in order. One with a
     // `journey` is walked; the rest are pending — the stage it simulates is
     // not built yet — so this list doubles as the progress bar for the whole
