@@ -107,7 +107,7 @@ class Cancellation extends CustomerJourney
         $delivery = $fleet['apps']['delivery'];
 
         $owner = (string) $this->built['owner_email'];
-        $earlier = $this->stripe->cancelled($owner, 'API + CEO');
+        $earlier = $this->stripe->cancelled($owner, Subscription::SOLD_AS);
 
         if ($earlier !== null) {
             // An earlier run cancelled it and stopped before its forwarder
@@ -116,7 +116,7 @@ class Cancellation extends CustomerJourney
             $say("{$earlier['description']} ({$earlier['id']}) is already cancelled on Stripe; it sends the cancellation to dcos again.");
             $this->stripe->resendCancellation($earlier['id']);
         } else {
-            $subscription = $this->stripe->active($owner, 'API + CEO');
+            $subscription = $this->stripe->active($owner, Subscription::SOLD_AS);
             $say("They cancel {$subscription['description']} ({$subscription['id']}) on Stripe.");
             $this->stripe->cancel($subscription['id']);
         }

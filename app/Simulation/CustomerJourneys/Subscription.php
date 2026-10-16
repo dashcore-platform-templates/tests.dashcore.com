@@ -40,6 +40,13 @@ class Subscription extends CustomerJourney
 
     private const TITLE = 'API + CEO';
 
+    /**
+     * What clients are shown the API + CEO plan as — on the lead, in the
+     * portal and on the Stripe subscription dcos makes ("Dashcore Foundation
+     * — Acme Care") — since sales' DAS-2227 and dcos' DAS-2197.
+     */
+    public const string SOLD_AS = 'Dashcore Foundation';
+
     public function __construct(private Enquiry $enquiry) {}
 
     public function name(): string
@@ -85,7 +92,7 @@ class Subscription extends CustomerJourney
             ->fill('#convertTitle', self::TITLE, "{$who} calls it ".self::TITLE)
             ->select('#convertPlan', self::PLAN, "{$who} picks the API + CEO plan — \$".self::MONTHLY.'/mo')
             ->click('form[wire\:submit\.prevent="convertToDeal"] button[type="submit"]', "{$who} makes the deal")
-            ->see('API + CEO plan', "{$who} sees the plan on the lead")
+            ->see(self::SOLD_AS.' plan', "{$who} sees the plan on the lead")
             ->see('$'.self::MONTHLY.'/mo', "{$who} sees it priced at \$".self::MONTHLY.' a month')
             ->click('button:has-text("Send to DCOS")', "{$who} sends it to delivery for a payment link", confirm: true)
             ->see('In delivery', 'Delivery took the plan and sent back a payment link')
@@ -109,7 +116,7 @@ class Subscription extends CustomerJourney
             ->click('form button[type="submit"]', 'They set it')
             // The plan is recorded once the webhook has won the deal; until
             // then the dashboard has nothing to show.
-            ->seeWithin('Your API + CEO plan is active', 60, 'Their portal shows the API + CEO plan, active')
+            ->seeWithin('Your '.self::SOLD_AS.' plan is active', 60, 'Their portal shows the '.self::SOLD_AS.' plan, active')
             ->see($monthly, "at {$monthly}")
             ->see('Billed monthly', 'billed monthly')
             ->see($nextCharge, "with its next charge on {$nextCharge}")
