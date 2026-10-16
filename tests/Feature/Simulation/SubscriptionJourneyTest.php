@@ -99,7 +99,7 @@ class SubscriptionJourneyTest extends TestCase
         $portal = $steps->skipUntil(fn (array $step) => isset($step['reload_for_ms']))->values();
 
         // Waited for: the webhook records the plan after the page has loaded.
-        $this->assertSame('Your API + CEO plan is active', $portal[0]['text']);
+        $this->assertSame('Your Dashcore Foundation plan is active', $portal[0]['text']);
         $this->assertSame(60000, $portal[0]['reload_for_ms']);
         $this->assertSame(['$300.00', 'Billed monthly', 'Nov 6, 2026'], $portal->slice(1)->pluck('text')->values()->all());
     }

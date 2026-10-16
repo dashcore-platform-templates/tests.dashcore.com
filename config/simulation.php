@@ -332,7 +332,7 @@ return [
                 // contact form to sales over the bridge (sales.capture).
                 'website' => [
                     'name' => 'Website',
-                    'base_url' => env('SIMULATION_PRACTICE_WEBSITE_URL', "http://{$practiceDomain}.test"),
+                    'base_url' => env('SIMULATION_PRACTICE_WEBSITE_URL', "https://{$practiceDomain}.test"),
                     'checkout' => env('SIMULATION_PRACTICE_WEBSITE_CHECKOUT', "{$practiceRoot}/{$practiceDomain}"),
                     // It mails through Resend's API directly, which no mailer
                     // setting reaches; it holds every message only while it
@@ -341,7 +341,7 @@ return [
                 ],
                 'sales' => [
                     'name' => 'Sales',
-                    'base_url' => env('SIMULATION_PRACTICE_SALES_URL', "http://sales.{$practiceDomain}.test"),
+                    'base_url' => env('SIMULATION_PRACTICE_SALES_URL', "https://sales.{$practiceDomain}.test"),
                     'checkout' => env('SIMULATION_PRACTICE_SALES_CHECKOUT', "{$practiceRoot}/sales.{$practiceDomain}"),
                     // A practice fleet has no seeded people. The rep is made
                     // (or updated) by sales' own command before every run,
@@ -358,7 +358,7 @@ return [
                 // persona — the customer makes their own portal account.
                 'delivery' => [
                     'name' => 'Delivery (dcos)',
-                    'base_url' => env('SIMULATION_PRACTICE_DELIVERY_URL', "http://dcos.{$practiceDomain}.test"),
+                    'base_url' => env('SIMULATION_PRACTICE_DELIVERY_URL', "https://dcos.{$practiceDomain}.test"),
                     'checkout' => env('SIMULATION_PRACTICE_DELIVERY_CHECKOUT', "{$practiceRoot}/dcos.{$practiceDomain}"),
                     // Stripe test keys only: a simulated prospect pays with
                     // a test card, and on live keys that is a real charge.

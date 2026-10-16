@@ -67,7 +67,7 @@ class CancellationJourneyTest extends TestCase
         ]);
 
         $this->statuses = ['built', 'built', 'cancelled', 'offboarded'];
-        $this->subscriptions = [['id' => 'sub_acme', 'description' => 'API + CEO — Acme Care', 'livemode' => false, 'status' => 'active']];
+        $this->subscriptions = [['id' => 'sub_acme', 'description' => 'Dashcore Foundation — Acme Care', 'livemode' => false, 'status' => 'active']];
 
         $this->app->resolving(Cancellation::class, function (Cancellation $journey) {
             // The pause passes simulated time, so a wait that never hears
@@ -164,7 +164,7 @@ class CancellationJourneyTest extends TestCase
         [$exit, $output] = $this->journey();
 
         $this->assertSame(0, $exit, $output);
-        $this->assertStringContainsString('They cancel API + CEO — Acme Care (sub_acme) on Stripe.', $output);
+        $this->assertStringContainsString('They cancel Dashcore Foundation — Acme Care (sub_acme) on Stripe.', $output);
         $this->assertStringContainsString('dcos has it cancelled.', $output);
         $this->assertStringContainsString('dcos says it is offboarded', $output);
         $this->assertStringContainsString('http://ceo.acme-care.practice.test no longer answers.', $output);
@@ -193,7 +193,7 @@ class CancellationJourneyTest extends TestCase
         // The first live run cancelled it and stopped before its forwarder
         // delivered the event; dcos still had the fleet as built.
         $this->subscriptions = [];
-        $this->cancelledSubscriptions = [['id' => 'sub_acme', 'description' => 'API + CEO — Acme Care', 'livemode' => false, 'status' => 'canceled']];
+        $this->cancelledSubscriptions = [['id' => 'sub_acme', 'description' => 'Dashcore Foundation — Acme Care', 'livemode' => false, 'status' => 'canceled']];
         $this->events = [['id' => 'evt_deleted', 'livemode' => false, 'data' => ['object' => ['id' => 'sub_acme']]]];
         $this->fakeProcesses();
 
@@ -243,7 +243,7 @@ class CancellationJourneyTest extends TestCase
     public function test_it_cancels_nothing_unless_exactly_one_test_subscription_matches(): void
     {
         $this->subscriptions = [
-            ['id' => 'sub_live', 'description' => 'API + CEO — Acme Care', 'livemode' => true],
+            ['id' => 'sub_live', 'description' => 'Dashcore Foundation — Acme Care', 'livemode' => true],
             ['id' => 'sub_other', 'description' => 'Managed Hosting', 'livemode' => false],
         ];
         $this->fakeProcesses();
@@ -251,7 +251,7 @@ class CancellationJourneyTest extends TestCase
         [$exit, $output] = $this->journey();
 
         $this->assertSame(1, $exit, $output);
-        $this->assertStringContainsString('Stripe has 0 active test API + CEO subscription(s) for jane@acmecare.test', $output);
+        $this->assertStringContainsString('Stripe has 0 active test Dashcore Foundation subscription(s) for jane@acmecare.test', $output);
         $this->assertFalse($this->cancelRan);
         $this->assertFalse($this->offboardRan);
     }
