@@ -79,6 +79,47 @@
 [data-flux-button].bg-red-500:hover {
     background: var(--ds-danger-soft);
 }
+/* 06: a callout takes the status roles, the flash's treatment. */
+[data-flux-callout][class*='var(--color-red-50)'], [data-flux-callout][class*='var(--color-rose-50)'] {
+    --callout-background: var(--ds-danger-soft);
+    --callout-border: var(--ds-danger);
+    --callout-heading: var(--ds-danger);
+    --callout-text: var(--ds-text);
+    --callout-icon: var(--ds-danger);
+    border-color: transparent;
+    border-inline-start: 2px solid var(--ds-danger);
+    border-radius: var(--radius-sm);
+}
+[data-flux-callout][class*='var(--color-yellow-50)'], [data-flux-callout][class*='var(--color-amber-50)'], [data-flux-callout][class*='var(--color-orange-50)'] {
+    --callout-background: var(--ds-warning-soft);
+    --callout-border: var(--ds-warning);
+    --callout-heading: var(--ds-warning);
+    --callout-text: var(--ds-text);
+    --callout-icon: var(--ds-warning);
+    border-color: transparent;
+    border-inline-start: 2px solid var(--ds-warning);
+    border-radius: var(--radius-sm);
+}
+[data-flux-callout][class*='var(--color-green-50)'], [data-flux-callout][class*='var(--color-emerald-50)'], [data-flux-callout][class*='var(--color-lime-50)'] {
+    --callout-background: var(--ds-success-soft);
+    --callout-border: var(--ds-success);
+    --callout-heading: var(--ds-success);
+    --callout-text: var(--ds-text);
+    --callout-icon: var(--ds-success);
+    border-color: transparent;
+    border-inline-start: 2px solid var(--ds-success);
+    border-radius: var(--radius-sm);
+}
+[data-flux-callout][class*='var(--color-blue-50)'], [data-flux-callout][class*='var(--color-sky-50)'] {
+    --callout-background: var(--ds-info-soft);
+    --callout-border: var(--ds-info);
+    --callout-heading: var(--ds-info);
+    --callout-text: var(--ds-text);
+    --callout-icon: var(--ds-info);
+    border-color: transparent;
+    border-inline-start: 2px solid var(--ds-info);
+    border-radius: var(--radius-sm);
+}
 
 /* The frame: the classes x-ds::shell and its parts draw with, and the dc-*
    names dashcore/ui gave apps, kept as aliases of the roles for one major so

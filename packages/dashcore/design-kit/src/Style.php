@@ -33,6 +33,39 @@ final class Style
         return is_array($data) && is_string($data['motif'] ?? null) ? $data['motif'] : 'accent-bar';
     }
 
+    /**
+     * The style an app's design/design.json names, or null for an app on a
+     * design of its own (or none).
+     */
+    public static function named(string $designFile): ?string
+    {
+        $data = is_file($designFile) ? json_decode((string) file_get_contents($designFile), true) : null;
+        $name = is_array($data) ? ($data['style'] ?? null) : null;
+
+        return is_string($name) && self::exists($name) ? $name : null;
+    }
+
+    /**
+     * What the components read from config('brand') that the style decides:
+     * the motif, the kind of second face, and whether it is condensed.
+     *
+     * @return array{motif: string, second_kind: string, condensed: bool}|null
+     */
+    public static function brand(string $name): ?array
+    {
+        $second = self::tokens($name)['fonts']['second'] ?? null;
+
+        if (! is_array($second) || ! is_string($second['kind'] ?? null)) {
+            return null;
+        }
+
+        return [
+            'motif' => self::motif($name),
+            'second_kind' => $second['kind'],
+            'condensed' => (bool) ($second['condensed'] ?? false),
+        ];
+    }
+
     /** The standard as this release of the package carries it. */
     public static function standardPath(): string
     {

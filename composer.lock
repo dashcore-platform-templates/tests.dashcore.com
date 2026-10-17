@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "ec0af1bba544e1703b83b697cf6ca4cc",
+    "content-hash": "763049ad29498439e8de99c8b6180f90",
     "packages": [
         {
             "name": "brick/math",
@@ -194,11 +194,11 @@
         },
         {
             "name": "dashcore/design-kit",
-            "version": "6.3.1",
+            "version": "6.7.0",
             "dist": {
                 "type": "path",
                 "url": "packages/dashcore/design-kit",
-                "reference": "8ccb291ca5c62070b09b12300ff36c725f395cd3"
+                "reference": "3f43aeda00b521261f823d055ca50ab1b4bc9295"
             },
             "require": {
                 "laravel/framework": "^12.0|^13.0",

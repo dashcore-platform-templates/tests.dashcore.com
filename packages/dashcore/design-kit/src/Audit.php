@@ -21,6 +21,7 @@ final class Audit
      */
     public const RULES = [
         '--ds-prose used as a length',
+        'app colour variable',
         'colour off the roles',
         'Flux badge',
         'Flux heading at section size',
@@ -108,6 +109,16 @@ final class Audit
 
             foreach (self::matches($line, '/\b(?:bg|text|border|ring|from|to|via|divide|outline|decoration|shadow|accent|fill|stroke)-('.implode('|', self::OFF_PALETTE).')-\d{2,3}\b/') as $m) {
                 $findings[] = self::finding('colour off the roles', $n, $m, 'Use a --ds-* role: text, text-muted, border, accent-content, or a status role.');
+            }
+
+            // A colour variable the app defines for itself sits outside the
+            // roles the same way a palette class does, and the palette rule
+            // cannot see it. Found when a move onto a style dropped an app's
+            // own --color-surface and 32 cards lost their background without a
+            // single finding. Flux's accent names and the zinc steps are the
+            // style's, and dc-* is the alias set the frame keeps.
+            foreach (self::matches($line, '/(?:\(|var\()--color-(?!zinc-\d|accent\b|accent-content\b|accent-foreground\b|dc-)[a-z0-9-]+/') as $m) {
+                $findings[] = self::finding('app colour variable', $n, substr($m, (int) strpos($m, '--')), 'Use a --ds-* role. A colour the app defines for itself does not follow the style, and nothing reports it when the definition goes.');
             }
 
             foreach (self::matches($line, '/(?<![\w-])#[0-9a-fA-F]{3,8}\b/') as $m) {

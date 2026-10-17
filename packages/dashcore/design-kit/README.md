@@ -297,6 +297,23 @@ php artisan design:audit --baseline   # records today's counts in design/allowan
 php artisan design:audit              # in CI: fails only when a rule's count rises
 ```
 
+In CI, hold the allowance on every branch and report from the default one:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+
+# … at the end of the job that installs the app:
+      - name: Hold to the design allowance
+        run: php artisan design:audit
+      - name: Report to design.dashcore.com
+        if: github.ref_name == github.event.repository.default_branch
+        env:
+          DESIGN_SOURCE: https://design.dashcore.com
+        run: php artisan design:audit --report
+```
+
 The allowance only shrinks: run `--baseline` again after fixing screens and it keeps the lower count for every rule. A rule a newer release of this package adds is allowed at whatever it finds until it is recorded, so an update never turns a build red. Standard section 09 has the detail.
 
 ## Apply a design
