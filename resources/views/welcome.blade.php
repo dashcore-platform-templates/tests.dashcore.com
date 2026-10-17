@@ -195,8 +195,8 @@
     {{-- ═══ FLOATING PILL NAV ═══ --}}
     <div class="absolute top-4 left-0 right-0 z-50 flex justify-center px-4">
         <nav class="pill-nav w-full max-w-5xl rounded-full bg-surface-950 border border-surface-800/80 shadow-lg shadow-black/20">
-            <div class="h-12 flex items-center justify-between px-5">
-                <a href="/" class="text-sm font-bold tracking-widest uppercase text-surface-100 shrink-0">{{ config('app.name') }}</a>
+            <div class="h-12 flex items-center justify-between px-4">
+                <a href="/" class="text-sm font-semibold tracking-widest uppercase text-surface-100 shrink-0">{{ config('app.name') }}</a>
 
                 <div class="hidden md:flex items-center gap-8 text-sm font-medium text-surface-400">
                     <a href="#what-it-does" class="hover:text-surface-100 transition-colors">What it does</a>
@@ -227,11 +227,11 @@
                     </script>
 
                     @auth
-                        <a href="{{ route('dashboard') }}" wire:navigate class="px-5 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
+                        <a href="{{ route('dashboard') }}" wire:navigate class="px-4 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
                             Dashboard
                         </a>
                     @else
-                        <a href="{{ route('login') }}" wire:navigate class="px-5 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
+                        <a href="{{ route('login') }}" wire:navigate class="px-4 py-1.5 text-sm font-medium bg-surface-100 text-surface-950 rounded-full hover:bg-white transition-colors">
                             Sign in
                         </a>
                     @endauth
@@ -246,12 +246,12 @@
 
         <div class="relative max-w-5xl mx-auto px-4 sm:px-6 pt-32 pb-24 lg:pt-40 lg:pb-32 text-center">
             <div class="relative z-10">
-                <span class="pill-badge mb-5">
+                <span class="pill-badge mb-4">
                     <span class="pulse-dot-glow"></span>
                     Fleet test coverage plane
                 </span>
 
-                <h1 class="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight mb-5 leading-[1.1]">
+                <h1 class="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight mb-4 leading-[1.1]">
                     <span class="text-accent-400">No app can judge</span><br>
                     <span class="text-surface-100">its own tests</span>
                 </h1>
@@ -262,11 +262,11 @@
 
                 <div class="flex items-center justify-center gap-3">
                     @auth
-                        <a href="{{ route('dashboard') }}" wire:navigate class="px-5 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
+                        <a href="{{ route('dashboard') }}" wire:navigate class="px-4 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
                             Go to Dashboard
                         </a>
                     @else
-                        <a href="{{ route('login') }}" wire:navigate class="px-5 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
+                        <a href="{{ route('login') }}" wire:navigate class="px-4 py-2.5 bg-surface-100 text-surface-950 text-sm font-medium rounded-full hover:bg-white transition-colors">
                             Sign in
                         </a>
                     @endauth
@@ -279,12 +279,12 @@
     <section id="what-it-does" class="relative overflow-hidden">
         <div class="section-wash"></div>
         <div class="relative max-w-7xl mx-auto px-4 sm:px-6 py-24">
-            <div class="max-w-2xl mx-auto text-center mb-14">
-                <span class="pill-badge mb-5">
+            <div class="max-w-2xl mx-auto text-center mb-12">
+                <span class="pill-badge mb-4">
                     <span class="pulse-dot-glow"></span>
                     What it does
                 </span>
-                <h2 class="text-3xl sm:text-4xl font-bold text-surface-100 mb-3 tracking-tight">
+                <h2 class="text-3xl sm:text-4xl font-semibold text-surface-100 mb-3 tracking-tight">
                     <span class="text-accent-400">Six jobs</span> no single app can do about itself
                 </h2>
                 <p class="text-surface-400 leading-relaxed">Each one answers a different part of "is this code actually proven?" — across the fleet, every night.</p>
@@ -293,7 +293,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {{-- Scan --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5" />
                     </svg>
@@ -304,7 +304,7 @@
 
             {{-- Judge --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
                     </svg>
@@ -315,7 +315,7 @@
 
             {{-- Ratchet --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
                     </svg>
@@ -326,7 +326,7 @@
 
             {{-- Build --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.42 15.17l-5.1-3.06a1.5 1.5 0 01-.42-2.08l.68-1.14a1.5 1.5 0 012.08-.42l5.1 3.06m-2.34 3.64l5.1 3.06a1.5 1.5 0 002.08-.42l.68-1.14a1.5 1.5 0 00-.42-2.08l-5.1-3.06m-2.34 3.64l2.34-3.64M4.5 19.5h15M4.5 19.5v-15a2.25 2.25 0 012.25-2.25h10.5A2.25 2.25 0 0119.5 4.5v15" />
                     </svg>
@@ -337,7 +337,7 @@
 
             {{-- Library --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
                     </svg>
@@ -348,7 +348,7 @@
 
             {{-- Proving Ground --}}
             <div class="feature-card rounded-xl border border-surface-800/80 bg-surface-950/60 p-6 hover:border-accent-500/30 transition-colors">
-                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-5">
+                <div class="feature-icon w-11 h-11 rounded-xl bg-accent-500/10 border border-accent-500/20 flex items-center justify-center mb-4">
                     <svg class="w-5 h-5 text-accent-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.91 11.672a.375.375 0 010 .656l-5.603 3.113a.375.375 0 01-.557-.328V8.887c0-.286.307-.466.557-.327l5.603 3.112z" />
@@ -366,11 +366,11 @@
         <div class="section-wash"></div>
         <div class="relative max-w-7xl mx-auto px-4 sm:px-6 pb-24">
             <div class="max-w-2xl mx-auto text-center mb-12">
-                <span class="pill-badge mb-5">
+                <span class="pill-badge mb-4">
                     <span class="pulse-dot-glow"></span>
                     End to end
                 </span>
-                <h2 class="text-3xl sm:text-4xl font-bold text-surface-100 mb-3 tracking-tight">
+                <h2 class="text-3xl sm:text-4xl font-semibold text-surface-100 mb-3 tracking-tight">
                     <span class="text-accent-400">One customer,</span> start to finish
                 </h2>
                 <p class="text-surface-400 leading-relaxed">Every stage of a customer's life — from first enquiry to cancellation — walked across every app it touches in a stand-in fleet.</p>
@@ -405,7 +405,7 @@
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-surface-500">
                 <div class="flex items-center gap-2">
                     <span class="pulse-dot-glow" style="width:6px;height:6px"></span>
-                    <span class="font-bold tracking-widest uppercase text-surface-300">{{ config('app.name') }}</span>
+                    <span class="font-semibold tracking-widest uppercase text-surface-300">{{ config('app.name') }}</span>
                 </div>
 
                 <div class="flex items-center gap-4">

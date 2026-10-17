@@ -2,11 +2,11 @@
 
 @php
     $classes = match ($build->status->value) {
-        'opened', 'ready', 'merged' => 'bg-success-500/15 text-success-500',
-        'rejected', 'closed' => 'bg-warning-500/15 text-warning-500',
-        'failed' => 'bg-red-500/15 text-red-400',
-        'queued' => 'bg-surface-800 text-surface-400',
-        default => 'bg-accent-500/15 text-accent-400',
+        'opened', 'ready', 'merged' => 'bg-(--ds-success-soft) text-(--ds-success)',
+        'rejected', 'closed' => 'bg-(--ds-warning-soft) text-(--ds-warning)',
+        'failed' => 'bg-red-500/15 text-(--ds-danger)',
+        'queued' => 'bg-(--ds-sunken) text-(--ds-text-muted)',
+        default => 'bg-(--ds-accent-soft) text-(--ds-accent-content)',
     };
 @endphp
 

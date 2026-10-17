@@ -2,11 +2,11 @@
 @php
     $value = $outcome instanceof \App\Enums\TestOutcome ? $outcome->value : $outcome;
     $class = match (true) {
-        $value === 'passed' && $hollow => 'bg-warning-500',
-        $value === 'passed' => 'bg-success-500',
+        $value === 'passed' && $hollow => 'bg-(--ds-warning-fill)',
+        $value === 'passed' => 'bg-(--ds-success-fill)',
         in_array($value, ['failed', 'errored'], true) => 'bg-red-400',
-        $value === null => 'bg-surface-600',
-        default => 'bg-warning-500',
+        $value === null => 'bg-(--ds-border-strong)',
+        default => 'bg-(--ds-warning-fill)',
     };
     $title = match (true) {
         $value === null => 'never ran',
