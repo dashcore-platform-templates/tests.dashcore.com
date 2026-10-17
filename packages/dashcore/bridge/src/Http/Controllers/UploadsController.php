@@ -6,6 +6,7 @@ namespace Dashcore\Bridge\Http\Controllers;
 
 use Dashcore\Bridge\Uploads\DirectUpload;
 use Dashcore\Bridge\Uploads\UploadLimits;
+use Dashcore\Bridge\Uploads\UploadStorage;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
@@ -33,6 +34,11 @@ use Throwable;
  * `directCheck` reads back what landed and deletes it. Both take their
  * values from the query or a JSON body, which the signature covers either
  * way; the bridge client's post() sends a body.
+ *
+ * `stored` tests the other half of the promise: a small probe file is
+ * written to the disk uploads are kept on, the way an upload is, and its
+ * plain URL handed back for the caller to fetch unsigned. `storedForget`
+ * deletes it. A stranger reading those bytes means uploads are public.
  */
 class UploadsController
 {
@@ -45,6 +51,7 @@ class UploadsController
             'declared_max_bytes' => UploadLimits::declared(),
             'php' => UploadLimits::php(),
             'direct' => DirectUpload::describe(),
+            'stored_on' => UploadStorage::describe(),
         ], 200, ['Cache-Control' => 'no-store']);
     }
 
@@ -173,7 +180,48 @@ class UploadsController
         ], 200, ['Cache-Control' => 'no-store']);
     }
 
-    protected function refuseDirect(): ?JsonResponse
+    /**
+     * Store a small probe file as uploads are stored and say where its
+     * plain URL points. The caller fetches that URL with no credentials,
+     * then calls `storedForget`; anything left behind is swept.
+     */
+    public function stored(): JsonResponse
+    {
+        if (($refusal = $this->refuseUploads()) !== null) {
+            return $refusal;
+        }
+
+        $disk = UploadStorage::disk();
+        $this->sweep($disk);
+        $id = (string) Str::uuid();
+        $path = self::PROBES.'/'.$id;
+        $contents = random_bytes(1024);
+
+        try {
+            Storage::disk($disk)->put($path, $contents);
+        } catch (Throwable $e) {
+            return $this->refuse(503, 'UPLOAD_STORAGE_UNWRITABLE', "The [{$disk}] disk refused the probe file: ".$e->getMessage());
+        }
+
+        return response()->json([
+            'id' => $id,
+            'sha256' => hash('sha256', $contents),
+            'url' => UploadStorage::url($path),
+        ] + UploadStorage::describe(), 200, ['Cache-Control' => 'no-store']);
+    }
+
+    public function storedForget(string $id): JsonResponse
+    {
+        if (! Str::isUuid($id)) {
+            return $this->refuse(422, 'UPLOAD_PROBE_MALFORMED', 'Forget a probe by the id `stored` gave it.');
+        }
+
+        Storage::disk(UploadStorage::disk())->delete(self::PROBES.'/'.$id);
+
+        return response()->json(['deleted' => true], 200, ['Cache-Control' => 'no-store']);
+    }
+
+    protected function refuseUploads(): ?JsonResponse
     {
         $declared = UploadLimits::declared();
 
@@ -183,6 +231,15 @@ class UploadsController
 
         if ($declared === 0) {
             return $this->refuse(409, 'UPLOADS_NOT_ACCEPTED', 'This app declares that it takes no uploads.');
+        }
+
+        return null;
+    }
+
+    protected function refuseDirect(): ?JsonResponse
+    {
+        if (($refusal = $this->refuseUploads()) !== null) {
+            return $refusal;
         }
 
         $disk = DirectUpload::disk();

@@ -168,6 +168,11 @@ return [
         // 100 MB request cap. Set, and Standards tests that route instead:
         // a real file PUT to a URL this app signs, then read back.
         'direct' => env('BRIDGE_UPLOAD_DIRECT'),
+
+        // The disk uploaded files are kept on, when it is neither the
+        // direct-upload disk nor the default. Standards stores a probe
+        // file there and checks a stranger cannot read it by its URL.
+        'disk' => env('BRIDGE_UPLOAD_DISK'),
     ],
 
     /*
@@ -340,6 +345,7 @@ return [
             // report the probe as the app's slowest request.
             'api/bridge/v1/uploads/probe',
             'api/bridge/v1/uploads/direct*',
+            'api/bridge/v1/uploads/stored*',
             'up',
         ],
 

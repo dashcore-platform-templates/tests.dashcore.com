@@ -382,6 +382,18 @@ through the app. The values go in the query or a JSON body, which is what
 | `POST /api/bridge/v1/uploads/direct` (`bytes`) | A signed PUT (`url`, `headers`) for a throwaway object under `bridge-upload-probes/`, and its `id`. |
 | `POST /api/bridge/v1/uploads/direct/{id}` (`bytes`, `sha256`) | `200` when the object landed whole, or `422` with `stopped_by` (`not_stored`, `altered`). The object is deleted whatever the answer, and probes nobody checked are swept after an hour. |
 
+### Stored privately
+
+Arriving whole is half the promise; the other half is that a stranger
+cannot read an upload. The contract's `stored_on` names the disk uploads
+are kept on (`BRIDGE_UPLOAD_DISK`, else the direct-upload disk, else the
+default disk), and Standards tests it:
+
+| Route | What it answers |
+|---|---|
+| `POST /api/bridge/v1/uploads/stored` | Writes 1 KB of random bytes to that disk under `bridge-upload-probes/`, as an upload is stored, and answers its `id`, `sha256` and plain `url` (`null` when the disk gives none). The caller fetches the URL with no credentials: getting those bytes back means uploads are public. |
+| `POST /api/bridge/v1/uploads/stored/{id}` | Deletes the probe. Probes nobody deleted are swept after an hour. |
+
 ## Source of truth
 
 This repository. `api.dashcore.com` used to vendor the package under
