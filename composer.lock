@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "4a472093df6b86bbbe9b310ea49226f1",
+    "content-hash": "533dd518cf40e81356d42f090c8c2f54",
     "packages": [
         {
             "name": "brick/math",
@@ -142,11 +142,11 @@
         },
         {
             "name": "dashcore/bridge",
-            "version": "0.11.40",
+            "version": "0.11.42",
             "dist": {
                 "type": "path",
                 "url": "packages/dashcore/bridge",
-                "reference": "1e6175c41a3828e296d08f6d6159ed0ff88542ff"
+                "reference": "d5e4647d7602cf522c60adfab6bb1eeec888254c"
             },
             "require": {
                 "ext-sodium": "*",

@@ -324,7 +324,7 @@ is what would have caught talent's CV upload before a person found it.
 
 | Route | What it answers |
 |---|---|
-| `GET /api/bridge/v1/uploads` | The declared limit (`null` when unset, `0` for none) and PHP's own `upload_max_filesize`, `post_max_size`, `file_uploads` and `max_file_uploads`, in bytes. |
+| `GET /api/bridge/v1/uploads` | The declared limit (`null` when unset, `0` for none), PHP's own `upload_max_filesize`, `post_max_size`, `file_uploads` and `max_file_uploads` in bytes, and `direct`: the disk files go to straight from the browser, or `null`. |
 | `POST /api/bridge/v1/uploads/probe?bytes=&sha256=` | Receives a multipart `file` no larger than the declared limit. It answers `200` when the file arrived whole, or `422` with `stopped_by` naming the layer (`upload_max_filesize`, `body_dropped`, `altered`…). It keeps nothing: the file is discarded when the request ends. |
 
 A refusal before PHP, such as a web server's 413, never reaches the app; the
@@ -335,6 +335,52 @@ upload. PHP never shows a multipart body to the receiver as raw bytes, so the
 signature covers an empty body. Sign what identifies the file in the query,
 as the probe does with its size and hash, and check the file against it on
 arrival.
+
+### Direct uploads: past Cloudflare's 100 MB cap
+
+Every fleet app on Laravel Cloud sits behind Cloudflare, which refuses any
+request body over 100 MB before the app sees it, whatever PHP and nginx
+allow. Large files go from the browser straight to storage instead, on a URL
+the app signs. Laravel Cloud's object storage is R2, which takes up to 5 GiB
+in one PUT and already allows browser PUTs from the environment's domains.
+
+On the server, sign one URL per file and check the file when the form is
+submitted:
+
+```php
+use Dashcore\Bridge\Uploads\DirectUpload;
+use Dashcore\Bridge\Uploads\FileTypes;
+
+// POST /upload-url — validate the size and type first, then:
+$path = 'videos/'.Str::uuid().'.webm';
+return ['path' => $path] + DirectUpload::target('media', $path, 'video/webm');
+
+// On submit — size within the rule, first bytes the right type; a file
+// that fails is deleted:
+DirectUpload::verify('media', $path, 200 * 1024 ** 2, fn (string $type) => FileTypes::matches($type, 'webm'));
+```
+
+In the browser, `resources/js/direct-upload.js` asks for the URL and PUTs
+the file, with progress:
+
+```js
+import { requestUploadTarget, putFile } from '../../vendor/dashcore/bridge/resources/js/direct-upload.js';
+```
+
+The disk must be able to sign: the `s3` driver (an attached Laravel Cloud
+bucket), or a local disk with `'serve' => true` for development, where
+Laravel signs a PUT to the app's own storage route. A signed PUT cannot cap
+the size, which is why `verify` checks it.
+
+Declare the route with `BRIDGE_UPLOAD_DIRECT=<disk>`. The contract then
+reports it, and Standards tests that route instead of sending the file
+through the app. The values go in the query or a JSON body, which is what
+`Bridge::to($peer)->post()` sends:
+
+| Route | What it answers |
+|---|---|
+| `POST /api/bridge/v1/uploads/direct` (`bytes`) | A signed PUT (`url`, `headers`) for a throwaway object under `bridge-upload-probes/`, and its `id`. |
+| `POST /api/bridge/v1/uploads/direct/{id}` (`bytes`, `sha256`) | `200` when the object landed whole, or `422` with `stopped_by` (`not_stored`, `altered`). The object is deleted whatever the answer, and probes nobody checked are swept after an hour. |
 
 ## Source of truth
 
