@@ -48,6 +48,10 @@ return [
     // The keys.dashcore.com checkout that reads it.
     'keys_checkout' => env('WORKFLOWS_KEYS_CHECKOUT', rtrim((string) (env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/').'/keys.dashcore.com'),
 
+    // This app's name in keys.dashcore.com, which files its secrets under
+    // Dashcore's production hostname whatever environment reads them.
+    'keys_app' => env('WORKFLOWS_KEYS_APP', 'tests.dashcore.com'),
+
     // The page warns when the schedule has not ticked for this long.
     'stale_after_minutes' => (int) env('WORKFLOWS_STALE_AFTER_MINUTES', 5),
 
