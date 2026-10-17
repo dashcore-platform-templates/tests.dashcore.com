@@ -422,3 +422,11 @@ Files inside `vendor/` are managed by Composer. Never edit them directly. Instea
 - Package architecture and structure → read the DashCore Portal's `PACKAGES.md`
 - Customization protocol and package vs. custom decisions → read the DashCore Portal's `CUSTOMIZATION.md`
 - General Laravel questions → use `search-docs` tool (Boost MCP)
+
+## Design
+
+`dashcore/design-kit` is vendored at `packages/dashcore/design-kit`, because the package is private. Never edit that copy: it must match the release. A new release is copied in from a design.dashcore.com checkout with `packages/design-kit/bin/vendor-into <path to this repo>`.
+
+- Before building or changing any screen, read `vendor/dashcore/design-kit/STANDARD.md`.
+- This app is not on the Dashcore style yet. It moves onto it screen by screen, later; until then, don't restyle screens as a side effect of other work.
+- `php artisan design:audit` is a ratchet against `design/allowance.json`: it fails only when a rule's count rises. After fixing screens, lower the allowance with `php artisan design:audit --baseline`; never raise it to get a build green.

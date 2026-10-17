@@ -1,0 +1,463 @@
+{
+    "schema": "dashcore-style/1",
+    "style": "dashcore",
+    "motif": "accent-bar",
+    "tokens": {
+        "fonts": {
+            "sans": {
+                "family": "Inter",
+                "bunny": "inter",
+                "weights": [
+                    400,
+                    500,
+                    600
+                ],
+                "fallback": "ui-sans-serif, system-ui, sans-serif"
+            },
+            "second": {
+                "family": "Fraunces",
+                "bunny": "fraunces",
+                "weights": [
+                    500,
+                    600
+                ],
+                "kind": "serif",
+                "fallback": "ui-serif, Georgia, serif",
+                "condensed": false
+            },
+            "stylesheet": "https://fonts.bunny.net/css?family=inter:400,500,600|fraunces:500,600&display=swap"
+        },
+        "radius": {
+            "xs": "2px",
+            "sm": "2px",
+            "md": "3px",
+            "lg": "4px",
+            "xl": "4px",
+            "2xl": "4px",
+            "3xl": "4px",
+            "4xl": "4px"
+        },
+        "radius_ceiling": "4px",
+        "density": {
+            "gutter": "32px",
+            "section": "32px",
+            "card": "24px",
+            "stat": "24px",
+            "row": "44px",
+            "cell-x": "16px",
+            "control": "40px",
+            "label-gap": "8px",
+            "field-gap": "24px",
+            "nav-item": "40px",
+            "brand": "56px",
+            "prose": "16px"
+        },
+        "neutral": {
+            "50": "#f7f4ef",
+            "100": "#efebe2",
+            "200": "#d8d2c7",
+            "300": "#b8af9f",
+            "400": "#9b948a",
+            "500": "#6b6560",
+            "600": "#454039",
+            "700": "#2e2b26",
+            "800": "#1d1b18",
+            "900": "#151412",
+            "950": "#11100e"
+        },
+        "light": {
+            "page": "#f7f4ef",
+            "surface": "#ffffff",
+            "sunken": "#efebe2",
+            "border": "#d8d2c7",
+            "border-strong": "#b8af9f",
+            "text-strong": "#1c1b19",
+            "text": "#1c1b19",
+            "text-muted": "#6b6560",
+            "text-muted-on-sunken": "#6b6560",
+            "accent": "#4a4438",
+            "accent-hover": "#33301f",
+            "accent-content": "#4a4438",
+            "accent-soft": "#4a44381a",
+            "on-accent": "#ffffff"
+        },
+        "dark": {
+            "page": "#151412",
+            "surface": "#1d1b18",
+            "sunken": "#11100e",
+            "border": "#2e2b26",
+            "border-strong": "#454039",
+            "text-strong": "#ece7dd",
+            "text": "#ece7dd",
+            "text-muted": "#a39c90",
+            "text-muted-on-sunken": "#aaa397",
+            "accent": "#d9cbb0",
+            "accent-hover": "#e8dcc4",
+            "accent-content": "#d9cbb0",
+            "accent-soft": "#d9cbb029",
+            "on-accent": "#1c1b19"
+        },
+        "status": {
+            "success": {
+                "text-light": "#15803d",
+                "text-dark": "#4ade80",
+                "fill": "#15803d",
+                "soft-light": "#f0fdf4",
+                "soft-dark": "#052e16"
+            },
+            "warning": {
+                "text-light": "#b45309",
+                "text-dark": "#fbbf24",
+                "fill": "#b45309",
+                "soft-light": "#fffbeb",
+                "soft-dark": "#451a03"
+            },
+            "danger": {
+                "text-light": "#b91c1c",
+                "text-dark": "#f87171",
+                "fill": "#dc2626",
+                "soft-light": "#fef2f2",
+                "soft-dark": "#450a0a"
+            },
+            "info": {
+                "text-light": "#1d4ed8",
+                "text-dark": "#60a5fa",
+                "fill": "#1d4ed8",
+                "soft-light": "#eff6ff",
+                "soft-dark": "#172554"
+            }
+        },
+        "contrast": {
+            "passes": true,
+            "lowest": {
+                "pair": "light: success text on page",
+                "ratio": 4.57
+            },
+            "notes": [],
+            "pairs": [
+                {
+                    "pair": "light: text on page",
+                    "ratio": 15.69,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text on surface",
+                    "ratio": 17.21,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-strong on page",
+                    "ratio": 15.69,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted on page",
+                    "ratio": 5.24,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted on surface",
+                    "ratio": 5.74,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on sunken",
+                    "ratio": 4.83,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: accent-content on page",
+                    "ratio": 8.8,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: accent-content on accent-soft",
+                    "ratio": 8.18,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on accent-soft",
+                    "ratio": 4.87,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: on-accent on accent",
+                    "ratio": 9.65,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: border-strong on surface",
+                    "ratio": 2.17,
+                    "min": 1.5,
+                    "passes": true,
+                    "informational": true
+                },
+                {
+                    "pair": "light: success text on page",
+                    "ratio": 4.57,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: success text on success-soft",
+                    "ratio": 4.79,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on success-soft",
+                    "ratio": 5.49,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: warning text on page",
+                    "ratio": 4.58,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: warning text on warning-soft",
+                    "ratio": 4.84,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on warning-soft",
+                    "ratio": 5.54,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: danger text on page",
+                    "ratio": 5.9,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: danger text on danger-soft",
+                    "ratio": 5.91,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on danger-soft",
+                    "ratio": 5.25,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: info text on page",
+                    "ratio": 6.11,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: info text on info-soft",
+                    "ratio": 6.16,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "light: text-muted-on-sunken on info-soft",
+                    "ratio": 5.28,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text on page",
+                    "ratio": 14.94,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text on surface",
+                    "ratio": 13.94,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-strong on page",
+                    "ratio": 14.94,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted on page",
+                    "ratio": 6.76,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted on surface",
+                    "ratio": 6.31,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on sunken",
+                    "ratio": 7.6,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: accent-content on page",
+                    "ratio": 11.5,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: accent-content on accent-soft",
+                    "ratio": 7.39,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on accent-soft",
+                    "ratio": 4.73,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: on-accent on accent",
+                    "ratio": 10.75,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: border-strong on surface",
+                    "ratio": 1.67,
+                    "min": 1.5,
+                    "passes": true,
+                    "informational": true
+                },
+                {
+                    "pair": "dark: success text on page",
+                    "ratio": 10.57,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: success text on success-soft",
+                    "ratio": 8.55,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on success-soft",
+                    "ratio": 5.96,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: warning text on page",
+                    "ratio": 11.03,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: warning text on warning-soft",
+                    "ratio": 8.97,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on warning-soft",
+                    "ratio": 5.99,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: danger text on page",
+                    "ratio": 6.66,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: danger text on danger-soft",
+                    "ratio": 5.84,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on danger-soft",
+                    "ratio": 6.45,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: info text on page",
+                    "ratio": 7.24,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: info text on info-soft",
+                    "ratio": 5.78,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                },
+                {
+                    "pair": "dark: text-muted-on-sunken on info-soft",
+                    "ratio": 5.87,
+                    "min": 4.5,
+                    "passes": true,
+                    "informational": false
+                }
+            ]
+        }
+    }
+}

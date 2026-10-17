@@ -1,0 +1,186 @@
+/* The frame: the classes x-ds::shell and its parts draw with, and the dc-*
+   names dashcore/ui gave apps, kept as aliases of the roles for one major so
+   an app moving across changes no view. The audit reports dc-* from the next
+   major on. Every value here is a role, so the style decides it. */
+
+:root {
+    --dc-bg: var(--ds-page);
+    --dc-surface: var(--ds-surface);
+    --dc-sunken: var(--ds-sunken);
+    --dc-ink: var(--ds-text);
+    --dc-ink-muted: var(--ds-text-muted);
+    --dc-ink-faint: var(--color-zinc-400);
+    --dc-border: var(--ds-border);
+    --dc-border-strong: var(--ds-border-strong);
+    --dc-accent: var(--ds-accent);
+    --dc-accent-hover: var(--ds-accent-hover);
+    --dc-on-accent: var(--ds-on-accent);
+    --dc-metal: var(--color-zinc-400);
+    --dc-success: var(--ds-success);
+    --dc-warning: var(--ds-warning);
+    --dc-danger: var(--ds-danger);
+    --dc-success-bg: var(--ds-success-soft);
+    --dc-warning-bg: var(--ds-warning-soft);
+    --dc-danger-bg: var(--ds-danger-soft);
+    --dc-scrim: rgb(0 0 0 / 0.45);
+}
+
+@theme inline {
+    --color-dc-bg: var(--dc-bg);
+    --color-dc-surface: var(--dc-surface);
+    --color-dc-sunken: var(--dc-sunken);
+    --color-dc-ink: var(--dc-ink);
+    --color-dc-ink-muted: var(--dc-ink-muted);
+    --color-dc-ink-faint: var(--dc-ink-faint);
+    --color-dc-border: var(--dc-border);
+    --color-dc-border-strong: var(--dc-border-strong);
+    --color-dc-accent: var(--dc-accent);
+    --color-dc-accent-hover: var(--dc-accent-hover);
+    --color-dc-on-accent: var(--dc-on-accent);
+    --color-dc-metal: var(--dc-metal);
+    --color-dc-success: var(--dc-success);
+    --color-dc-warning: var(--dc-warning);
+    --color-dc-danger: var(--dc-danger);
+    --color-dc-success-bg: var(--dc-success-bg);
+    --color-dc-warning-bg: var(--dc-warning-bg);
+    --color-dc-danger-bg: var(--dc-danger-bg);
+    --color-dc-scrim: var(--dc-scrim);
+}
+
+@layer utilities {
+    .dc-tabular {
+        font-variant-numeric: tabular-nums lining-nums;
+    }
+
+    .dc-circle {
+        border-radius: 50%;
+    }
+}
+
+@layer components {
+    /* 03's label: 12px, 500, 0.04em. dashcore/ui set it at 11px uppercase;
+       nothing is set below 12px, and uppercase belongs to the eyebrow motif. */
+    .dc-label {
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.33;
+        letter-spacing: 0.04em;
+        color: var(--ds-text-muted-on-sunken);
+    }
+
+    /* 03's page title, in the second face. x-ds::page-header draws it. */
+    .dc-page-title {
+        font-family: var(--font-second);
+        font-size: 24px;
+        font-weight: 600;
+        line-height: 1.25;
+        color: var(--ds-text-strong);
+    }
+
+    /* A sidebar entry. 07's accent bar: a two pixel accent rule on the leading
+       edge and the label in text-strong, no fill. The rule is a border that is
+       always there and only changes colour, so lighting an entry never shifts
+       its label. */
+    .dc-nav-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-height: var(--ds-nav-item);
+        border-inline-start: 2px solid transparent;
+        padding: 0 12px 0 10px;
+        font-size: 14px;
+        line-height: 1.5;
+        color: var(--ds-text);
+        transition: color 150ms ease-out;
+    }
+
+    /* The same entry as a button (sign out, the theme toggle), so the foot of
+       the sidebar reads as part of the list. */
+    button.dc-nav-item {
+        width: 100%;
+        background: none;
+        text-align: start;
+        cursor: pointer;
+    }
+
+    .dc-nav-item:hover {
+        color: var(--ds-text-strong);
+    }
+
+    .dc-nav-item[aria-current='page'] {
+        border-inline-start-color: var(--ds-accent);
+        color: var(--ds-text-strong);
+        font-weight: 500;
+    }
+
+    .dc-nav-item:focus-visible {
+        outline: 2px solid var(--ds-accent);
+        outline-offset: -2px;
+    }
+
+    /* A count on an entry. 04's count marker: accent fill, on-accent text. */
+    .dc-nav-badge {
+        margin-inline-start: auto;
+        min-width: 20px;
+        border-radius: var(--radius-sm);
+        background: var(--ds-accent);
+        padding: 0 6px;
+        text-align: center;
+        font-size: 12px;
+        line-height: 20px;
+        font-variant-numeric: tabular-nums lining-nums;
+        color: var(--ds-on-accent);
+    }
+
+    /* Inputs outside Flux, for dashcore/ui views that used it. */
+    .dc-input {
+        width: 100%;
+        min-height: var(--ds-control);
+        border: 1px solid var(--ds-border-strong);
+        border-radius: var(--radius-lg);
+        background: var(--ds-surface);
+        padding: 0 12px;
+        font-size: var(--ds-prose);
+        color: var(--ds-text);
+    }
+
+    .dc-input::placeholder {
+        color: var(--ds-text-muted);
+    }
+
+    .dc-input:focus {
+        outline: 2px solid var(--ds-accent);
+        outline-offset: 2px;
+    }
+
+    /* The theme toggle's two labels: it names where it will go. */
+    .dc-theme-to-light {
+        display: none;
+    }
+
+    :root.dark .dc-theme-to-dark,
+    :root[data-theme='dark'] .dc-theme-to-dark {
+        display: none;
+    }
+
+    :root.dark .dc-theme-to-light,
+    :root[data-theme='dark'] .dc-theme-to-light {
+        display: inline;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        :root:not(.light):not([data-theme='light']) .dc-theme-to-dark {
+            display: none;
+        }
+
+        :root:not(.light):not([data-theme='light']) .dc-theme-to-light {
+            display: inline;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-dc-sidebar], .dc-nav-item {
+        transition: none;
+    }
+}

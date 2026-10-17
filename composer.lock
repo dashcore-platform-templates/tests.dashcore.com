@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "122f04fe743cc3f546f24624cf32ffb5",
+    "content-hash": "c161640dbce632bb48be6308c54714e3",
     "packages": [
         {
             "name": "brick/math",
@@ -187,6 +187,53 @@
                 "proprietary"
             ],
             "description": "Secure Laravel-to-Laravel API access for the Dashcore fleet: Ed25519 signed requests, replay protection, and audit logging. Fleet membership is the authorization.",
+            "transport-options": {
+                "symlink": false,
+                "relative": true
+            }
+        },
+        {
+            "name": "dashcore/design-kit",
+            "version": "6.2.0",
+            "dist": {
+                "type": "path",
+                "url": "packages/dashcore/design-kit",
+                "reference": "96dc0dea5e97e0a63ac99ccb0c42c7f5a188a2d3"
+            },
+            "require": {
+                "laravel/framework": "^12.0|^13.0",
+                "php": "^8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^11.0|^12.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Dashcore\\DesignKit\\DesignKitServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Dashcore\\DesignKit\\": "src/"
+                }
+            },
+            "autoload-dev": {
+                "psr-4": {
+                    "Dashcore\\DesignKit\\Tests\\": "tests/"
+                }
+            },
+            "scripts": {
+                "test": [
+                    "phpunit"
+                ]
+            },
+            "license": [
+                "proprietary"
+            ],
+            "description": "Applies a design.dashcore.com design file to a Laravel Livewire Flux kit: theme variables, fonts, brand copy, and the three custom components the Dashcore Standard defines.",
             "transport-options": {
                 "symlink": false,
                 "relative": true
