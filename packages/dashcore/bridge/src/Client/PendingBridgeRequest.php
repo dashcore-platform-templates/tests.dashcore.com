@@ -94,6 +94,49 @@ class PendingBridgeRequest
     }
 
     /**
+     * POST a file as multipart/form-data, the way a browser sends an upload.
+     *
+     * PHP never exposes a multipart body to the receiving app as raw bytes,
+     * so the signature covers an empty body, as the receiver computes it.
+     * What binds the file to the request is whatever the caller signs in the
+     * query — the probe signs the file's size and SHA-256 — so a receiver of
+     * an upload checks the file against those before it trusts it.
+     *
+     * Tried once: a peer that received part of an upload may have acted on
+     * it, and a caller testing an upload path wants to see the failure.
+     *
+     * Pass an open stream rather than a string for a large file: it is read
+     * from disk as it is sent instead of held in memory, twice.
+     *
+     * @param  string|resource  $contents
+     * @param  array<string, mixed>  $query
+     */
+    public function upload(string $path, mixed $contents, string $filename, array $query = [], string $field = 'file'): Response
+    {
+        $path = static::PREFIX.'/'.ltrim($path, '/');
+        $url = rtrim($this->baseUrl, '/').$path;
+
+        if ($query !== []) {
+            ksort($query);
+            $url .= '?'.http_build_query($query, '', '&', PHP_QUERY_RFC3986);
+        }
+
+        try {
+            $response = Http::withHeaders([
+                ...BridgeHeaders::sign('POST', $path, $query, ''),
+                'Accept' => 'application/json',
+            ])
+                ->timeout($this->timeout ?? config('bridge.timeout'))
+                ->attach($field, $contents, $filename)
+                ->post($url);
+        } catch (ConnectionException $e) {
+            throw new PeerUnreachable("Peer [{$this->appId}] is unreachable: {$e->getMessage()}", previous: $e);
+        }
+
+        return $this->checked($response, 'POST', $path);
+    }
+
+    /**
      * @param  array<string, mixed>  $query
      * @param  array<string, mixed>|null  $data
      */
@@ -135,6 +178,14 @@ class PendingBridgeRequest
             }
         }
 
+        return $this->checked($response, $method, $path);
+    }
+
+    /**
+     * The response, or the exception that names what went wrong with it.
+     */
+    protected function checked(Response $response, string $method, string $path): Response
+    {
         return match (true) {
             $response->status() === 401 => throw new PeerRejectedSignature(
                 "Peer [{$this->appId}] rejected this app's signature: ".$response->json('error', 'unknown').' — run bridge:doctor.'

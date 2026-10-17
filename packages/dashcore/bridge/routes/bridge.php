@@ -4,6 +4,7 @@ use Dashcore\Bridge\BridgeVersion;
 use Dashcore\Bridge\Http\Controllers\HealthController;
 use Dashcore\Bridge\Http\Controllers\Sso\CallbackController;
 use Dashcore\Bridge\Http\Controllers\Sso\RedirectController;
+use Dashcore\Bridge\Http\Controllers\UploadsController;
 use Dashcore\Bridge\Identity\IdentityResolver;
 use Dashcore\Bridge\Sso\SsoMode;
 use Illuminate\Support\Facades\Route;
@@ -39,6 +40,16 @@ if (config('bridge.health.enabled', true)) {
         ->get('health', HealthController::class)
         ->name('bridge.health');
 }
+
+// The upload contract: what the app declares it takes, and a probe that
+// receives a real file of that size so the whole stack in front of the app
+// is tested, not just its validation rules.
+Route::prefix('api/bridge/v1')
+    ->middleware(['bridge.auth', 'bridge.scope:bridge.uploads'])
+    ->group(function () {
+        Route::get('uploads', [UploadsController::class, 'show'])->name('bridge.uploads');
+        Route::post('uploads/probe', [UploadsController::class, 'probe'])->name('bridge.uploads.probe');
+    });
 
 // Signing people in through the fleet's sign-in server. Two routes, added
 // only when the install turns sso on (optional or required): the path an app
