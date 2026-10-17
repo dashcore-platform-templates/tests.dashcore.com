@@ -49,6 +49,8 @@ Route::prefix('api/bridge/v1')
     ->group(function () {
         Route::get('uploads', [UploadsController::class, 'show'])->name('bridge.uploads');
         Route::post('uploads/probe', [UploadsController::class, 'probe'])->name('bridge.uploads.probe');
+        Route::post('uploads/direct', [UploadsController::class, 'direct'])->name('bridge.uploads.direct');
+        Route::post('uploads/direct/{id}', [UploadsController::class, 'directCheck'])->name('bridge.uploads.direct.check');
     });
 
 // Signing people in through the fleet's sign-in server. Two routes, added

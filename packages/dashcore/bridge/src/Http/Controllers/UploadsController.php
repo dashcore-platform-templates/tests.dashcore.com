@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Dashcore\Bridge\Http\Controllers;
 
+use Dashcore\Bridge\Uploads\DirectUpload;
 use Dashcore\Bridge\Uploads\UploadLimits;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * The upload contract, and the probe that tests it.
@@ -22,14 +26,25 @@ use Illuminate\Http\UploadedFile;
  * The probe's answer names the layer that stopped a file when one did. A
  * refusal before PHP never reaches this controller, and the caller reads
  * that from the response it got back instead.
+ *
+ * An app whose files go straight to storage (`bridge.uploads.direct`) is
+ * tested on that route instead: `direct` signs a URL for a throwaway
+ * object, the caller PUTs the file to it as a browser would, and
+ * `directCheck` reads back what landed and deletes it. Both take their
+ * values from the query or a JSON body, which the signature covers either
+ * way; the bridge client's post() sends a body.
  */
 class UploadsController
 {
+    /** Where probe files land on the direct-upload disk, apart from anything real. */
+    private const PROBES = 'bridge-upload-probes';
+
     public function show(): JsonResponse
     {
         return response()->json([
             'declared_max_bytes' => UploadLimits::declared(),
             'php' => UploadLimits::php(),
+            'direct' => DirectUpload::describe(),
         ], 200, ['Cache-Control' => 'no-store']);
     }
 
@@ -83,6 +98,143 @@ class UploadsController
             'received' => true,
             'bytes' => $received,
         ], 200, ['Cache-Control' => 'no-store']);
+    }
+
+    /**
+     * Sign a PUT for one probe file on the direct-upload disk. Probes are
+     * kept under their own prefix, and any left behind by a caller that
+     * never came back are swept here.
+     */
+    public function direct(Request $request): JsonResponse
+    {
+        if (($refusal = $this->refuseDirect()) !== null) {
+            return $refusal;
+        }
+
+        $bytes = filter_var($request->input('bytes'), FILTER_VALIDATE_INT);
+
+        if ($bytes === false || $bytes < 1) {
+            return $this->refuse(422, 'UPLOAD_PROBE_MALFORMED', 'Send the size of the file you will upload as `bytes`.');
+        }
+
+        if ($bytes > (int) UploadLimits::declared()) {
+            return $this->refuse(422, 'UPLOAD_PROBE_OVER_DECLARED', 'The probe is larger than the '.UploadLimits::declared().' bytes this app declares.');
+        }
+
+        $disk = (string) DirectUpload::disk();
+        $this->sweep($disk);
+        $id = (string) Str::uuid();
+
+        return response()->json(
+            ['id' => $id, 'bytes' => $bytes] + DirectUpload::target($disk, self::PROBES.'/'.$id, 'application/octet-stream', 30),
+            200,
+            ['Cache-Control' => 'no-store'],
+        );
+    }
+
+    /**
+     * What landed for a probe signed by `direct`: there, the size sent, the
+     * contents sent. Deleted whatever the answer.
+     */
+    public function directCheck(Request $request, string $id): JsonResponse
+    {
+        if (($refusal = $this->refuseDirect()) !== null) {
+            return $refusal;
+        }
+
+        $bytes = filter_var($request->input('bytes'), FILTER_VALIDATE_INT);
+        $sha256 = (string) $request->input('sha256', '');
+
+        if (! Str::isUuid($id) || $bytes === false || $bytes < 1 || preg_match('/^[0-9a-f]{64}$/', $sha256) !== 1) {
+            return $this->refuse(422, 'UPLOAD_PROBE_MALFORMED', 'Check a probe by its id, with the file\'s size as `bytes` and its SHA-256 as `sha256`.');
+        }
+
+        $storage = Storage::disk((string) DirectUpload::disk());
+        $path = self::PROBES.'/'.$id;
+
+        if (! $storage->exists($path)) {
+            return $this->failed('not_stored', 'Nothing arrived in storage for this probe; the upload to the signed URL did not complete.');
+        }
+
+        try {
+            $received = (int) $storage->size($path);
+            $matches = $received === $bytes && hash_equals($sha256, $this->hash($storage->readStream($path)));
+        } finally {
+            $storage->delete($path);
+        }
+
+        if (! $matches) {
+            return $this->failed('altered', "The file landed as {$received} bytes, not the {$bytes} sent, or with different contents.", $received);
+        }
+
+        return response()->json([
+            'received' => true,
+            'bytes' => $received,
+        ], 200, ['Cache-Control' => 'no-store']);
+    }
+
+    protected function refuseDirect(): ?JsonResponse
+    {
+        $declared = UploadLimits::declared();
+
+        if ($declared === null) {
+            return $this->refuse(409, 'UPLOAD_LIMIT_UNDECLARED', 'This app has not declared its largest upload; set BRIDGE_UPLOAD_MAX.');
+        }
+
+        if ($declared === 0) {
+            return $this->refuse(409, 'UPLOADS_NOT_ACCEPTED', 'This app declares that it takes no uploads.');
+        }
+
+        $disk = DirectUpload::disk();
+
+        if ($disk === null) {
+            return $this->refuse(409, 'UPLOADS_NOT_DIRECT', 'This app\'s uploads come through the app; test them with uploads/probe.');
+        }
+
+        if (! DirectUpload::signs($disk)) {
+            return $this->refuse(409, 'DIRECT_DISK_CANNOT_SIGN', "The [{$disk}] disk cannot sign upload URLs: it needs the s3 driver, or 'serve' => true on a local disk.");
+        }
+
+        return null;
+    }
+
+    /**
+     * Probes older than an hour belong to a caller that never checked them.
+     */
+    protected function sweep(string $disk): void
+    {
+        try {
+            $storage = Storage::disk($disk);
+            $cutoff = now()->subHour()->getTimestamp();
+
+            foreach ($storage->files(self::PROBES) as $path) {
+                if ($storage->lastModified($path) < $cutoff) {
+                    $storage->delete($path);
+                }
+            }
+        } catch (Throwable) {
+            // A sweep that cannot run is no reason to refuse the probe.
+        }
+    }
+
+    /**
+     * @param  resource|null  $stream
+     */
+    protected function hash($stream): string
+    {
+        if (! is_resource($stream)) {
+            return '';
+        }
+
+        $context = hash_init('sha256');
+
+        try {
+            hash_update_stream($context, $stream);
+        } finally {
+            fclose($stream);
+        }
+
+        return hash_final($context);
     }
 
     /**

@@ -162,6 +162,12 @@ return [
 
     'uploads' => [
         'max' => env('BRIDGE_UPLOAD_MAX'),
+
+        // The disk the browser uploads files to directly (DirectUpload),
+        // when they do not come through the app — the way past Cloudflare's
+        // 100 MB request cap. Set, and Standards tests that route instead:
+        // a real file PUT to a URL this app signs, then read back.
+        'direct' => env('BRIDGE_UPLOAD_DIRECT'),
     ],
 
     /*
@@ -333,6 +339,7 @@ return [
             // A deliberate large upload, sent by Standards: timing it would
             // report the probe as the app's slowest request.
             'api/bridge/v1/uploads/probe',
+            'api/bridge/v1/uploads/direct*',
             'up',
         ],
 
