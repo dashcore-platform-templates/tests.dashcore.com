@@ -22,6 +22,7 @@ final class Audit
     public const RULES = [
         '--ds-prose used as a length',
         'app colour variable',
+        'brand colour scale',
         'colour off the roles',
         'Flux badge',
         'Flux heading at section size',
@@ -111,6 +112,15 @@ final class Audit
 
             foreach (self::matches($line, '/\b(?:bg|text|border|ring|from|to|via|divide|outline|decoration|shadow|accent|fill|stroke)-('.implode('|', self::OFF_PALETTE).')-\d{2,3}\b/') as $m) {
                 $findings[] = self::finding('colour off the roles', $n, $m, 'Use a --ds-* role: text, text-muted, border, accent-content, or a status role.');
+            }
+
+            // An accent scale the app defines for itself, accent-50 to
+            // accent-950, reads as the style's accent and is not: the style
+            // has one accent and its hover, soft and content roles, no steps.
+            // Found on team, whose every button and focus ring was its own
+            // teal through classes the palette rule took for the style's.
+            foreach (self::matches($line, '/\b(?:bg|text|border|ring|from|to|via|divide|outline|decoration|shadow|fill|stroke|placeholder|caret)-accent-\d{2,3}\b|--color-accent-\d{2,3}\b/') as $m) {
+                $findings[] = self::finding('brand colour scale', $n, $m, 'Use the accent roles: --ds-accent for a fill, --ds-accent-hover on hover, --ds-accent-soft for a tint, --ds-accent-content for text and icons, --ds-on-accent on a fill.');
             }
 
             // A colour variable the app defines for itself sits outside the
