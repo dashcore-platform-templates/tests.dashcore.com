@@ -30,6 +30,18 @@ final class Applier
         'resources/views/flux/icon/layout-grid.blade.php',
     ];
 
+    /**
+     * The Tailwind families Flux paints a callout from, by the status each
+     * one says. A family not listed, violet or zinc, is not a status and is
+     * left as Flux draws it.
+     */
+    public const CALLOUT_FAMILIES = [
+        'danger' => ['red', 'rose'],
+        'warning' => ['yellow', 'amber', 'orange'],
+        'success' => ['green', 'emerald', 'lime'],
+        'info' => ['blue', 'sky'],
+    ];
+
     /** The Heroicon that stands in for each Lucide name the kit uses. */
     public const LUCIDE_RENAMES = [
         'book-open-text' => 'book-open',
@@ -282,6 +294,27 @@ final class Applier
         $lines[] = '[data-flux-button].bg-red-500:hover {';
         $lines[] = '    background: var(--ds-danger-soft);';
         $lines[] = '}';
+
+        // 06's callout is soft and in the status colours, and Flux paints each
+        // variant from a Tailwind family through --callout-* properties. Flux
+        // marks the family only in those property classes, so its 50 step is
+        // the hook. The treatment is the flash's: the soft tint and a two pixel
+        // rule in the status colour, body text in text. Warning arrives as
+        // yellow, and an app that set color= by hand reaches the same four.
+        $lines[] = '/* 06: a callout takes the status roles, the flash\'s treatment. */';
+        foreach (self::CALLOUT_FAMILIES as $status => $families) {
+            $selectors = implode(', ', array_map(fn (string $family): string => "[data-flux-callout][class*='var(--color-{$family}-50)']", $families));
+            $lines[] = "{$selectors} {";
+            $lines[] = "    --callout-background: var(--ds-{$status}-soft);";
+            $lines[] = "    --callout-border: var(--ds-{$status});";
+            $lines[] = "    --callout-heading: var(--ds-{$status});";
+            $lines[] = '    --callout-text: var(--ds-text);';
+            $lines[] = "    --callout-icon: var(--ds-{$status});";
+            $lines[] = '    border-color: transparent;';
+            $lines[] = "    border-inline-start: 2px solid var(--ds-{$status});";
+            $lines[] = '    border-radius: var(--radius-sm);';
+            $lines[] = '}';
+        }
 
 
         return $lines;

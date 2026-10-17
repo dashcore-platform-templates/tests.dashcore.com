@@ -169,19 +169,33 @@ class ApplyCommand extends Command
             $put($js, $before, Applier::applyStyleJs($before));
         }
 
-        // Fonts: the same two places a design's fonts go. An app on
-        // dashcore/ui loads them with <x-dashcore::fonts />, which is now this
-        // package's and reads the style, so it needs nothing here.
+        // Fonts. What matters is what a page actually renders, not what a
+        // config file lists: a Vite fonts array nobody renders with @fonts is
+        // dead (coaching and dcos had one, and their faces never loaded), and
+        // a head is not always partials/head.blade.php.
+        $views = $this->bladeViews();
+        $component = $this->firstContaining($views, ['<x-ds::fonts', '<x-dashcore::fonts']);
+        $rendersVite = $this->firstContaining($views, ['@fonts']) !== null;
         $vite = base_path('vite.config.js');
-        $head = base_path('resources/views/partials/head.blade.php');
-        if (File::exists($vite) && preg_match('/^\s*fonts:\s*\[/m', File::get($vite))) {
+        $hasViteFonts = File::exists($vite) && preg_match('/^\s*fonts:\s*\[/m', File::get($vite));
+
+        if ($hasViteFonts && ($rendersVite || $component !== null)) {
+            // Kept in step even where the component loads the faces, so the two
+            // never name different ones.
             $before = File::get($vite);
             $put($vite, $before, Applier::applyVite($before, $tokens));
-        } elseif (File::exists($head) && str_contains(File::get($head), 'fonts.bunny.net')) {
-            $before = File::get($head);
-            $put($head, $before, Applier::applyHead($before, $tokens));
-        } else {
-            $this->components->warn('No Vite fonts array and no Bunny link in partials/head.blade.php. Put <x-ds::fonts /> in <head>.');
+        }
+
+        if ($component === null && ! ($hasViteFonts && $rendersVite)) {
+            $head = $this->firstContaining($views, ['fonts.bunny.net']);
+            if ($head !== null) {
+                $before = File::get($head);
+                $put($head, $before, Applier::applyHead($before, $tokens));
+            } else {
+                $this->components->warn($hasViteFonts
+                    ? 'vite.config.js lists fonts but no view renders @fonts, so none load. Put <x-ds::fonts /> in <head>.'
+                    : 'Nothing here loads fonts. Put <x-ds::fonts /> in <head>.');
+            }
         }
 
         foreach (['.env', '.env.example'] as $envFile) {
@@ -218,6 +232,42 @@ class ApplyCommand extends Command
         $this->line('  <fg=gray>Agents read the rules from vendor/dashcore/design-kit/STANDARD.md. Say so in CLAUDE.md.</>');
 
         return self::SUCCESS;
+    }
+
+    /** @return list<string> Every Blade view in the app, by absolute path. */
+    private function bladeViews(): array
+    {
+        $root = resource_path('views');
+        if (! File::isDirectory($root)) {
+            return [];
+        }
+
+        return collect(File::allFiles($root))
+            ->filter(fn ($f) => str_ends_with($f->getFilename(), '.blade.php'))
+            ->map(fn ($f) => $f->getPathname())
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * The first of these files to contain any of the needles, or null.
+     *
+     * @param  list<string>  $files
+     * @param  list<string>  $needles
+     */
+    private function firstContaining(array $files, array $needles): ?string
+    {
+        foreach ($files as $file) {
+            $contents = File::get($file);
+            foreach ($needles as $needle) {
+                if (str_contains($contents, $needle)) {
+                    return $file;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
