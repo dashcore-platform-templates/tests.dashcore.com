@@ -1,12 +1,16 @@
 {
     "known": [
         "--ds-prose used as a length",
+        "app colour variable",
+        "brand colour scale",
         "colour off the roles",
         "Flux badge",
         "Flux heading at section size",
+        "Flux colour off the roles",
         "Flux Pro component",
         "Flux table styled on the screen",
         "hardcoded colour",
+        "hardcoded colour beside a role",
         "Lucide icon name",
         "page title not in the page header",
         "spacing off the scale",
@@ -15,11 +19,10 @@
         "weight off the scale"
     ],
     "rules": {
-        "colour off the roles": 128,
-        "hardcoded colour": 41,
+        "brand colour scale": 1,
+        "colour off the roles": 50,
+        "hardcoded colour": 3,
         "page title not in the page header": 21,
-        "spacing off the scale": 36,
-        "text under 12px": 31,
-        "weight off the scale": 32
+        "text under 12px": 31
     }
 }

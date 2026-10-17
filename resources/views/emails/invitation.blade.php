@@ -1,3 +1,4 @@
+{{-- @ds-audit-ignore-file: an email; clients honour inline pixel values only (standard 10). --}}
 <x-mail::message>
 # You're invited to join {{ config('app.name') }}
 

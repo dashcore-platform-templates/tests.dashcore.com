@@ -3,10 +3,10 @@
 @php
     $status = $scan?->status;
     $classes = match ($status?->value) {
-        'completed' => 'bg-success-500/15 text-success-500',
-        'failed' => 'bg-red-500/15 text-red-400',
-        null, 'queued' => 'bg-surface-800 text-surface-400',
-        default => 'bg-accent-500/15 text-accent-400',
+        'completed' => 'bg-(--ds-success-soft) text-(--ds-success)',
+        'failed' => 'bg-red-500/15 text-(--ds-danger)',
+        null, 'queued' => 'bg-(--ds-sunken) text-(--ds-text-muted)',
+        default => 'bg-(--ds-accent-soft) text-(--ds-accent-content)',
     };
 @endphp
 

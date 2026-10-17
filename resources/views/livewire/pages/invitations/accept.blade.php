@@ -113,32 +113,32 @@ new #[Layout('layouts.guest')] class extends Component
 <div>
     @if ($status === 'invalid')
         <div class="text-center">
-            <h1 class="text-2xl font-bold text-surface-100 mb-2">Invitation not found</h1>
-            <p class="text-sm text-surface-400 mb-6">This invitation link doesn't exist or has been revoked.</p>
-            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-accent-400 hover:text-accent-500 transition-colors">&larr; Back to login</a>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) mb-2">Invitation not found</h1>
+            <p class="text-sm text-(--ds-text-muted) mb-6">This invitation link doesn't exist or has been revoked.</p>
+            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-(--ds-accent-content) hover:text-(--ds-accent-content) transition-colors">&larr; Back to login</a>
         </div>
     @elseif ($status === 'accepted')
         <div class="text-center">
-            <h1 class="text-2xl font-bold text-surface-100 mb-2">Already accepted</h1>
-            <p class="text-sm text-surface-400 mb-6">This invitation has already been used. Please sign in instead.</p>
-            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-accent-400 hover:text-accent-500 transition-colors">Go to login &rarr;</a>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) mb-2">Already accepted</h1>
+            <p class="text-sm text-(--ds-text-muted) mb-6">This invitation has already been used. Please sign in instead.</p>
+            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-(--ds-accent-content) hover:text-(--ds-accent-content) transition-colors">Go to login &rarr;</a>
         </div>
     @elseif ($status === 'expired')
         <div class="text-center">
-            <h1 class="text-2xl font-bold text-surface-100 mb-2">Invitation expired</h1>
-            <p class="text-sm text-surface-400 mb-6">This invitation expired on {{ $invitation->expires_at->format('M j, Y') }}. Ask your admin to send a new one.</p>
-            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-accent-400 hover:text-accent-500 transition-colors">&larr; Back to login</a>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) mb-2">Invitation expired</h1>
+            <p class="text-sm text-(--ds-text-muted) mb-6">This invitation expired on {{ $invitation->expires_at->format('M j, Y') }}. Ask your admin to send a new one.</p>
+            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-(--ds-accent-content) hover:text-(--ds-accent-content) transition-colors">&larr; Back to login</a>
         </div>
     @elseif ($status === 'email_taken')
         <div class="text-center">
-            <h1 class="text-2xl font-bold text-surface-100 mb-2">Email already in use</h1>
-            <p class="text-sm text-surface-400 mb-6">An account already exists for {{ $invitation->email }}. Please sign in.</p>
-            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-accent-400 hover:text-accent-500 transition-colors">Go to login &rarr;</a>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) mb-2">Email already in use</h1>
+            <p class="text-sm text-(--ds-text-muted) mb-6">An account already exists for {{ $invitation->email }}. Please sign in.</p>
+            <a href="{{ route('login') }}" wire:navigate class="inline-block text-sm text-(--ds-accent-content) hover:text-(--ds-accent-content) transition-colors">Go to login &rarr;</a>
         </div>
     @else
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-surface-100 tracking-tight mb-1">Accept your invitation</h1>
-            <p class="text-sm text-surface-400">Joining as <span class="text-accent-400 font-medium">{{ ucfirst($invitation->role->value) }}</span> · {{ $invitation->email }}</p>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) tracking-tight mb-1">Accept your invitation</h1>
+            <p class="text-sm text-(--ds-text-muted)">Joining as <span class="text-(--ds-accent-content) font-medium">{{ ucfirst($invitation->role->value) }}</span> · {{ $invitation->email }}</p>
         </div>
 
         <form wire:submit="accept" class="space-y-4">
@@ -167,7 +167,7 @@ new #[Layout('layouts.guest')] class extends Component
                 <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
             </div>
 
-            <button type="submit" wire:loading.attr="disabled" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+            <button type="submit" wire:loading.attr="disabled" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
                 <span wire:loading.remove wire:target="accept">Accept &amp; create account</span>
                 <span wire:loading wire:target="accept" class="inline-flex items-center gap-2">
                     <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">

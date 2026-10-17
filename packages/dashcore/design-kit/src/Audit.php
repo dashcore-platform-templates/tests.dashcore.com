@@ -30,6 +30,7 @@ final class Audit
         'Flux Pro component',
         'Flux table styled on the screen',
         'hardcoded colour',
+        'hardcoded colour beside a role',
         'Lucide icon name',
         'page title not in the page header',
         'spacing off the scale',
@@ -42,6 +43,9 @@ final class Audit
     private const OFF_SCALE = ['5', '7', '9', '10', '11', '13', '14', '15', '18', '20'];
 
     private const SPACING_PREFIXES = ['p', 'px', 'py', 'pt', 'pb', 'ps', 'pe', 'm', 'mx', 'my', 'mt', 'mb', 'ms', 'me', 'gap', 'gap-x', 'gap-y', 'space-x', 'space-y'];
+
+    /** Every colour family Tailwind ships. Anything else with steps is an app's own scale. */
+    private const TAILWIND_FAMILIES = ['slate', 'gray', 'zinc', 'neutral', 'stone', 'red', 'orange', 'amber', 'yellow', 'lime', 'green', 'emerald', 'teal', 'cyan', 'sky', 'blue', 'indigo', 'violet', 'purple', 'fuchsia', 'pink', 'rose'];
 
     /** Colour families the standard does not use directly in a view. */
     private const OFF_PALETTE = ['red', 'amber', 'green', 'blue', 'sky', 'emerald', 'rose', 'orange', 'yellow', 'indigo', 'violet', 'purple', 'pink', 'teal', 'cyan', 'lime', 'stone', 'slate', 'gray', 'neutral'];
@@ -114,13 +118,15 @@ final class Audit
                 $findings[] = self::finding('colour off the roles', $n, $m, 'Use a --ds-* role: text, text-muted, border, accent-content, or a status role.');
             }
 
-            // An accent scale the app defines for itself, accent-50 to
-            // accent-950, reads as the style's accent and is not: the style
-            // has one accent and its hover, soft and content roles, no steps.
-            // Found on team, whose every button and focus ring was its own
-            // teal through classes the palette rule took for the style's.
-            foreach (self::matches($line, '/\b(?:bg|text|border|ring|from|to|via|divide|outline|decoration|shadow|fill|stroke|placeholder|caret)-accent-\d{2,3}\b|--color-accent-\d{2,3}\b/') as $m) {
-                $findings[] = self::finding('brand colour scale', $n, $m, 'Use the accent roles: --ds-accent for a fill, --ds-accent-hover on hover, --ds-accent-soft for a tint, --ds-accent-content for text and icons, --ds-on-accent on a fill.');
+            // A colour scale the app defines for itself: accent-50 to
+            // accent-950, or surface-*, success-*, brand-*, ink-* and the
+            // like. The style has roles, not steps, and Tailwind's own
+            // families are the palette rule's. Found on team, whose teal
+            // accent scale read as the style's accent, and then on the
+            // starter template ten apps came from, whose surface scale is
+            // their whole neutral palette and flips for light mode.
+            foreach (self::matches($line, '/\b(?:bg|text|border|ring|from|to|via|divide|outline|decoration|shadow|fill|stroke|placeholder|caret)-(?!(?:'.implode('|', self::TAILWIND_FAMILIES).'|opacity|offset)-)[a-z]{3,}-\d{2,3}\b|--color-(?!(?:'.implode('|', self::TAILWIND_FAMILIES).')-)[a-z]{3,}-\d{2,3}\b/') as $m) {
+                $findings[] = self::finding('brand colour scale', $n, $m, 'Use a role. For an accent scale: --ds-accent, -hover, -soft, -content, --ds-on-accent. For a neutral scale: --ds-page, surface, sunken, border, text-strong, text, text-muted. For a status scale: --ds-success, warning, danger, info and their -soft and -fill.');
             }
 
             // A colour variable the app defines for itself sits outside the
@@ -136,6 +142,19 @@ final class Audit
             foreach (self::matches($line, '/(?<![\w-])#[0-9a-fA-F]{3,8}\b/') as $m) {
                 if (! str_contains($line, '--ds-') && ! str_contains($line, 'dashcore-design')) {
                     $findings[] = self::finding('hardcoded colour', $n, $m, 'Move it to a --ds-* role, or to the design file if it is an identity colour.');
+                }
+            }
+
+            // A line that names a role used to excuse every hex on it, which
+            // was meant for a role's own definition (--ds-accent: #…) and a
+            // fallback (var(--ds-accent, #…)). It also hid text-[#1D9E75]
+            // beside text-(--ds-text) on hr, about 650 of them. Those are
+            // reported under their own name, so no app's count of the old
+            // rule rises.
+            if (str_contains($line, '--ds-') && ! str_contains($line, 'dashcore-design')) {
+                $rest = (string) preg_replace('/--ds-[\w-]+\s*:\s*[^;{}]*|var\(--ds-[\w-]+\s*,[^)]*\)/', '', $line);
+                foreach (self::matches($rest, '/(?<![\w-])#[0-9a-fA-F]{3,8}\b/') as $m) {
+                    $findings[] = self::finding('hardcoded colour beside a role', $n, $m, 'Move it to a --ds-* role. The role on the same line does not cover it.');
                 }
             }
 

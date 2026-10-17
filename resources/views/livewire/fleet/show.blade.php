@@ -12,7 +12,7 @@
         x-show="message"
         x-transition
         x-cloak
-        class="card-os mb-4 px-4 py-3 text-sm text-surface-200"
+        class="card-os mb-4 px-4 py-3 text-sm text-(--ds-text-strong)"
         role="status"
     >
         <span x-text="message"></span>
@@ -21,14 +21,14 @@
     {{-- Header --}}
     <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-            <a href="{{ route('fleet.index') }}" wire:navigate class="text-xs text-surface-500 hover:text-surface-300">&larr; Fleet coverage</a>
-            <h1 class="text-2xl font-bold text-surface-100 mt-1">{{ $app->name }}</h1>
-            <p class="text-sm text-surface-400 mt-1">
+            <a href="{{ route('fleet.index') }}" wire:navigate class="text-xs text-(--ds-text-muted) hover:text-(--ds-text)">&larr; Fleet coverage</a>
+            <h1 class="text-2xl font-semibold text-(--ds-text-strong) mt-1">{{ $app->name }}</h1>
+            <p class="text-sm text-(--ds-text-muted) mt-1">
                 {{ $app->host }}
                 @if ($app->repo) · <span class="font-mono text-xs">{{ $app->repo }}</span>@endif
             </p>
             @unless ($app->isScannable())
-                <p class="text-xs text-warning-500 mt-1">There is no checkout of this app under the scanner root on this machine.</p>
+                <p class="text-xs text-(--ds-warning) mt-1">There is no checkout of this app under the scanner root on this machine.</p>
             @endunless
         </div>
 
@@ -41,7 +41,7 @@
                     wire:click="installBaseline"
                     wire:loading.attr="disabled"
                     wire:target="installBaseline"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-800 text-surface-200 text-sm font-medium hover:bg-surface-700 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-(--ds-sunken) text-(--ds-text-strong) text-sm font-medium hover:bg-(--ds-border) transition-colors disabled:opacity-50"
                 >
                     <x-spinner wire:loading wire:target="installBaseline" />
                     Install fleet baseline
@@ -52,7 +52,7 @@
                     wire:click="build"
                     wire:loading.attr="disabled"
                     wire:target="build"
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-surface-800 text-surface-200 text-sm font-medium hover:bg-surface-700 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-(--ds-sunken) text-(--ds-text-strong) text-sm font-medium hover:bg-(--ds-border) transition-colors disabled:opacity-50"
                 >
                     <x-spinner wire:loading wire:target="build" />
                     Write tests for gaps
@@ -64,7 +64,7 @@
                     wire:loading.attr="disabled"
                     wire:target="scan"
                     @disabled($current?->status->isActive())
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-accent-500 text-white text-sm font-medium hover:bg-accent-600 transition-colors disabled:opacity-50"
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-(--ds-accent) text-(--ds-on-accent) text-sm font-medium hover:bg-(--ds-accent-hover) transition-colors disabled:opacity-50"
                 >
                     <x-spinner wire:loading wire:target="scan" />
                     Scan now
@@ -74,48 +74,48 @@
     </div>
 
     @if (! $scan)
-        <div class="card-os p-10 text-center">
-            <p class="text-sm text-surface-300">This app has not been scanned yet.</p>
+        <div class="card-os p-8 text-center">
+            <p class="text-sm text-(--ds-text)">This app has not been scanned yet.</p>
             @if ($current?->status->value === 'failed')
-                <p class="text-xs text-red-400 mt-2">The last attempt failed: {{ \Illuminate\Support\Str::limit($current->error, 300) }}</p>
+                <p class="text-xs text-(--ds-danger) mt-2">The last attempt failed: {{ \Illuminate\Support\Str::limit($current->error, 300) }}</p>
             @endif
         </div>
     @else
         {{-- Summary --}}
         <div class="grid gap-3 sm:grid-cols-4 mb-6">
             <div class="card-os p-4 sm:col-span-2">
-                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Coverage of surfaces</p>
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Coverage of surfaces</p>
                 <x-score-bar class="mt-2" :score="$scan->score" :tested="$scan->surfaces_tested" :weak="$scan->surfaces_weak" :total="$scan->surfaces_total" />
-                <p class="text-xs text-surface-500 mt-2">
+                <p class="text-xs text-(--ds-text-muted) mt-2">
                     {{ number_format($scan->surfaces_tested) }} tested ·
-                    <span class="text-warning-500">{{ number_format($scan->surfaces_weak) }} weak</span> ·
-                    <span class="text-red-400">{{ number_format($scan->surfaces_missing) }} untested</span>
+                    <span class="text-(--ds-warning)">{{ number_format($scan->surfaces_weak) }} weak</span> ·
+                    <span class="text-(--ds-danger)">{{ number_format($scan->surfaces_missing) }} untested</span>
                     of {{ number_format($scan->surfaces_total) }}
                 </p>
             </div>
             <div class="card-os p-4">
-                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Suite</p>
-                <p class="mt-1 font-mono text-lg text-surface-100">{{ number_format($scan->tests_total) }} <span class="text-xs text-surface-500">tests</span></p>
-                <p class="text-xs mt-1 {{ $scan->tests_failed > 0 ? 'text-red-400' : 'text-surface-500' }}">
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Suite</p>
+                <p class="mt-1 font-mono text-lg text-(--ds-text-strong)">{{ number_format($scan->tests_total) }} <span class="text-xs text-(--ds-text-muted)">tests</span></p>
+                <p class="text-xs mt-1 {{ $scan->tests_failed > 0 ? 'text-(--ds-danger)' : 'text-(--ds-text-muted)' }}">
                     {{ $scan->tests_failed }} failing · {{ $scan->tests_skipped }} skipped · {{ $scan->tests_risky }} risky
                 </p>
             </div>
             <div class="card-os p-4">
-                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Scanned</p>
-                <p class="mt-1 text-sm text-surface-200">{{ $scan->finished_at?->diffForHumans() }}</p>
-                <p class="text-xs text-surface-500 mt-1 truncate" title="{{ $scan->commit_subject }}">
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Scanned</p>
+                <p class="mt-1 text-sm text-(--ds-text-strong)">{{ $scan->finished_at?->diffForHumans() }}</p>
+                <p class="text-xs text-(--ds-text-muted) mt-1 truncate" title="{{ $scan->commit_subject }}">
                     <span class="font-mono">{{ substr((string) $scan->commit_sha, 0, 7) }}</span> on {{ $scan->ref }} · {{ $scan->framework }}
                 </p>
-                <p class="text-xs mt-0.5 {{ $scan->testkit_version ? 'text-surface-500' : 'text-warning-500' }}">
+                <p class="text-xs mt-0.5 {{ $scan->testkit_version ? 'text-(--ds-text-muted)' : 'text-(--ds-warning)' }}">
                     {{ $scan->testkit_version ? 'Fleet baseline '.$scan->testkit_version : 'No fleet baseline' }}
                 </p>
             </div>
         </div>
 
         @if ($scan->notes)
-            <div class="card-os mb-6 border border-warning-500/30 px-4 py-3">
-                <p class="text-xs font-medium uppercase tracking-wider text-warning-500 mb-1">Scan notes</p>
-                <ul class="space-y-1 text-sm text-surface-400">
+            <div class="card-os mb-6 border border-(--ds-warning) px-4 py-3">
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-warning) mb-1">Scan notes</p>
+                <ul class="space-y-1 text-sm text-(--ds-text-muted)">
                     @foreach ($scan->notes as $note)
                         <li>{{ $note }}</li>
                     @endforeach
@@ -126,17 +126,17 @@
         {{-- Since the last scan, and how hard the tests bite --}}
         <div class="grid gap-3 sm:grid-cols-2 mb-6">
             <div class="card-os p-4">
-                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Since the previous scan</p>
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Since the previous scan</p>
                 @if ($scan->previous_scan_id === null)
-                    <p class="mt-1 text-sm text-surface-400">This is the first scan — the baseline later scans are held to.</p>
+                    <p class="mt-1 text-sm text-(--ds-text-muted)">This is the first scan — the baseline later scans are held to.</p>
                 @else
                     <p class="mt-1 text-sm">
-                        <span class="{{ $scan->surfaces_lost > 0 ? 'text-red-400' : 'text-surface-400' }}">{{ $scan->surfaces_lost }} lost coverage</span> ·
-                        <span class="{{ $scan->surfaces_new_untested > 0 ? 'text-red-400' : 'text-surface-400' }}">{{ $scan->surfaces_new_untested }} new and untested</span> ·
-                        <span class="{{ $scan->surfaces_gained > 0 ? 'text-success-500' : 'text-surface-400' }}">{{ $scan->surfaces_gained }} newly tested</span>
+                        <span class="{{ $scan->surfaces_lost > 0 ? 'text-(--ds-danger)' : 'text-(--ds-text-muted)' }}">{{ $scan->surfaces_lost }} lost coverage</span> ·
+                        <span class="{{ $scan->surfaces_new_untested > 0 ? 'text-(--ds-danger)' : 'text-(--ds-text-muted)' }}">{{ $scan->surfaces_new_untested }} new and untested</span> ·
+                        <span class="{{ $scan->surfaces_gained > 0 ? 'text-(--ds-success)' : 'text-(--ds-text-muted)' }}">{{ $scan->surfaces_gained }} newly tested</span>
                     </p>
                     @if ($scan->regressions() > 0)
-                        <button type="button" wire:click="showRegressions" wire:loading.attr="disabled" wire:target="showRegressions" class="mt-2 inline-flex items-center gap-1.5 text-xs text-accent-400 hover:text-accent-500 disabled:opacity-50">
+                        <button type="button" wire:click="showRegressions" wire:loading.attr="disabled" wire:target="showRegressions" class="mt-2 inline-flex items-center gap-1.5 text-xs text-(--ds-accent-content) hover:text-(--ds-accent-content) disabled:opacity-50">
                             <x-spinner class="h-3 w-3" wire:loading wire:target="showRegressions" />
                             Show the {{ $scan->regressions() }} {{ \Illuminate\Support\Str::plural('regression', $scan->regressions()) }}
                         </button>
@@ -144,28 +144,28 @@
                 @endif
             </div>
             <div class="card-os p-4">
-                <p class="text-xs font-medium uppercase tracking-wider text-surface-500">Mutation checks</p>
+                <p class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Mutation checks</p>
                 <p class="mt-1 text-sm">
-                    <span class="text-success-500">{{ $scan->mutants_killed }} caught</span> ·
-                    <span class="{{ $scan->mutants_survived > 0 ? 'text-warning-500' : 'text-surface-400' }}">{{ $scan->mutants_survived }} {{ \Illuminate\Support\Str::plural('method', $scan->mutants_survived) }} could break unnoticed</span>
+                    <span class="text-(--ds-success)">{{ $scan->mutants_killed }} caught</span> ·
+                    <span class="{{ $scan->mutants_survived > 0 ? 'text-(--ds-warning)' : 'text-(--ds-text-muted)' }}">{{ $scan->mutants_survived }} {{ \Illuminate\Support\Str::plural('method', $scan->mutants_survived) }} could break unnoticed</span>
                 </p>
-                <p class="text-xs text-surface-500 mt-1">Each tested method's body is swapped for a trivial default; its tests must fail.</p>
+                <p class="text-xs text-(--ds-text-muted) mt-1">Each tested method's body is swapped for a trivial default; its tests must fail.</p>
             </div>
         </div>
 
         {{-- By kind --}}
         <div class="card-os p-4 mb-6">
-            <h2 class="text-sm font-semibold text-surface-200 uppercase tracking-wider mb-3">By kind</h2>
+            <h2 class="text-sm font-semibold text-(--ds-text-strong) uppercase tracking-wider mb-3">By kind</h2>
             <div class="grid gap-x-8 gap-y-2 sm:grid-cols-2">
                 @foreach ($this->breakdown as $row)
                     <button
                         type="button"
                         wire:click="$set('kind', '{{ $row['kind']->value }}')"
-                        class="flex items-center gap-3 rounded px-1 py-0.5 text-left hover:bg-surface-800/40 {{ $kind === $row['kind']->value ? 'bg-surface-800/60' : '' }}"
+                        class="flex items-center gap-3 rounded px-1 py-0.5 text-left hover:bg-(--ds-sunken)/40 {{ $kind === $row['kind']->value ? 'bg-(--ds-sunken)/60' : '' }}"
                     >
-                        <span class="w-40 shrink-0 text-sm text-surface-300">{{ $row['kind']->label() }}</span>
+                        <span class="w-40 shrink-0 text-sm text-(--ds-text)">{{ $row['kind']->label() }}</span>
                         <x-score-bar class="flex-1" :score="$row['total'] ? round($row['tested'] / $row['total'] * 100, 1) : null" :tested="$row['tested']" :weak="$row['weak']" :total="$row['total']" />
-                        <span class="w-16 shrink-0 text-right font-mono text-xs text-surface-500">{{ $row['tested'] }}/{{ $row['total'] }}</span>
+                        <span class="w-16 shrink-0 text-right font-mono text-xs text-(--ds-text-muted)">{{ $row['tested'] }}/{{ $row['total'] }}</span>
                     </button>
                 @endforeach
             </div>
@@ -173,22 +173,22 @@
 
         {{-- Surfaces --}}
         <div class="card-os mb-6">
-            <div class="flex flex-wrap items-center gap-2 border-b border-surface-800 p-4">
-                <h2 class="mr-auto text-sm font-semibold text-surface-200 uppercase tracking-wider">Surfaces</h2>
-                <select wire:model.live="status" aria-label="Status" class="rounded-md border-0 bg-surface-800 py-1.5 pl-3 pr-8 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500">
+            <div class="flex flex-wrap items-center gap-2 border-b border-(--ds-border) p-4">
+                <h2 class="mr-auto text-sm font-semibold text-(--ds-text-strong) uppercase tracking-wider">Surfaces</h2>
+                <select wire:model.live="status" aria-label="Status" class="rounded-md border-0 bg-(--ds-sunken) py-1.5 pl-3 pr-8 text-sm text-(--ds-text-strong) ring-1 ring-inset ring-(--ds-border) focus:ring-2 focus:ring-(--ds-accent)">
                     <option value="open">Untested &amp; weak</option>
                     <option value="missing">Untested</option>
                     <option value="weak">Weak</option>
                     <option value="tested">Tested</option>
                     <option value="all">All</option>
                 </select>
-                <select wire:model.live="kind" aria-label="Kind" class="rounded-md border-0 bg-surface-800 py-1.5 pl-3 pr-8 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500">
+                <select wire:model.live="kind" aria-label="Kind" class="rounded-md border-0 bg-(--ds-sunken) py-1.5 pl-3 pr-8 text-sm text-(--ds-text-strong) ring-1 ring-inset ring-(--ds-border) focus:ring-2 focus:ring-(--ds-accent)">
                     <option value="">All kinds</option>
                     @foreach ($kinds as $k)
                         <option value="{{ $k->value }}">{{ $k->label() }}</option>
                     @endforeach
                 </select>
-                <select wire:model.live="change" aria-label="Change since the previous scan" class="rounded-md border-0 bg-surface-800 py-1.5 pl-3 pr-8 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500">
+                <select wire:model.live="change" aria-label="Change since the previous scan" class="rounded-md border-0 bg-(--ds-sunken) py-1.5 pl-3 pr-8 text-sm text-(--ds-text-strong) ring-1 ring-inset ring-(--ds-border) focus:ring-2 focus:ring-(--ds-accent)">
                     <option value="">Any change</option>
                     <option value="regressions">Regressions</option>
                     <option value="lost">Lost coverage</option>
@@ -200,30 +200,30 @@
                     wire:model.live.debounce.300ms="search"
                     placeholder="Search…"
                     aria-label="Search surfaces"
-                    class="w-48 rounded-md border-0 bg-surface-800 py-1.5 px-3 text-sm text-surface-200 ring-1 ring-inset ring-surface-700 focus:ring-2 focus:ring-accent-500"
+                    class="w-48 rounded-md border-0 bg-(--ds-sunken) py-1.5 px-3 text-sm text-(--ds-text-strong) ring-1 ring-inset ring-(--ds-border) focus:ring-2 focus:ring-(--ds-accent)"
                 >
-                <x-spinner class="h-4 w-4 text-surface-400" wire:loading wire:target="status,kind,search,change,gotoPage,nextPage,previousPage" />
+                <x-spinner class="h-4 w-4 text-(--ds-text-muted)" wire:loading wire:target="status,kind,search,change,gotoPage,nextPage,previousPage" />
             </div>
 
-            <ul class="divide-y divide-surface-800" wire:loading.class="opacity-60" wire:target="status,kind,search,change,gotoPage,nextPage,previousPage">
+            <ul class="divide-y divide-(--ds-border)" wire:loading.class="opacity-60" wire:target="status,kind,search,change,gotoPage,nextPage,previousPage">
                 @forelse ($this->surfaces as $surface)
                     @php $result = $this->evidence->get($surface->id); @endphp
                     <li class="px-4 py-3" wire:key="surface-{{ $surface->id }}" x-data="{ open: false }">
                         <div class="flex items-start gap-3">
                             <span @class([
                                 'mt-0.5 inline-flex w-16 shrink-0 justify-center rounded-full px-2 py-0.5 text-xs font-medium',
-                                'bg-red-500/15 text-red-400' => $surface->status?->value === 'missing',
-                                'bg-warning-500/15 text-warning-500' => $surface->status?->value === 'weak',
-                                'bg-success-500/15 text-success-500' => $surface->status?->value === 'tested',
+                                'bg-red-500/15 text-(--ds-danger)' => $surface->status?->value === 'missing',
+                                'bg-(--ds-warning-soft) text-(--ds-warning)' => $surface->status?->value === 'weak',
+                                'bg-(--ds-success-soft) text-(--ds-success)' => $surface->status?->value === 'tested',
                             ])>{{ $surface->status?->label() }}</span>
                             <div class="min-w-0 flex-1">
-                                <p class="font-mono text-sm text-surface-100 break-all">
+                                <p class="font-mono text-sm text-(--ds-text-strong) break-all">
                                     {{ $surface->label }}
                                     @if (isset($this->liveSurfaceIds[$surface->id]))
-                                        <a href="{{ route('simulation.index') }}" wire:navigate class="ml-1 inline-flex items-center rounded-full bg-accent-500/15 px-2 py-px align-middle font-sans text-[11px] font-medium text-accent-400 hover:bg-accent-500/25" title="A Proving Ground journey uses this in a real browser">live</a>
+                                        <a href="{{ route('simulation.index') }}" wire:navigate class="ml-1 inline-flex items-center rounded-full bg-(--ds-accent-soft) px-2 py-px align-middle font-sans text-[11px] font-medium text-(--ds-accent-content) hover:bg-(--ds-accent-hover)" title="A Proving Ground journey uses this in a real browser">live</a>
                                     @endif
                                 </p>
-                                <p class="text-xs text-surface-500 mt-0.5">
+                                <p class="text-xs text-(--ds-text-muted) mt-0.5">
                                     {{ $surface->kind->label() }}
                                     @if ($surface->file) · {{ $surface->file }}@if ($surface->start_line):{{ $surface->start_line }}@endif @endif
                                     @if ($surface->meta['name'] ?? null) · {{ $surface->meta['name'] }}@endif
@@ -232,33 +232,33 @@
                                 @if ($surface->reason || $result?->change || $surface->mutation === 'killed')
                                     <p class="mt-1 flex flex-wrap gap-2 text-xs">
                                         @if ($surface->reason)
-                                            <span class="text-warning-500">{{ $surface->reason->label() }}</span>
+                                            <span class="text-(--ds-warning)">{{ $surface->reason->label() }}</span>
                                         @endif
                                         @if ($result?->change)
-                                            <span @class(['text-red-400' => $result->change->isRegression(), 'text-success-500' => ! $result->change->isRegression()])>{{ $result->change->label() }}</span>
+                                            <span @class(['text-(--ds-danger)' => $result->change->isRegression(), 'text-(--ds-success)' => ! $result->change->isRegression()])>{{ $result->change->label() }}</span>
                                         @endif
                                         @if ($surface->mutation === 'killed' && $surface->status?->value === 'tested')
-                                            <span class="text-surface-500" title="Its body was swapped for a trivial default and a test failed">Breakage caught</span>
+                                            <span class="text-(--ds-text-muted)" title="Its body was swapped for a trivial default and a test failed">Breakage caught</span>
                                         @endif
                                     </p>
                                 @endif
                             </div>
                             @if (isset($this->heldTargets[$surface->id]))
-                                <a href="{{ route('builds.show', $this->heldTargets[$surface->id]) }}" wire:navigate class="shrink-0 text-xs text-accent-400 hover:text-accent-500">In build #{{ $this->heldTargets[$surface->id] }}</a>
+                                <a href="{{ route('builds.show', $this->heldTargets[$surface->id]) }}" wire:navigate class="shrink-0 text-xs text-(--ds-accent-content) hover:text-(--ds-accent-content)">In build #{{ $this->heldTargets[$surface->id] }}</a>
                             @elseif ($this->canManage && $app->isScannable() && in_array($surface->status?->value, ['missing', 'weak'], true))
                                 <button
                                     type="button"
                                     wire:click="build({{ $surface->id }})"
                                     wire:loading.attr="disabled"
                                     wire:target="build({{ $surface->id }})"
-                                    class="shrink-0 inline-flex items-center gap-1 text-xs text-surface-400 hover:text-accent-400 disabled:opacity-50"
+                                    class="shrink-0 inline-flex items-center gap-1 text-xs text-(--ds-text-muted) hover:text-(--ds-accent-content) disabled:opacity-50"
                                 >
                                     <x-spinner class="h-3 w-3" wire:loading wire:target="build({{ $surface->id }})" />
                                     Write a test
                                 </button>
                             @endif
                             @if ($result && $result->tests_count > 0)
-                                <button type="button" x-on:click="open = ! open" class="shrink-0 text-xs text-accent-400 hover:text-accent-500" x-bind:aria-expanded="open">
+                                <button type="button" x-on:click="open = ! open" class="shrink-0 text-xs text-(--ds-accent-content) hover:text-(--ds-accent-content)" x-bind:aria-expanded="open">
                                     {{ $result->tests_count }} {{ \Illuminate\Support\Str::plural('test', $result->tests_count) }}
                                 </button>
                             @endif
@@ -267,37 +267,37 @@
                             <ul x-show="open" x-cloak class="mt-2 ml-[4.75rem] space-y-1">
                                 @foreach ($result->evidence as $test)
                                     <li class="text-xs">
-                                        <span @class(['text-success-500' => $test['outcome'] === 'passed', 'text-red-400' => $test['outcome'] !== 'passed'])>{{ $test['outcome'] }}</span>
-                                        <span class="text-surface-300">{{ $test['name'] }}</span>
-                                        <span class="text-surface-600">{{ $test['file'] }}</span>
+                                        <span @class(['text-(--ds-success)' => $test['outcome'] === 'passed', 'text-(--ds-danger)' => $test['outcome'] !== 'passed'])>{{ $test['outcome'] }}</span>
+                                        <span class="text-(--ds-text)">{{ $test['name'] }}</span>
+                                        <span class="text-(--ds-text-muted)">{{ $test['file'] }}</span>
                                     </li>
                                 @endforeach
                             </ul>
                         @endif
                     </li>
                 @empty
-                    <li class="px-4 py-10 text-center text-sm text-surface-400">
+                    <li class="px-4 py-8 text-center text-sm text-(--ds-text-muted)">
                         {{ $status === 'open' ? 'Nothing left to test here.' : 'No surfaces match.' }}
                     </li>
                 @endforelse
             </ul>
 
             @if ($this->surfaces->hasPages())
-                <div class="border-t border-surface-800 px-4 py-3">{{ $this->surfaces->links() }}</div>
+                <div class="border-t border-(--ds-border) px-4 py-3">{{ $this->surfaces->links() }}</div>
             @endif
         </div>
 
         {{-- Failing tests --}}
         @if ($this->failingTests->isNotEmpty())
             <div class="card-os mb-6">
-                <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-red-400 uppercase tracking-wider">Failing tests</h2>
-                <ul class="divide-y divide-surface-800">
+                <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold text-(--ds-danger) uppercase tracking-wider">Failing tests</h2>
+                <ul class="divide-y divide-(--ds-border)">
                     @foreach ($this->failingTests as $test)
                         <li class="px-4 py-3" wire:key="fail-{{ $test->id }}">
-                            <p class="text-sm text-surface-100">{{ $test->name }}</p>
-                            <p class="text-xs text-surface-500">{{ $test->file }}</p>
+                            <p class="text-sm text-(--ds-text-strong)">{{ $test->name }}</p>
+                            <p class="text-xs text-(--ds-text-muted)">{{ $test->file }}</p>
                             @if ($test->message)
-                                <pre class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-surface-900/60 p-2 font-mono text-xs text-surface-400">{{ \Illuminate\Support\Str::limit($test->message, 1200) }}</pre>
+                                <pre class="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-(--ds-surface) p-2 font-mono text-xs text-(--ds-text-muted)">{{ \Illuminate\Support\Str::limit($test->message, 1200) }}</pre>
                             @endif
                         </li>
                     @endforeach
@@ -309,27 +309,27 @@
     {{-- Pull requests --}}
     @if ($this->pullRequests->isNotEmpty())
         <div class="card-os overflow-x-auto mb-6">
-            <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-surface-200 uppercase tracking-wider">Pull requests</h2>
-            <table class="min-w-full divide-y divide-surface-800">
-                <tbody class="divide-y divide-surface-800">
+            <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold text-(--ds-text-strong) uppercase tracking-wider">Pull requests</h2>
+            <table class="min-w-full divide-y divide-(--ds-border)">
+                <tbody class="divide-y divide-(--ds-border)">
                     @foreach ($this->pullRequests as $pr)
                         <tr wire:key="pr-{{ $pr->id }}">
                             <td class="px-4 py-2 whitespace-nowrap">
-                                <a href="{{ $pr->pr_url }}" target="_blank" rel="noopener" class="text-sm text-accent-400 hover:text-accent-500">#{{ $pr->pr_number }}</a>
-                                <span class="ml-1 font-mono text-xs text-surface-500">{{ substr((string) $pr->pr_head_sha, 0, 7) }}</span>
+                                <a href="{{ $pr->pr_url }}" target="_blank" rel="noopener" class="text-sm text-(--ds-accent-content) hover:text-(--ds-accent-content)">#{{ $pr->pr_number }}</a>
+                                <span class="ml-1 font-mono text-xs text-(--ds-text-muted)">{{ substr((string) $pr->pr_head_sha, 0, 7) }}</span>
                             </td>
                             <td class="px-4 py-2 whitespace-nowrap">
                                 @if ($pr->status->value === 'completed')
                                     <a href="{{ route('scans.show', $pr) }}" wire:navigate @class([
                                         'inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium',
-                                        'bg-success-500/15 text-success-500' => $pr->verdict === 'pass',
-                                        'bg-red-500/15 text-red-400' => $pr->verdict !== 'pass',
+                                        'bg-(--ds-success-soft) text-(--ds-success)' => $pr->verdict === 'pass',
+                                        'bg-red-500/15 text-(--ds-danger)' => $pr->verdict !== 'pass',
                                     ])>{{ $pr->verdict === 'pass' ? 'Keeps the ratchet' : 'Blocked' }}</a>
                                 @else
                                     <a href="{{ route('scans.show', $pr) }}" wire:navigate><x-scan-status :scan="$pr" /></a>
                                 @endif
                             </td>
-                            <td class="px-4 py-2 text-xs text-surface-400">
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted)">
                                 @if ($pr->status->value === 'completed')
                                     {{ app(\App\Scanning\PullRequestVerdict::class)->describe($pr->verdict_detail, $pr->score === null ? null : (float) $pr->score) }}
                                 @elseif ($pr->deferrals > 0 && $pr->status->value === 'queued')
@@ -338,7 +338,7 @@
                                     {{ \Illuminate\Support\Str::limit((string) $pr->error, 90) }}
                                 @endif
                             </td>
-                            <td class="px-4 py-2 text-xs text-surface-500 text-right whitespace-nowrap">{{ $pr->created_at->diffForHumans() }}</td>
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted) text-right whitespace-nowrap">{{ $pr->created_at->diffForHumans() }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -349,13 +349,13 @@
     {{-- Builds --}}
     @if ($this->builds->isNotEmpty())
         <div class="card-os overflow-x-auto mb-6">
-            <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-surface-200 uppercase tracking-wider">Test builds</h2>
-            <table class="min-w-full divide-y divide-surface-800">
-                <tbody class="divide-y divide-surface-800">
+            <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold text-(--ds-text-strong) uppercase tracking-wider">Test builds</h2>
+            <table class="min-w-full divide-y divide-(--ds-border)">
+                <tbody class="divide-y divide-(--ds-border)">
                     @foreach ($this->builds as $b)
                         <tr wire:key="build-{{ $b->id }}">
                             <td class="px-4 py-2 whitespace-nowrap"><a href="{{ route('builds.show', $b) }}" wire:navigate><x-build-status :build="$b" /></a></td>
-                            <td class="px-4 py-2 text-sm text-surface-300">
+                            <td class="px-4 py-2 text-sm text-(--ds-text)">
                                 @if ($b->kind->value === 'testkit')
                                     {{ $b->kind->label() }}
                                 @else
@@ -364,12 +364,12 @@
                             </td>
                             <td class="px-4 py-2 text-sm">
                                 @if ($b->pr_url)
-                                    <a href="{{ $b->pr_url }}" target="_blank" rel="noopener" class="text-accent-400 hover:text-accent-500">PR #{{ $b->pr_number }}</a>
+                                    <a href="{{ $b->pr_url }}" target="_blank" rel="noopener" class="text-(--ds-accent-content) hover:text-(--ds-accent-content)">PR #{{ $b->pr_number }}</a>
                                 @elseif ($b->status->value === 'ready')
-                                    <span class="font-mono text-xs text-surface-400">{{ $b->branch }}</span>
+                                    <span class="font-mono text-xs text-(--ds-text-muted)">{{ $b->branch }}</span>
                                 @endif
                             </td>
-                            <td class="px-4 py-2 text-xs text-surface-500 text-right whitespace-nowrap">{{ $b->created_at->diffForHumans() }}</td>
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted) text-right whitespace-nowrap">{{ $b->created_at->diffForHumans() }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -380,16 +380,16 @@
     {{-- History --}}
     @if ($this->history->isNotEmpty())
         <div class="card-os overflow-x-auto">
-            <h2 class="border-b border-surface-800 p-4 text-sm font-semibold text-surface-200 uppercase tracking-wider">Scan history</h2>
-            <table class="min-w-full divide-y divide-surface-800">
-                <tbody class="divide-y divide-surface-800">
+            <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold text-(--ds-text-strong) uppercase tracking-wider">Scan history</h2>
+            <table class="min-w-full divide-y divide-(--ds-border)">
+                <tbody class="divide-y divide-(--ds-border)">
                     @foreach ($this->history as $past)
                         <tr wire:key="history-{{ $past->id }}">
                             <td class="px-4 py-2 whitespace-nowrap"><a href="{{ route('scans.show', $past) }}" wire:navigate><x-scan-status :scan="$past" /></a></td>
-                            <td class="px-4 py-2 font-mono text-sm text-surface-300">{{ $past->score !== null ? number_format((float) $past->score, 1).'%' : '—' }}</td>
-                            <td class="px-4 py-2 text-xs text-surface-500 font-mono">{{ $past->commit_sha ? substr($past->commit_sha, 0, 7) : '' }}</td>
-                            <td class="px-4 py-2 text-xs text-surface-500 truncate max-w-xs">{{ $past->commit_subject }}</td>
-                            <td class="px-4 py-2 text-xs text-surface-500 text-right whitespace-nowrap">{{ $past->created_at->diffForHumans() }}</td>
+                            <td class="px-4 py-2 font-mono text-sm text-(--ds-text)">{{ $past->score !== null ? number_format((float) $past->score, 1).'%' : '—' }}</td>
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted) font-mono">{{ $past->commit_sha ? substr($past->commit_sha, 0, 7) : '' }}</td>
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted) truncate max-w-xs">{{ $past->commit_subject }}</td>
+                            <td class="px-4 py-2 text-xs text-(--ds-text-muted) text-right whitespace-nowrap">{{ $past->created_at->diffForHumans() }}</td>
                         </tr>
                     @endforeach
                 </tbody>

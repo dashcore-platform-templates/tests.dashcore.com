@@ -27,21 +27,21 @@ new #[Layout('layouts.guest')] class extends Component
 
 <div>
     <div class="text-center mb-6">
-        <h1 class="text-2xl font-bold text-surface-100 tracking-tight mb-1">Welcome back</h1>
-        <p class="text-sm text-surface-400">Sign in to your Dashcore account</p>
+        <h1 class="text-2xl font-semibold text-(--ds-text-strong) tracking-tight mb-1">Welcome back</h1>
+        <p class="text-sm text-(--ds-text-muted)">Sign in to your Dashcore account</p>
     </div>
 
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
     @if (session('bridge.sso.error'))
-        <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
+        <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-(--ds-danger)">
             {{ session('bridge.sso.error') }}
         </div>
     @endif
 
     @if (SsoMode::isOn())
-        <a href="{{ route('bridge.sso.redirect') }}" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors mb-4">
+        <a href="{{ route('bridge.sso.redirect') }}" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors mb-4">
             Sign in with Dashcore
         </a>
     @endif
@@ -50,8 +50,8 @@ new #[Layout('layouts.guest')] class extends Component
         <form wire:submit="login" class="space-y-4">
             @if (SsoMode::isOn())
                 <div class="relative my-4">
-                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-surface-800"></div></div>
-                    <div class="relative flex justify-center text-xs"><span class="bg-surface-950 px-2 text-surface-500">or use a password</span></div>
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-(--ds-border)"></div></div>
+                    <div class="relative flex justify-center text-xs"><span class="bg-(--ds-page) px-2 text-(--ds-text-muted)">or use a password</span></div>
                 </div>
             @endif
 
@@ -67,7 +67,7 @@ new #[Layout('layouts.guest')] class extends Component
                 <div class="flex items-center justify-between mb-1">
                     <x-input-label for="password" :value="__('Password')" />
                     @if (Route::has('password.request'))
-                        <a class="text-xs text-surface-400 hover:text-accent-400 transition-colors" href="{{ route('password.request') }}" wire:navigate>
+                        <a class="text-xs text-(--ds-text-muted) hover:text-(--ds-accent-content) transition-colors" href="{{ route('password.request') }}" wire:navigate>
                             {{ __('Forgot password?') }}
                         </a>
                     @endif
@@ -84,11 +84,11 @@ new #[Layout('layouts.guest')] class extends Component
 
             <!-- Remember Me -->
             <label for="remember" class="inline-flex items-center cursor-pointer">
-                <input wire:model="form.remember" id="remember" type="checkbox" class="rounded bg-surface-800 border-surface-700 text-accent-500 shadow-sm focus:ring-accent-500" name="remember">
-                <span class="ms-2 text-sm text-surface-400">{{ __('Remember me') }}</span>
+                <input wire:model="form.remember" id="remember" type="checkbox" class="rounded bg-(--ds-sunken) border-(--ds-border) text-(--ds-accent-content) shadow-sm focus:ring-(--ds-accent)" name="remember">
+                <span class="ms-2 text-sm text-(--ds-text-muted)">{{ __('Remember me') }}</span>
             </label>
 
-            <button type="submit" wire:loading.attr="disabled" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
+            <button type="submit" wire:loading.attr="disabled" class="btn-cyan w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50">
                 <span wire:loading.remove wire:target="login">{{ __('Log in') }}</span>
                 <span wire:loading wire:target="login" class="inline-flex items-center gap-2">
                     <svg class="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
@@ -100,8 +100,8 @@ new #[Layout('layouts.guest')] class extends Component
             </button>
         </form>
     @elseif (SsoMode::isRequired())
-        <p class="text-center text-xs text-surface-500 mt-2">
-            <a href="?local" class="text-surface-400 hover:text-accent-400 transition-colors">Break-glass sign-in</a>
+        <p class="text-center text-xs text-(--ds-text-muted) mt-2">
+            <a href="?local" class="text-(--ds-text-muted) hover:text-(--ds-accent-content) transition-colors">Break-glass sign-in</a>
         </p>
     @endif
 </div>
