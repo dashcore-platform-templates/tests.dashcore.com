@@ -147,6 +147,25 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Uploads
+    |--------------------------------------------------------------------------
+    |
+    | The largest file this app accepts — PHP shorthand (20M) or bytes — or
+    | `none` when it takes no uploads. Served at GET /api/bridge/v1/uploads,
+    | and tested by POST /api/bridge/v1/uploads/probe: Standards sends a real
+    | file of this size through the web server, PHP and the framework, in
+    | every environment, and fails the app when any layer refuses it.
+    |
+    | Left unset, the app has made no promise and Standards says so.
+    |
+    */
+
+    'uploads' => [
+        'max' => env('BRIDGE_UPLOAD_MAX'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | The control plane's own app id
     |--------------------------------------------------------------------------
     |
@@ -311,6 +330,9 @@ return [
             'api/bridge/v1/health',
             'api/bridge/v1/telemetry',
             'api/bridge/v1/emails',
+            // A deliberate large upload, sent by Standards: timing it would
+            // report the probe as the app's slowest request.
+            'api/bridge/v1/uploads/probe',
             'up',
         ],
 

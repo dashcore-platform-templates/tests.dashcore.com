@@ -314,6 +314,28 @@ The bridge also serves `/.well-known/security.txt` (RFC 9116), with the
 contact in `BRIDGE_SECURITY_CONTACT` (default `mailto:travis@dashcore.com`) and
 an expiry a year out. An app's own static file takes precedence.
 
+## Uploads
+
+An app declares its largest upload in `BRIDGE_UPLOAD_MAX`: PHP shorthand
+(`20M`) or bytes, or `none` when it takes no uploads. `standards` holds the
+whole stack to that number in every environment. It does that by sending a
+real file of that size through the web server, PHP and the framework, which
+is what would have caught talent's CV upload before a person found it.
+
+| Route | What it answers |
+|---|---|
+| `GET /api/bridge/v1/uploads` | The declared limit (`null` when unset, `0` for none) and PHP's own `upload_max_filesize`, `post_max_size`, `file_uploads` and `max_file_uploads`, in bytes. |
+| `POST /api/bridge/v1/uploads/probe?bytes=&sha256=` | Receives a multipart `file` no larger than the declared limit. It answers `200` when the file arrived whole, or `422` with `stopped_by` naming the layer (`upload_max_filesize`, `body_dropped`, `altered`…). It keeps nothing: the file is discarded when the request ends. |
+
+A refusal before PHP, such as a web server's 413, never reaches the app; the
+caller reads that from the response it got back.
+
+`Bridge::to($peer)->upload($path, $contents, $filename, $query)` sends an
+upload. PHP never shows a multipart body to the receiver as raw bytes, so the
+signature covers an empty body. Sign what identifies the file in the query,
+as the probe does with its size and hash, and check the file against it on
+arrival.
+
 ## Source of truth
 
 This repository. `api.dashcore.com` used to vendor the package under
