@@ -1,4 +1,6 @@
 @import 'tailwindcss';
+@import '../../vendor/dashcore/design-kit/dist/dashcore.css';
+@source '../../vendor/dashcore/design-kit/resources/views';
 
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
@@ -6,9 +8,16 @@
 @source '../**/*.js';
 
 @theme {
-    --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+    /* No --font-sans here: Inter comes from the dashcore style (design-kit),
+       and a copy in this block would override every release of it. The style
+       sets no mono face, so JetBrains Mono stays. */
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+    /* The app's own scales: surface (slate, inverted under body.theme-light)
+       and the sky accent-400/500/600. Hundreds of views draw with them, so
+       they stay until those screens move onto the roles; the design
+       allowance counts that work. They do not touch the style's own
+       --color-accent, which Flux and the frame read. */
 
     --color-surface-50: #f8fafc;
     --color-surface-100: #f1f5f9;
@@ -55,26 +64,20 @@ body {
 }
 
 /* ── Theme System ── */
-body.theme-dark {
-    --color-surface-bg: var(--color-surface-950);
-    --color-surface-bg-elevated: var(--color-surface-900);
-    --color-surface-bg-muted: var(--color-surface-800);
-    --color-surface-border: var(--color-surface-800);
-    --color-surface-text: var(--color-surface-200);
-    --color-surface-text-muted: var(--color-surface-400);
-    --color-surface-text-strong: var(--color-surface-100);
+/* The app's page/surface names are the style's roles, which follow the
+   .dark/.light class the theme script puts on <html>. */
+:root {
+    --color-surface-bg: var(--ds-page);
+    --color-surface-bg-elevated: var(--ds-surface);
+    --color-surface-bg-muted: var(--ds-sunken);
+    --color-surface-border: var(--ds-border);
+    --color-surface-text: var(--ds-text);
+    --color-surface-text-muted: var(--ds-text-muted);
+    --color-surface-text-strong: var(--ds-text-strong);
 }
 
 /* Light mode overrides */
 body.theme-light {
-    --color-surface-bg: #f0f2f5;
-    --color-surface-bg-elevated: #f8fafc;
-    --color-surface-bg-muted: #e2e8f0;
-    --color-surface-border: #cbd5e1;
-    --color-surface-text: #1e293b;
-    --color-surface-text-muted: #475569;
-    --color-surface-text-strong: #0f172a;
-
     --color-white: #0f172a;
     --color-black: #f8fafc;
 

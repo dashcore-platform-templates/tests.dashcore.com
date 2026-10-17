@@ -27,7 +27,7 @@
     $upper = config('brand.condensed') ? 'uppercase tracking-[0.02em]' : '';
     $hasDescription = filled($description) && trim((string) $description) !== '';
 @endphp
-<header {{ $attributes->class(['flex flex-wrap items-end justify-between gap-4 pb-(--ds-section)', 'border-b border-(--ds-border) mb-(--ds-section)' => $motif === 'hairline']) }}>
+<header data-dc-page-header {{ $attributes->class(['flex flex-wrap items-end justify-between gap-4 pb-(--ds-section)', 'border-b border-(--ds-border) mb-(--ds-section)' => $motif === 'hairline']) }}>
     <div class="min-w-0">
         @if ($eyebrow || $motif === 'eyebrow')
             <p class="{{ $labelClass }} mb-1.5">{{ $eyebrow ?? config('brand.name') }}</p>
