@@ -8,6 +8,9 @@ on:
 
 permissions:
   contents: read
+  # The design report proves which repository this is with GitHub's own
+  # token, so nothing is stored here to report to design.dashcore.com.
+  id-token: write
 
 jobs:
   tests:
@@ -96,3 +99,9 @@ jobs:
 
       - name: Run tests
         run: php artisan test
+
+      - name: Report to design.dashcore.com
+        if: github.ref_name == github.event.repository.default_branch
+        env:
+          DESIGN_SOURCE: https://design.dashcore.com
+        run: php artisan design:audit --report
