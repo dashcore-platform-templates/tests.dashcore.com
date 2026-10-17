@@ -5,19 +5,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ config('app.name') }}</title>
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=dm-sans:400,500,600,700|jetbrains-mono:400,500" rel="stylesheet" />
+    {{-- Inter and Fraunces are the dashcore style's faces (design-kit); JetBrains
+         Mono stays as this app's --font-mono, which the style does not set. --}}
+    <x-ds::fonts />
+    <link href="https://fonts.bunny.net/css?family=jetbrains-mono:400,500&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- Apply theme before first paint to prevent flash --}}
-    <script>
-        (function() {
-            var theme = localStorage.getItem('app-theme') || 'dark';
-            document.documentElement.style.colorScheme = theme;
-            document.documentElement.dataset.theme = theme;
-        })();
-    </script>
+    {{-- This app is dark unless someone picks light (kept under app-theme). The
+         style's tokens read .dark/.light on <html>, so the saved choice goes
+         there before first paint as well as on <body> for the app's own CSS. --}}
+    <x-ds::theme-script storage-key="app-theme" default="dark" />
 
     <style>
         /* Soft watercolor gradient wash behind the hero — Base44 style */
@@ -209,7 +207,7 @@
                     {{-- Theme Toggle --}}
                     <button
                         id="theme-toggle"
-                        onclick="(function(){var t=localStorage.getItem('app-theme')==='light'?'dark':'light';localStorage.setItem('app-theme',t);document.body.classList.remove('theme-dark','theme-light');document.body.classList.add('theme-'+t);document.getElementById('icon-sun').style.display=t==='dark'?'block':'none';document.getElementById('icon-moon').style.display=t==='light'?'block':'none';})()"
+                        onclick="(function(){var t=localStorage.getItem('app-theme')==='light'?'dark':'light';localStorage.setItem('app-theme',t);document.body.classList.remove('theme-dark','theme-light');document.body.classList.add('theme-'+t);document.documentElement.classList.remove('dark','light');document.documentElement.classList.add(t);document.getElementById('icon-sun').style.display=t==='dark'?'block':'none';document.getElementById('icon-moon').style.display=t==='light'?'block':'none';})()"
                         class="p-2 text-surface-400 hover:text-surface-100 rounded-md hover:bg-surface-900/60 transition-colors"
                         title="Toggle theme"
                     >

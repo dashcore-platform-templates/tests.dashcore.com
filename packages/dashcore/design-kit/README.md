@@ -53,7 +53,16 @@ An organisation owner keeps write and cannot be locked out of their own repo. Th
 
 ## Install
 
-This repo is republished automatically. A push to main in the design repo updates it, and a `design-kit/vX.Y.Z` tag there releases that version here:
+**In a fleet app, copy a release in.** The package is private, and a GitHub Actions runner or a Laravel Cloud build server is logged in as no one, so it cannot download it. Each app carries the release it runs in `packages/dashcore/design-kit`, behind a Composer path repository, exactly as it carries `dashcore/bridge`. From a design.dashcore.com checkout:
+
+```bash
+packages/design-kit/bin/vendor-into ~/Herd/some-app                     # newest design-kit/v* tag
+packages/design-kit/bin/vendor-into ~/Herd/some-app design-kit/v6.2.0   # a specific one
+```
+
+It exports the tag's runtime files, points the app's `composer.json` at the copy (removing any mirror or local path entry), keeps Pint off `packages/`, and requires the package. Commit `packages/`, `composer.json`, `composer.lock` and `pint.json` together. A new release reaches an app the same way: run it again. Nothing reads the mirror on this path.
+
+The mirror below is for a machine that does have credentials. This repo is republished automatically. A push to main in the design repo updates it, and a `design-kit/vX.Y.Z` tag there releases that version here:
 
 ```bash
 git tag design-kit/v1.1.0 && git push origin design-kit/v1.1.0

@@ -100,6 +100,9 @@ jobs:
       - name: Run tests
         run: php artisan test
 
+      - name: Hold to the design allowance
+        run: php artisan design:audit
+
       - name: Report to design.dashcore.com
         if: github.ref_name == github.event.repository.default_branch
         env:

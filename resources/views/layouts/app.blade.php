@@ -7,18 +7,17 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{{ $title ?? config('app.name', 'Laravel') }}</title>
 
-    <link rel="preconnect" href="https://fonts.bunny.net">
-    <link href="https://fonts.bunny.net/css?family=dm-sans:400,500,600,700|jetbrains-mono:400,500" rel="stylesheet" />
+    {{-- Inter and Fraunces are the dashcore style's faces (design-kit); JetBrains
+         Mono stays as this app's --font-mono, which the style does not set. --}}
+    <x-ds::fonts />
+    <link href="https://fonts.bunny.net/css?family=jetbrains-mono:400,500&display=swap" rel="stylesheet" />
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 
-    {{-- Apply theme before first paint to prevent flash --}}
-    <script>
-        (function() {
-            var theme = localStorage.getItem('app-theme') || 'dark';
-            document.documentElement.style.colorScheme = theme;
-        })();
-    </script>
+    {{-- This app is dark unless someone picks light (kept under app-theme). The
+         style's tokens read .dark/.light on <html>, so the saved choice goes
+         there before first paint as well as on <body> for the app's own CSS. --}}
+    <x-ds::theme-script storage-key="app-theme" default="dark" />
 
     <style>
         /* Soft watercolor wash — same language as the welcome / auth pages */

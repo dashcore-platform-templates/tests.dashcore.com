@@ -425,8 +425,9 @@ Files inside `vendor/` are managed by Composer. Never edit them directly. Instea
 
 ## Design
 
-`dashcore/design-kit` is vendored at `packages/dashcore/design-kit`, because the package is private. Never edit that copy: it must match the release. A new release is copied in from a design.dashcore.com checkout with `packages/design-kit/bin/vendor-into <path to this repo>`.
+Tests takes the Dashcore style (`design/design.json` names it), shipped in `dashcore/design-kit`, which is vendored into `packages/dashcore/design-kit` because the package is private. Before building or changing any screen, read `vendor/dashcore/design-kit/STANDARD.md`: section 14 is this style. Never edit that copy: it must match the release. A new release is copied in from a design.dashcore.com checkout with `packages/design-kit/bin/vendor-into <path to this repo>`.
 
-- Before building or changing any screen, read `vendor/dashcore/design-kit/STANDARD.md`.
-- This app is not on the Dashcore style yet. It moves onto it screen by screen, later; until then, don't restyle screens as a side effect of other work.
-- `php artisan design:audit` is a ratchet against `design/allowance.json`: it fails only when a rule's count rises. After fixing screens, lower the allowance with `php artisan design:audit --baseline`; never raise it to get a build green.
+- Inter, Fraunces, the radii and the roles come from the style in `vendor/`; nothing in `resources/css/app.css` restates them. New work takes its colours from the roles (`--ds-page`, `--ds-surface`, `--ds-sunken`, `--ds-border`, `--ds-text*`, or the `dc-*` aliases), never a hex or a Tailwind grey.
+- The app still has its own layout (the pill nav, the washes) and its own `surface-*`/`accent-*` scales in `app.css`, which most views draw with. Those move onto the frame and the roles screen by screen; don't restyle screens as a side effect of other work.
+- Dark is the app's default. The choice is kept in `localStorage` under `app-theme` and set as `.dark`/`.light` on `<html>` (`<x-ds::theme-script storage-key="app-theme" default="dark" />`, which the style's tokens read) and as `theme-dark`/`theme-light` on `<body>` (which the app's own CSS reads). A toggle must update both.
+- `php artisan design:audit` is a ratchet against `design/allowance.json`, and CI runs it: a build fails when a rule's count rises. After fixing screens, lower the allowance with `php artisan design:audit --baseline`; never raise it to get a build green.

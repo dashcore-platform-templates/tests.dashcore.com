@@ -59,6 +59,12 @@ class AuditCommand extends Command
                 ->filter(fn ($f) => str_ends_with($f->getFilename(), '.blade.php'))
                 // Flux's own published stubs are the framework's, not ours to police.
                 ->reject(fn ($f) => str_starts_with(str_replace('\\', '/', $f->getRelativePath()), 'flux'));
+        } elseif ($path === 'resources/views') {
+            // An app with no Blade views at all, such as a site of static pages,
+            // has nothing for these rules to read. That is zero findings, not an
+            // error: an error here turned a reporting build red and left the
+            // allowance unwritable. A path somebody typed still has to exist.
+            $files = collect();
         } else {
             $this->components->error("Nothing at {$path}.");
 
@@ -160,7 +166,11 @@ class AuditCommand extends Command
 
         $this->line('');
         // None of these are mechanical, or --fix would have taken them.
-        $this->components->warn('Work through these with design/MIGRATION.md: one screen per commit, most-used first.');
+        // A pack brings design/MIGRATION.md. An app on a style, or one that
+        // only reports, has none, and the rules live in this package.
+        $this->components->warn(File::exists(base_path('design/MIGRATION.md'))
+            ? 'Work through these with design/MIGRATION.md: one screen per commit, most-used first.'
+            : 'Each rule is in vendor/dashcore/design-kit/STANDARD.md. Fix one screen per commit, most-used first, then lower the allowance with --baseline.');
 
         // Reporting is telling the board what is true, which succeeds whatever
         // it found. Exiting non-zero here turned the one step every app is told
