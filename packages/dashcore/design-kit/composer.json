@@ -1,6 +1,6 @@
 {
     "name": "dashcore/design-kit",
-    "version": "6.8.0",
+    "version": "6.9.0",
     "description": "Applies a design.dashcore.com design file to a Laravel Livewire Flux kit: theme variables, fonts, brand copy, and the three custom components the Dashcore Standard defines.",
     "type": "library",
     "license": "proprietary",

@@ -1,6 +1,6 @@
 # The Dashcore Standard
 
-Standard version: 53a6a515
+Standard version: 1086a03a
 
 That stamp is the text below, hashed. If it differs from the one in your `design/STANDARD.md`, the standard moved since you last applied a design, and `design/CHANGELOG.md` says what changed.
 
@@ -190,7 +190,7 @@ The generator picks one per project. **Pure** is a true grey and suits technical
 
 ## Accent rules
 
-- One accent. The generator chooses a hue and a saturation; the resolver builds the shades.
+- One accent. The generator chooses a hue and a saturation; the resolver builds the shades. Those shades are the five roles above and nothing else: an app does not define an `accent-50` to `accent-950` scale of its own, which would put a second brand colour behind every button.
 - The accent hue must sit at least 30 degrees away from red (0) and amber (40) so it is never read as danger or warning. Green near 140 is allowed but discouraged, since success then loses its meaning.
 - Saturation is between 45 and 85 percent in HSL. Under that it reads as a grey; over it, it vibrates on white.
 - As a fill, the accent appears on: the primary button, the active nav indicator, the checked state of switches, checkboxes and radios, progress fills, and a count marker on a nav item or a notification bell. Nowhere else. A count marker is small, carries `on-accent` text, and sits at `text-xs` like everything else, because 03 sets no size below 12px. A count is attention and never danger, so it is never red: red says something has gone wrong, and a pile of unread items has not.
