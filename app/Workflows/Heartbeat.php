@@ -99,12 +99,13 @@ class Heartbeat
             return null;
         }
 
-        $name = 'tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local';
+        $app = (string) config('workflows.keys_app');
+        $name = "{$app}__WORKFLOWS_HEARTBEAT_URL__local";
 
         try {
             $result = Process::path($checkout)
                 ->env($this->simulation->cleanEnvironment())
-                ->input((string) json_encode([['app' => 'tests.dashcore.com', 'environment' => 'local', 'variable' => 'WORKFLOWS_HEARTBEAT_URL']]))
+                ->input((string) json_encode([['app' => $app, 'environment' => 'local', 'variable' => 'WORKFLOWS_HEARTBEAT_URL']]))
                 ->timeout(60)
                 ->run([(string) config('scanner.php'), 'artisan', 'keys:fleet', 'values']);
         } catch (Throwable) {
