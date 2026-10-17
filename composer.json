@@ -8,7 +8,7 @@
     "require": {
         "php": "^8.4",
         "dashcore/bridge": "^0.11.19",
-        "dashcore/design-kit": "^6.7",
+        "dashcore/design-kit": "^6.8",
         "laravel/framework": "^13.0",
         "laravel/nightwatch": "^1.23",
         "laravel/tinker": "^3.0",

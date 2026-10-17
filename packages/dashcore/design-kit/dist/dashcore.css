@@ -120,6 +120,19 @@
     border-inline-start: 2px solid var(--ds-info);
     border-radius: var(--radius-sm);
 }
+/* 06: a progress bar in a status colour takes the status role. */
+[data-flux-progress][class*='var(--color-red-600)'], [data-flux-progress][class*='var(--color-rose-600)'] {
+    --flux-progress-color: var(--ds-danger);
+}
+[data-flux-progress][class*='var(--color-yellow-600)'], [data-flux-progress][class*='var(--color-amber-600)'], [data-flux-progress][class*='var(--color-orange-600)'] {
+    --flux-progress-color: var(--ds-warning);
+}
+[data-flux-progress][class*='var(--color-green-600)'], [data-flux-progress][class*='var(--color-emerald-600)'], [data-flux-progress][class*='var(--color-lime-600)'] {
+    --flux-progress-color: var(--ds-success);
+}
+[data-flux-progress][class*='var(--color-blue-600)'], [data-flux-progress][class*='var(--color-sky-600)'] {
+    --flux-progress-color: var(--ds-info);
+}
 
 /* The frame: the classes x-ds::shell and its parts draw with, and the dc-*
    names dashcore/ui gave apps, kept as aliases of the roles for one major so

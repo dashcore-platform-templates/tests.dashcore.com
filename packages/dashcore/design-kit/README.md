@@ -146,7 +146,7 @@ It is 18px at 600 in the body face, and it covers a section heading, a card titl
 **Nothing else here breaks.** The rest is new:
 
 - `php artisan design:check --against=<slug>` says whether the standard moved since this app applied, without changing anything. See "Update an app that is already on the standard".
-- Standard section 13 governs public pages, which used to be exempted. A landing page still carrying `@ds-audit-ignore-file` keeps working exactly as before; swapping it for `@ds-public` is what opts it into the rules.
+- Public pages keep their own brand (standard section 13). Mark one `@ds-public` and the audit skips it; the standard unifies the signed-in back end.
 - The audit reports `--ds-prose` used as a width or a height. It is the prose type size from 05, so as a width it gives a column 14 pixels across. It found nothing on any app here; it was written after it caught one of ours.
 - Section 06 said `callout.button`, which has never existed in either Flux tier. It says `callout.link` now.
 

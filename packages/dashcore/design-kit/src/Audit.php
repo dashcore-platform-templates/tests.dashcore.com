@@ -25,6 +25,7 @@ final class Audit
         'colour off the roles',
         'Flux badge',
         'Flux heading at section size',
+        'Flux colour off the roles',
         'Flux Pro component',
         'Flux table styled on the screen',
         'hardcoded colour',
@@ -76,7 +77,7 @@ final class Audit
 
     public const IGNORE_FILE = '@ds-audit-ignore-file';
 
-    /** A page a signed-out person reaches, which 13 governs rather than exempts. */
+    /** A page a signed-out person reaches, which keeps its own brand (13) and the audit skips. */
     public const PUBLIC_FILE = '@ds-public';
 
     /**
@@ -87,18 +88,19 @@ final class Audit
      */
     public static function file(string $contents, ?string $path = null): array
     {
-        if (self::optsOut($contents)) {
+        // 13: a public page keeps its own brand. The standard unifies the
+        // signed-in back end, and a page a signed-out person reaches is not
+        // part of that, so it says @ds-public and the audit leaves it alone.
+        if (self::optsOut($contents) || self::isPublicView($contents, $path)) {
             return [];
         }
 
         $findings = [];
         $lines = preg_split('/\R/', $contents) ?: [];
 
-        // 13: a public page has a hero, not a page header, so the title rule is
-        // wrong there for the same reason it is wrong on sign-in. Everything
-        // else still applies, because a public page is on the roles and the
-        // scale like any other view.
-        $noPageHeader = ($path !== null && self::isAuthView($path)) || self::isPublicView($contents, $path);
+        // Sign-in is the door to the back end, so it is on the roles and the
+        // scale, but its heading is not a page title.
+        $noPageHeader = $path !== null && self::isAuthView($path);
 
         foreach ($lines as $i => $line) {
             $n = $i + 1;
@@ -186,6 +188,10 @@ final class Audit
                 $findings[] = self::finding('Flux badge', $n, $m, 'Use x-ds::badge: a status for the four the standard names, no status for a category, a role or a plan. Flux paints badges from Tailwind, not the standard roles.');
             }
 
+            foreach (self::fluxColours($line) as [$m, $fix]) {
+                $findings[] = self::finding('Flux colour off the roles', $n, $m, $fix);
+            }
+
             foreach (self::matches($line, '/\b(?:'.implode('|', array_keys(Applier::LUCIDE_RENAMES)).')\b/') as $m) {
                 $findings[] = self::finding('Lucide icon name', $n, $m, 'Heroicons only. `design:apply` renames these.');
             }
@@ -200,6 +206,49 @@ final class Audit
         return $findings;
     }
 
+    /**
+     * A Flux component given a colour the style cannot turn into a role. Flux
+     * paints color= straight from Tailwind's palette. The style corrects a
+     * callout or a progress bar in a status family to that status, and zinc
+     * is the style's own neutral ramp; anything else is Tailwind on the
+     * screen. A bound colour counts by the literals in its expression, and
+     * one with none, a variable, cannot be judged here and is reported.
+     * Badges have their own rule.
+     *
+     * @return list<array{0: string, 1: string}>
+     */
+    private static function fluxColours(string $line): array
+    {
+        if (preg_match_all('/<flux:([a-z][\w.-]*)\b[^>]*?\s(:?)color="([^"]*)"/', $line, $all, PREG_SET_ORDER) === 0) {
+            return [];
+        }
+
+        $status = array_merge(...array_values(Applier::CALLOUT_FAMILIES));
+        $found = [];
+
+        foreach ($all as [$m, $tag, $bound, $value]) {
+            if ($tag === 'badge') {
+                continue;
+            }
+
+            $corrected = in_array($tag, ['callout', 'progress'], true);
+            $allowed = $corrected ? [...$status, 'zinc'] : ['zinc'];
+            $colours = $bound === ':' && preg_match_all("/'([a-z]+)'/", $value, $literals) > 0 ? $literals[1] : ($bound === ':' ? [] : [$value]);
+
+            if ($colours !== [] && array_diff($colours, $allowed) === []) {
+                continue;
+            }
+
+            $found[] = ['<flux:'.$tag.' '.$bound.'color="'.$value.'"', match (true) {
+                $tag === 'button' => 'Colour on a button is variant="danger" for a destructive action or variant="primary" for the main one. color= paints Tailwind\'s palette.',
+                $corrected => 'Use a status family (red, amber, green, blue), which the style turns into its status role, or no colour for the accent. Anything else is Tailwind on the screen.',
+                default => 'Drop color=. Colour on the back end means status, and Flux paints this one from Tailwind rather than the roles.',
+            }];
+        }
+
+        return $found;
+    }
+
     /** True when the file carries the whole-file opt-out marker. */
     public static function optsOut(string $contents): bool
     {
@@ -207,13 +256,11 @@ final class Audit
     }
 
     /**
-     * A public page, which 13 governs. It says so with a marker rather than by
-     * where it lives, because "public" is a decision about who reaches a page
-     * and no path spells that reliably. Laravel's own welcome.blade.php is the
-     * exception: every app has one and it is always the landing page.
-     *
-     * This is not an exemption. A public page is still audited for colour,
-     * spacing, weights and text size. It loses one rule, the page title.
+     * A public page, which keeps its own brand (13). It says so with a marker
+     * rather than by where it lives, because "public" is a decision about who
+     * reaches a page and no path spells that reliably. Laravel's own
+     * welcome.blade.php is the exception: every app has one and it is always
+     * the landing page.
      */
     public static function isPublicView(string $contents, ?string $path = null): bool
     {

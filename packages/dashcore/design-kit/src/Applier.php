@@ -31,9 +31,9 @@ final class Applier
     ];
 
     /**
-     * The Tailwind families Flux paints a callout from, by the status each
-     * one says. A family not listed, violet or zinc, is not a status and is
-     * left as Flux draws it.
+     * The Tailwind families Flux paints a callout or a progress bar from, by
+     * the status each one says. A family not listed, violet or zinc, is not a
+     * status: the style leaves it as Flux draws it and the audit reports it.
      */
     public const CALLOUT_FAMILIES = [
         'danger' => ['red', 'rose'],
@@ -316,6 +316,16 @@ final class Applier
             $lines[] = '}';
         }
 
+        // A progress bar takes its colour from --flux-progress-color, which
+        // Flux sets from a family's 600 step in the bar's own classes. Over
+        // budget is the danger role, not Tailwind's red.
+        $lines[] = '/* 06: a progress bar in a status colour takes the status role. */';
+        foreach (self::CALLOUT_FAMILIES as $status => $families) {
+            $selectors = implode(', ', array_map(fn (string $family): string => "[data-flux-progress][class*='var(--color-{$family}-600)']", $families));
+            $lines[] = "{$selectors} {";
+            $lines[] = "    --flux-progress-color: var(--ds-{$status});";
+            $lines[] = '}';
+        }
 
         return $lines;
     }
