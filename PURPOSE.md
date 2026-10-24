@@ -58,6 +58,17 @@ decide what the next batch of tests should cover. The jobs it does:
   arriving in sales first, then paying, being provisioned and onwards — in
   a stand-in fleet (a practice fleet, or the fake company). The list of
   stages, pending ones included, is the progress bar for the whole journey.
+- **Map how a client is brought on.** `tests:launch` takes one made-up
+  client through every stage of being brought on, in order — sold and
+  subscribed, their fleet built, first sign-in, first briefing, the
+  onboarding call with Gabe and its answers into the Brief — then takes the
+  practice fleet down again. It flies every night (FlyLaunch, on the builds
+  queue), and `/client-journey` draws the latest flight: each stage, the
+  apps it crossed and how, every step with its screenshot. Steps that cannot
+  happen in a browser on a stand-in are stood in for, never skipped: the
+  model calls answer from a local Anthropic stand-in with canned replies,
+  the video call is a script filed as Gabe's worker files it, and what
+  fleets would send onboarding over the bridge is handed over by command.
 
 - **Workflows (optional, per install).** `/workflows` is where an owner or
   admin builds their own browser tests as records — a start URL, steps

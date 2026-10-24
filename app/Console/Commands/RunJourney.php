@@ -14,6 +14,7 @@ use Faker\Factory as Faker;
 use Faker\Generator;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Process\InvokedProcess;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use Throwable;
@@ -33,11 +34,45 @@ class RunJourney extends Command
     protected $signature = 'tests:journey
         {journey? : The customer journey to walk (e.g. enquiry); omit to list them}
         {--target=practice : The stand-in fleet to walk it against (simulation.fleets)}
-        {--list : List the customer journeys and which are pending}';
+        {--list : List the customer journeys and which are pending}
+        {--record= : Write what the walk did, step by step, to this JSON file (tests:launch reads it)}';
 
     protected $description = 'Walk a customer journey across a stand-in fleet, step by step';
 
+    /**
+     * What the walk did, for --record: what it said outside the browser,
+     * each script walked step by step, and why it stopped.
+     *
+     * @var array<string, mixed>
+     */
+    private array $record = ['said' => [], 'walks' => [], 'errors' => [], 'apps' => []];
+
     public function handle(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker, StripeForwarder $stripe): int
+    {
+        // tests:launch calls this once per stage on the same instance.
+        $this->record = ['said' => [], 'walks' => [], 'errors' => [], 'apps' => []];
+        $started = now();
+        $code = $this->stage($simulation, $guard, $walker, $stripe);
+
+        if (filled($path = $this->option('record'))) {
+            $key = (string) $this->argument('journey');
+            $stage = (array) config("simulation.customer_journeys.{$key}", []);
+            File::ensureDirectoryExists(dirname((string) $path));
+            File::put((string) $path, json_encode([
+                'stage' => $key,
+                'name' => $stage['name'] ?? $key,
+                'journey' => empty($stage['journey']) ? null : app($stage['journey'])->name(),
+                'passed' => $code === self::SUCCESS,
+                'started_at' => $started->toIso8601String(),
+                'finished_at' => now()->toIso8601String(),
+                ...$this->record,
+            ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n");
+        }
+
+        return $code;
+    }
+
+    private function stage(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker, StripeForwarder $stripe): int
     {
         $key = $this->argument('journey');
 
@@ -48,7 +83,7 @@ class RunJourney extends Command
         $stage = config("simulation.customer_journeys.{$key}");
 
         if (! is_array($stage)) {
-            $this->components->error("No customer journey \"{$key}\". Known: ".implode(', ', array_keys(config('simulation.customer_journeys', []))).'.');
+            $this->fails("No customer journey \"{$key}\". Known: ".implode(', ', array_keys(config('simulation.customer_journeys', []))).'.');
 
             return self::FAILURE;
         }
@@ -63,7 +98,7 @@ class RunJourney extends Command
         $fleet = config("simulation.fleets.{$target}");
 
         if (! is_array($fleet)) {
-            $this->components->error("No stand-in fleet \"{$target}\". Known: ".implode(', ', array_keys(config('simulation.fleets', []))).'.');
+            $this->fails("No stand-in fleet \"{$target}\". Known: ".implode(', ', array_keys(config('simulation.fleets', []))).'.');
 
             return self::FAILURE;
         }
@@ -126,7 +161,7 @@ class RunJourney extends Command
             $config = $fleet['apps'][$app] ?? null;
 
             if (! is_array($config)) {
-                $this->components->error("{$fleet['name']} has no {$app} app; the journey needs it.");
+                $this->fails("{$fleet['name']} has no {$app} app; the journey needs it.");
 
                 return false;
             }
@@ -139,7 +174,7 @@ class RunJourney extends Command
                 ?? $guard->settingRefusal($config['checkout'], (array) ($requires[$app] ?? []));
 
             if ($refusal !== null) {
-                $this->components->error("Refusing to walk {$key} against {$app}: {$refusal}");
+                $this->fails("Refusing to walk {$key} against {$app}: {$refusal}");
 
                 return false;
             }
@@ -161,9 +196,9 @@ class RunJourney extends Command
     private function prepare(StandInGuard $guard, string $key, array $fleet, CustomerJourney $journey): ?array
     {
         try {
-            $provided = $journey->prepare($fleet, fn (string $line) => $this->line("  <fg=gray>{$line}</>"));
+            $provided = $journey->prepare($fleet, fn (string $line) => $this->said($line));
         } catch (Throwable $e) {
-            $this->components->error($e->getMessage());
+            $this->fails($e->getMessage());
 
             return null;
         }
@@ -171,7 +206,7 @@ class RunJourney extends Command
         $missing = array_diff($journey->providesApps(), array_keys($provided));
 
         if ($missing !== []) {
-            $this->components->error('The journey did not say where '.implode(', ', $missing).' is.');
+            $this->fails('The journey did not say where '.implode(', ', $missing).' is.');
 
             return null;
         }
@@ -204,6 +239,7 @@ class RunJourney extends Command
         }
 
         $guarded = [...$guarded, ...$journey->providesApps()];
+        $this->record['apps'] = array_map(fn (array $app): array => ['name' => (string) ($app['name'] ?? ''), 'base_url' => (string) ($app['base_url'] ?? '')], $fleet['apps']);
         $script = $journey->script($people, $faker);
         $started = now()->format('Ymd-His');
         $steps = 0;
@@ -213,7 +249,7 @@ class RunJourney extends Command
             $unguarded = array_diff($script->apps(), $guarded);
 
             if ($unguarded !== []) {
-                $this->components->error("{$stage['name']}'s walk {$walk} drives ".implode(', ', $unguarded).', which nothing guarded. Name it in guards().');
+                $this->fails("{$stage['name']}'s walk {$walk} drives ".implode(', ', $unguarded).', which nothing guarded. Name it in guards().');
 
                 return self::FAILURE;
             }
@@ -229,9 +265,9 @@ class RunJourney extends Command
             $summary = $result->interpolate((string) $script->getSummary());
 
             try {
-                $script = $journey->next($fleet, $people, $faker, fn (string $line) => $this->line("  <fg=gray>{$line}</>"));
+                $script = $journey->next($fleet, $people, $faker, fn (string $line) => $this->said($line));
             } catch (Throwable $e) {
-                $this->components->error($e->getMessage());
+                $this->fails($e->getMessage());
 
                 return self::FAILURE;
             }
@@ -274,9 +310,27 @@ class RunJourney extends Command
             array_map(fn (array $app) => rtrim((string) $app['checkout'], '/').'/storage/logs', array_filter($fleet['apps'], fn (array $app) => ! empty($app['checkout']))),
         );
 
-        foreach (array_slice($script->steps(), count($result->steps)) as $step) {
-            $this->line('  <fg=gray>- '.$result->interpolate($step['label']).' (not reached)</>');
+        $notReached = array_map(fn (array $step): string => $result->interpolate($step['label']), array_slice($script->steps(), count($result->steps)));
+
+        foreach ($notReached as $label) {
+            $this->line("  <fg=gray>- {$label} (not reached)</>");
         }
+
+        // Labels and outcomes only: a step's typed value (a password) and what
+        // the walk remembered (a signed link) are never kept.
+        $this->record['walks'][] = [
+            'shots' => $result->shotsDir,
+            'summary' => $result->interpolate((string) $script->getSummary()),
+            'steps' => array_map(fn (array $step): array => [
+                ...array_intersect_key($step, array_flip(['position', 'do', 'on', 'status', 'ms', 'error', 'url', 'screenshot'])),
+                'label' => $result->interpolate((string) $step['label']),
+            ], $result->steps),
+            'not_reached' => $notReached,
+            'server_errors' => array_values(array_unique($result->serverErrors)),
+            'error' => $result->error,
+            'said' => $this->record['said'],
+        ];
+        $this->record['said'] = [];
 
         $this->newLine();
 
@@ -285,11 +339,11 @@ class RunJourney extends Command
         }
 
         if ($result->error !== null) {
-            $this->components->error($result->error);
+            $this->fails($result->error);
         }
 
         if (! $result->passed()) {
-            $this->components->error(sprintf('%s failed after %d of %d steps. Screenshots: %s', $name, count(array_filter($result->steps, fn ($s) => $s['status'] === 'passed')), $result->total, $result->shotsDir));
+            $this->fails(sprintf('%s failed after %d of %d steps. Screenshots: %s', $name, count(array_filter($result->steps, fn ($s) => $s['status'] === 'passed')), $result->total, $result->shotsDir));
 
             return null;
         }
@@ -312,7 +366,7 @@ class RunJourney extends Command
         $webhook = (array) ($app['stripe_webhook'] ?? []);
 
         if ($app === null || empty($app['test_mode']) || empty($webhook['path']) || empty($webhook['secret'])) {
-            $this->components->error("Refusing to walk {$key}: {$paid} has no Stripe test-mode check and webhook (test_mode, stripe_webhook) on its fleet entry.");
+            $this->fails("Refusing to walk {$key}: {$paid} has no Stripe test-mode check and webhook (test_mode, stripe_webhook) on its fleet entry.");
 
             return null;
         }
@@ -320,7 +374,7 @@ class RunJourney extends Command
         $secret = $stripe->signingSecret();
 
         if ($secret === null) {
-            $this->components->error("Refusing to walk {$key}: the Stripe CLI is not signed in (run `stripe login`), so no payment would reach {$paid}.");
+            $this->fails("Refusing to walk {$key}: the Stripe CLI is not signed in (run `stripe login`), so no payment would reach {$paid}.");
 
             return null;
         }
@@ -328,7 +382,7 @@ class RunJourney extends Command
         $holds = $guard->holdsSecret((string) $app['checkout'], (string) $webhook['secret'], $secret);
 
         if ($holds !== true) {
-            $this->components->error($holds === null
+            $this->fails($holds === null
                 ? "Refusing to walk {$key}: could not read {$paid}'s Stripe webhook secret ({$webhook['secret']})."
                 : "Refusing to walk {$key}: {$paid}'s {$webhook['secret']} is not the Stripe CLI's signing secret (`stripe listen --print-secret`), so it would refuse every forwarded event.");
 
@@ -340,7 +394,7 @@ class RunJourney extends Command
         try {
             $process = $stripe->start($url, $events);
         } catch (Throwable $e) {
-            $this->components->error("Could not forward Stripe's webhooks to {$paid}: {$e->getMessage()}");
+            $this->fails("Could not forward Stripe's webhooks to {$paid}: {$e->getMessage()}");
 
             return null;
         }
@@ -348,6 +402,20 @@ class RunJourney extends Command
         $this->components->twoColumnDetail("stripe listen <fg=gray>→ {$url}</>", '<fg=green>forwarding test events</>');
 
         return $process;
+    }
+
+    /** A line said outside the browser: on the console, and in the record. */
+    private function said(string $line): void
+    {
+        $this->record['said'][] = $line;
+        $this->line("  <fg=gray>{$line}</>");
+    }
+
+    /** Why the walk stopped: on the console, and in the record. */
+    private function fails(string $message): void
+    {
+        $this->record['errors'][] = $message;
+        $this->components->error($message);
     }
 
     private function list(): int
@@ -379,7 +447,7 @@ class RunJourney extends Command
         $persona = collect($app['personas'] ?? [])->firstWhere('role', $role);
 
         if ($persona === null) {
-            $this->components->error("{$key} has no persona in the role {$role}.");
+            $this->fails("{$key} has no persona in the role {$role}.");
 
             return null;
         }
@@ -402,7 +470,7 @@ class RunJourney extends Command
 
         if (! $result->successful()) {
             // Its output, never the command: that carries the password.
-            $this->components->error("Could not make {$persona['name']} in {$key}: ".Str::limit(trim($result->errorOutput() ?: $result->output()), 500));
+            $this->fails("Could not make {$persona['name']} in {$key}: ".Str::limit(trim($result->errorOutput() ?: $result->output()), 500));
 
             return null;
         }

@@ -409,9 +409,17 @@ return [
     ],
 
     // `tests:launch`: a client's signup flown whole, stage after stage, each
-    // starting where the last left the fleet. Subscription walks the
+    // starting where the last left the fleet — exactly how a new client is
+    // brought on, and what the journey map draws. Subscription walks the
     // enquiry first (Enquiry::reachSales), so it is not flown on its own.
-    'launch' => ['subscription', 'provisioning', 'first-sign-in'],
+    'launch' => ['subscription', 'provisioning', 'first-sign-in', 'first-briefing', 'onboarding-call'],
+
+    // Flown after a launch whose fleet was built, to take the practice
+    // client down again: a nightly launch must not leave a fleet each night.
+    'launch_teardown' => ['cancellation'],
+
+    // The launch flown every night at 02:30, on the builds queue (FlyLaunch).
+    'launch_nightly' => (bool) env('SIMULATION_LAUNCH_NIGHTLY', true),
 
     // Every stage of a customer's life with Dashcore, in order. One with a
     // `journey` is walked; the rest are pending — the stage it simulates is
