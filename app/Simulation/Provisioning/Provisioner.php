@@ -6,6 +6,7 @@ use App\Simulation\Simulation;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -21,7 +22,7 @@ use RuntimeException;
  *
  * Rehearsal only. A source that is not a practice fleet is refused before
  * anything runs, and a client fleet that came up anywhere but under Herd
- * here, at *.practice, is refused before a browser goes near it.
+ * here, in a *.practice folder, is refused before a browser goes near it.
  */
 class Provisioner
 {
@@ -173,9 +174,7 @@ class Provisioner
     }
 
     /**
-     * The client's cockpit as a fleet entry the walker can drive: where it
-     * answers, and the checkout its mail log is in — a local practice fleet's
-     * app lives in the Herd folder named for its host.
+     * The client's cockpit (their ceo) as a fleet entry the walker can drive.
      *
      * @param  array<string, mixed>  $request  as installs:show printed it
      * @return array{name: string, base_url: string, checkout: string}
@@ -184,6 +183,20 @@ class Provisioner
      */
     public function cockpit(array $request, string $root): array
     {
+        return $this->clientApp($request, $root, 'ceo', "{$request['company']}'s cockpit");
+    }
+
+    /**
+     * Another app of the client's fleet — their login, say — as a fleet
+     * entry, found beside the cockpit: the same name with its own label.
+     *
+     * @param  array<string, mixed>  $request  as installs:show printed it
+     * @return array{name: string, base_url: string, checkout: string}
+     *
+     * @throws RuntimeException when it was not built as a local practice fleet
+     */
+    public function clientApp(array $request, string $root, string $app, ?string $name = null): array
+    {
         $url = (string) ($request['install_url'] ?? '');
         $host = (string) parse_url($url, PHP_URL_HOST);
 
@@ -191,15 +204,61 @@ class Provisioner
             throw new RuntimeException("{$request['company']}'s fleet is not built: dcos has it ".($request['status'] ?? 'unknown').(empty($request['message']) ? '.' : " — {$request['message']}"));
         }
 
-        if (! str_ends_with($host, '.practice.test')) {
+        $host = $app.'.'.Str::after($host, '.');
+        $folder = $this->practiceFolder($host);
+
+        // A local practice fleet's app lives in the Herd folder named for it:
+        // <app>.<company>.practice, whichever name it answers on.
+        if ($folder === null || ! is_dir(rtrim($root, '/')."/{$folder}")) {
             throw new RuntimeException("{$request['company']}'s fleet answers at {$url}, which is not a practice fleet on this machine. Nothing is driven outside one.");
         }
 
         return [
-            'name' => "{$request['company']}'s cockpit",
-            'base_url' => rtrim($url, '/'),
-            'checkout' => rtrim($root, '/').'/'.substr($host, 0, -strlen('.test')),
+            'name' => $name ?? "{$request['company']}'s {$app}",
+            'base_url' => (string) preg_replace('#^(https?://)[^/]+#', '${1}'.$host, rtrim($url, '/')),
+            'checkout' => rtrim($root, '/')."/{$folder}",
         ];
+    }
+
+    /**
+     * Whether an app's mail log holds a message to this address carrying a
+     * link with this path — login's "Set up your sign-in", say. A stand-in's
+     * mail is written to its log, so this is its inbox.
+     *
+     * @param  array{checkout: string}  $app
+     */
+    public function mailed(array $app, string $email, string $path): bool
+    {
+        foreach (glob(rtrim((string) $app['checkout'], '/').'/storage/logs/*.log') ?: [] as $log) {
+            $content = (string) @file_get_contents($log);
+
+            if (str_contains($content, $path) && (str_contains($content, $email) || str_contains($content, rawurlencode($email)))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The Herd folder of a practice app by the name it answers on: its .test
+     * name (ceo.acme.practice.test), or its name in fleets' practice zone
+     * once fleets publishes practice fleets on the tailnet
+     * (ceo.acme.practice.dashcore.com). Null for any other name.
+     */
+    private function practiceFolder(string $host): ?string
+    {
+        if (str_ends_with($host, '.practice.test')) {
+            return substr($host, 0, -strlen('.test'));
+        }
+
+        $zone = '.'.trim((string) config('simulation.practice_zone'), '.');
+
+        if ($zone !== '.' && str_ends_with($host, $zone)) {
+            return substr($host, 0, -strlen($zone)).'.practice';
+        }
+
+        return null;
     }
 
     /**

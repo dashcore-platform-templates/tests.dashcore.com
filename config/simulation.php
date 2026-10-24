@@ -2,6 +2,7 @@
 
 use App\Simulation\CustomerJourneys\Cancellation;
 use App\Simulation\CustomerJourneys\Enquiry;
+use App\Simulation\CustomerJourneys\FirstBriefing;
 use App\Simulation\CustomerJourneys\FirstSignIn;
 use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\CustomerJourneys\Provisioning;
@@ -306,6 +307,12 @@ return [
     |
     */
 
+    // The zone fleets publishes practice fleets under on the tailnet
+    // (fleets' FLEET_PRACTICE_ZONE): a client fleet built there answers at
+    // <app>.<company>.practice.dashcore.com, its folder still
+    // <app>.<company>.practice.
+    'practice_zone' => env('SIMULATION_PRACTICE_ZONE', 'practice.dashcore.com'),
+
     'fleets' => [
         'practice' => [
             'name' => "Practice fleet ({$practiceWho})",
@@ -403,7 +410,7 @@ return [
         'subscription' => ['name' => 'Subscription', 'journey' => Subscription::class],
         'provisioning' => ['name' => 'Provisioning', 'journey' => Provisioning::class],
         'first-sign-in' => ['name' => 'First sign-in', 'journey' => FirstSignIn::class],
-        'first-briefing' => ['name' => 'First briefing', 'what' => 'The customer receives their first briefing.'],
+        'first-briefing' => ['name' => 'First briefing', 'journey' => FirstBriefing::class],
         'upgrade' => ['name' => 'Upgrade', 'journey' => Upgrade::class],
         'cancellation' => ['name' => 'Cancellation', 'journey' => Cancellation::class],
     ],
