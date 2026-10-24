@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Launch;
 use App\Models\SimulationRun;
 use App\Models\Workflow;
 use App\Models\WorkflowRun;
@@ -49,6 +50,19 @@ Route::middleware(['auth', 'verified', 'permission:fleet-tests'])->group(functio
 
         return response()->file($path, ['Cache-Control' => 'private, max-age=86400, immutable']);
     })->where('file', '[0-9]{3}\\.jpg')->name('simulation.screenshot');
+
+    // The client journey map, and each step's screenshot from the launch it
+    // draws — served only from under the screenshots folder.
+    Route::view('client-journey', 'simulation.journey-map')->name('simulation.journey-map');
+    Route::get('client-journey/{launch}/{stage}/{walk}/{file}', function (Launch $launch, string $stage, int $walk, string $file) {
+        $shots = collect($launch->stages)->firstWhere('stage', $stage)['walks'][$walk]['shots'] ?? null;
+        $root = realpath((string) config('simulation.screenshots'));
+        $path = is_string($shots) ? realpath(rtrim($shots, '/').'/'.$file) : false;
+
+        abort_unless($root !== false && $path !== false && str_starts_with($path, $root.DIRECTORY_SEPARATOR), 404);
+
+        return response()->file($path, ['Cache-Control' => 'private, max-age=86400, immutable']);
+    })->where(['stage' => '[a-z0-9-]+', 'walk' => '[0-9]+', 'file' => '[0-9]{3}\\.jpg'])->name('simulation.journey-map.shot');
 });
 
 // Browser-test workflows: built and kept per install, owners and admins only.
