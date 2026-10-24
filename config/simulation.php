@@ -4,6 +4,7 @@ use App\Simulation\CustomerJourneys\Cancellation;
 use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\CustomerJourneys\FirstBriefing;
 use App\Simulation\CustomerJourneys\FirstSignIn;
+use App\Simulation\CustomerJourneys\OnboardingCall;
 use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\CustomerJourneys\Provisioning;
 use App\Simulation\CustomerJourneys\Subscription;
@@ -359,6 +360,21 @@ return [
                     ],
                     'persona_command' => ['dashcore:admin', '{email}', '--name={name}', '--role=member', '--password={password}'],
                 ],
+                // Dashcore's own onboarding, where the call with the new
+                // client is held: the practice home fleet's copy, which
+                // fleets cannot reach, so the onboarding call stage hands it
+                // what fleets reports (OnboardingStandIn). The host is made
+                // (or refreshed) before every run by its stand-in command,
+                // with a password for that run only.
+                'onboarding' => [
+                    'name' => 'Onboarding',
+                    'base_url' => env('SIMULATION_PRACTICE_ONBOARDING_URL', "https://onboarding.{$practiceDomain}.test"),
+                    'checkout' => env('SIMULATION_PRACTICE_ONBOARDING_CHECKOUT', "{$practiceRoot}/onboarding.{$practiceDomain}"),
+                    'personas' => [
+                        ['name' => 'Journey Host', 'email' => 'journey.host@example.com', 'role' => 'Host'],
+                    ],
+                    'persona_command' => ['onboarding:stand-in-host', '{email}', '--name={name}', '--password={password}'],
+                ],
                 // dcos, the catalogue's `delivery`: it signs the pay link
                 // sales hands a prospect, takes the payment through Stripe
                 // and keeps the client portal. Nobody signs in to it by
@@ -411,6 +427,7 @@ return [
         'provisioning' => ['name' => 'Provisioning', 'journey' => Provisioning::class],
         'first-sign-in' => ['name' => 'First sign-in', 'journey' => FirstSignIn::class],
         'first-briefing' => ['name' => 'First briefing', 'journey' => FirstBriefing::class],
+        'onboarding-call' => ['name' => 'Onboarding call', 'journey' => OnboardingCall::class],
         'upgrade' => ['name' => 'Upgrade', 'journey' => Upgrade::class],
         'cancellation' => ['name' => 'Cancellation', 'journey' => Cancellation::class],
     ],
