@@ -148,13 +148,13 @@ class RunJourneyTest extends TestCase
     public function test_the_list_is_the_progress_bar_for_the_whole_customer_journey(): void
     {
         $this->artisan('tests:journey')
-            ->expectsOutputToContain('8 of 8 stages simulated')
+            ->expectsOutputToContain('9 of 9 stages simulated')
             ->expectsOutputToContain('enquiry')
             ->expectsOutputToContain('cancellation')
             ->assertSuccessful();
 
         $this->assertSame(
-            ['enquiry', 'payment', 'subscription', 'provisioning', 'first-sign-in', 'first-briefing', 'upgrade', 'cancellation'],
+            ['enquiry', 'payment', 'subscription', 'provisioning', 'first-sign-in', 'first-briefing', 'onboarding-call', 'upgrade', 'cancellation'],
             array_keys(config('simulation.customer_journeys')),
         );
     }
