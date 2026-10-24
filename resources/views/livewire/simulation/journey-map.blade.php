@@ -5,13 +5,13 @@
 
     $badge = fn (string $status) => match ($status) {
         'passed', 'launched' => 'bg-(--ds-success-soft) text-(--ds-success) ring-(--ds-success)',
-        'failed' => 'bg-red-500/10 text-red-500 ring-red-500/40',
+        'failed' => 'bg-(--ds-danger-soft) text-(--ds-danger) ring-(--ds-danger)',
         'scrubbed' => 'bg-(--ds-warning-soft) text-(--ds-warning) ring-(--ds-warning)',
         default => 'bg-(--ds-sunken) text-(--ds-text-muted) ring-(--ds-border)',
     };
     $dot = fn (string $status) => match ($status) {
         'passed' => 'bg-(--ds-success-fill)',
-        'failed' => 'bg-red-400',
+        'failed' => 'bg-(--ds-danger)',
         default => 'bg-(--ds-border-strong)',
     };
     $words = fn (string $status) => match ($status) {
@@ -34,12 +34,7 @@
 @endphp
 
 <div>
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div class="min-w-0">
-            <h1 class="text-2xl font-semibold text-(--ds-text-strong)">Client journey</h1>
-            <p class="text-sm text-(--ds-text-muted) mt-1 max-w-2xl">Exactly how a new client is brought on, drawn from the latest launch: a made-up client taken through every stage across the practice fleet, in a real browser. A launch flies every night at 02:30.</p>
-        </div>
-
+    <x-ds::page-header title="Client journey" description="Exactly how a new client is brought on, drawn from the latest launch: a made-up client taken through every stage across the practice fleet, in a real browser. A launch flies every night at 02:30.">
         @if ($this->launches->isNotEmpty())
             <div class="flex flex-wrap items-center gap-3">
                 @if ($launch)
@@ -55,7 +50,7 @@
                 </select>
             </div>
         @endif
-    </div>
+    </x-ds::page-header>
 
     @if ($launch === null)
         <div class="card-os p-8 text-center" data-test="no-launch">
@@ -87,14 +82,14 @@
                             'ring-2 ring-(--ds-accent)' => ($open['key'] ?? null) === $stage['key'],
                         ])>
                         <span class="flex items-center gap-2">
-                            <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white {{ $dot($stage['status']) }}">{{ $i + 1 }}</span>
+                            <span class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white {{ $dot($stage['status']) }}">{{ $i + 1 }}</span>
                             <span class="text-sm font-medium text-(--ds-text-strong) truncate">{{ $stage['name'] }}</span>
                         </span>
                         <span class="mt-1.5 block text-xs text-(--ds-text-muted)">{{ $words($stage['status']) }}@if ($stage['seconds'] !== null) · {{ round($stage['seconds']) }} s @endif</span>
                         @if ($stage['apps'] !== [])
                             <span class="mt-2 flex flex-wrap gap-1">
                                 @foreach ($stage['apps'] as $app)
-                                    <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-(--ds-text) bg-(--ds-sunken)"><span class="h-1.5 w-1.5 rounded-full" style="background: {{ $map->colour($app) }}"></span>{{ $app }}</span>
+                                    <span class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-(--ds-text) bg-(--ds-sunken)"><span class="h-1.5 w-1.5 rounded-full" style="background: {{ $map->colour($app) }}"></span>{{ $app }}</span>
                                 @endforeach
                             </span>
                         @endif
@@ -124,7 +119,7 @@
                     @foreach ($open['walks'] as $w => $walk)
                         @if (! empty($walk['said']))
                             <div class="rounded-md border border-dashed border-(--ds-border) p-3" data-test="outside">
-                                <p class="text-[11px] font-semibold uppercase tracking-wider text-(--ds-text-muted)">Outside the browser</p>
+                                <p class="text-xs font-semibold uppercase tracking-wider text-(--ds-text-muted)">Outside the browser</p>
                                 <ul class="mt-1.5 space-y-1 text-sm text-(--ds-text)">
                                     @foreach ($walk['said'] as $line)
                                         <li>{{ $line }}</li>
@@ -141,7 +136,7 @@
                                 <div class="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-3">
                                     <p class="text-sm font-medium text-(--ds-text-strong)">{{ $hop['name'] }}</p>
                                     @if ($hop['host'])
-                                        <p class="font-mono text-[11px] text-(--ds-text-muted) truncate">{{ $hop['host'] }}</p>
+                                        <p class="font-mono text-xs text-(--ds-text-muted) truncate">{{ $hop['host'] }}</p>
                                     @endif
                                 </div>
                                 <ol class="mt-2 pb-2">
@@ -156,11 +151,11 @@
                                                 <span class="min-w-0 flex-1">
                                                     <span class="text-(--ds-text)">{{ $step['label'] }}</span>
                                                     @if ($step['status'] !== 'passed' && ! empty($step['error']))
-                                                        <span class="mt-0.5 block text-xs text-red-500 break-words" data-test="step-error">{{ \Illuminate\Support\Str::limit($step['error'], 300) }}</span>
+                                                        <span class="mt-0.5 block text-xs text-(--ds-danger) break-words" data-test="step-error">{{ \Illuminate\Support\Str::limit($step['error'], 300) }}</span>
                                                     @endif
                                                 </span>
                                                 @if (isset($step['ms']))
-                                                    <span class="shrink-0 text-[11px] text-(--ds-text-muted) tabular-nums">{{ $step['ms'] }} ms</span>
+                                                    <span class="shrink-0 text-xs text-(--ds-text-muted) tabular-nums">{{ $step['ms'] }} ms</span>
                                                 @endif
                                             </button>
                                         </li>
@@ -173,13 +168,13 @@
                             <p class="pl-4 text-sm text-(--ds-text-muted) line-through decoration-(--ds-border)">{{ $label }}</p>
                         @endforeach
                         @if (! empty($walk['error']))
-                            <p class="text-sm text-red-500">{{ $walk['error'] }}</p>
+                            <p class="text-sm text-(--ds-danger)">{{ $walk['error'] }}</p>
                         @endif
                     @endforeach
 
                     @if ($open['said'] !== [])
                         <div class="rounded-md border border-dashed border-(--ds-border) p-3" data-test="outside">
-                            <p class="text-[11px] font-semibold uppercase tracking-wider text-(--ds-text-muted)">Then, outside the browser</p>
+                            <p class="text-xs font-semibold uppercase tracking-wider text-(--ds-text-muted)">Then, outside the browser</p>
                             <ul class="mt-1.5 space-y-1 text-sm text-(--ds-text)">
                                 @foreach ($open['said'] as $line)
                                     <li>{{ $line }}</li>
@@ -189,8 +184,8 @@
                     @endif
 
                     @if ($open['errors'] !== [])
-                        <div class="card-os p-4 ring-1 ring-inset ring-red-500/40" data-test="stage-errors">
-                            <p class="text-sm font-medium text-red-500">Why it stopped</p>
+                        <div class="card-os p-4 ring-1 ring-inset ring-(--ds-danger)" data-test="stage-errors">
+                            <p class="text-sm font-medium text-(--ds-danger)">Why it stopped</p>
                             <ul class="mt-1 space-y-1 text-sm text-(--ds-text)">
                                 @foreach ($open['errors'] as $error)
                                     <li class="break-words">{{ $error }}</li>
