@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Simulation\Provisioning\OwnerSignIn;
+use App\Simulation\StandIns\AnthropicStandIn;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -39,7 +41,7 @@ class ProvisioningJourneyTest extends TestCase
 
         $this->root = sys_get_temp_dir().'/pg-provisioning-'.bin2hex(random_bytes(4));
 
-        foreach (['dcos.travischapman.practice', 'ceo.acme-care.practice', 'ceo.acme.example', 'fleets.dashcore.com'] as $checkout) {
+        foreach (['dcos.travischapman.practice', 'ceo.acme-care.practice', 'login.acme-care.practice', 'ceo.acme.example', 'fleets.dashcore.com'] as $checkout) {
             File::ensureDirectoryExists("{$this->root}/{$checkout}");
         }
         File::put("{$this->root}/fleets.dashcore.com/artisan", '');
@@ -54,7 +56,7 @@ class ProvisioningJourneyTest extends TestCase
         ]);
 
         $safe = json_encode(['mail.default' => 'log']);
-        $this->mail = ['dcos.travischapman.practice' => $safe, 'ceo.acme-care.practice' => $safe];
+        $this->mail = ['dcos.travischapman.practice' => $safe, 'ceo.acme-care.practice' => $safe, 'login.acme-care.practice' => $safe];
 
         $request = [
             'uuid' => self::UUID,
@@ -94,6 +96,7 @@ class ProvisioningJourneyTest extends TestCase
             return match ($command[2] ?? null) {
                 'installs:pending' => Process::result(json_encode(['installs' => $this->pending])."\n"),
                 'installs:show' => Process::result(json_encode($this->shown)."\n"),
+                'assistant:brief' => Process::result("Welcome to your cockpit, Jane\n  Morning briefing · 1 sections · generated 1 second ago\n"),
                 'fleet:intake' => ($this->intakeRan = true) && $this->intakeSucceeds
                     ? Process::result("  Acme Care is built at http://ceo.acme-care.practice.test, and jane@acmecare.test was invited.\n")
                     : Process::result("  ERROR  Acme Care did not finish building.\n", '', 1),
@@ -235,7 +238,7 @@ class ProvisioningJourneyTest extends TestCase
         $this->assertFalse($this->intakeRan());
     }
 
-    public function test_first_sign_in_reads_the_invitation_from_the_cockpits_mail_log_and_signs_in_with_a_password_of_their_own(): void
+    public function test_first_sign_in_reads_ceos_own_link_when_the_build_fell_back_and_signs_in_with_a_password_of_their_own(): void
     {
         $this->fakeProcesses();
 
@@ -282,5 +285,98 @@ class ProvisioningJourneyTest extends TestCase
             ->assertFailed();
 
         Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_first_sign_in_takes_logins_invitation_when_login_sent_one(): void
+    {
+        File::ensureDirectoryExists("{$this->root}/login.acme-care.practice/storage/logs");
+        File::put("{$this->root}/login.acme-care.practice/storage/logs/laravel.log", "To: jane@acmecare.test\nSet up your sign-in: http://login.acme-care.practice.test/invitation/abc123?email=jane%40acmecare.test\n");
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'first-sign-in'])
+            ->expectsOutputToContain('login invited them')
+            ->expectsOutputToContain('First sign-in passed')
+            ->assertSuccessful();
+
+        $walked = $this->walked();
+        $steps = collect($walked['steps']);
+        $this->assertSame('http://login.acme-care.practice.test', $walked['base_urls']['login']);
+        $this->assertSame('login', $steps->first()['on']);
+
+        $mail = $steps->firstWhere('do', 'mail');
+        $this->assertSame('invitation_link', $mail['as']);
+        $link = 'http://login.acme-care.practice.test/invitation/AbC123xyz?email=jane%40acmecare.test';
+        $this->assertSame(1, preg_match('~'.$mail['pattern'].'~', "Set up your sign-in: {$link}\n", $found));
+        $this->assertSame($link, $found[0]);
+
+        // The password they chose is kept for the stages after, with the door.
+        $kept = app(OwnerSignIn::class)->of('acme-care');
+        $this->assertSame(OwnerSignIn::LOGIN, $kept['door']);
+        $this->assertSame($steps->firstWhere('target', 'input[wire\\:model="password"]')['value'], $kept['password']);
+    }
+
+    public function test_a_fleet_on_the_practice_zone_is_driven_by_its_public_name_from_its_practice_folder(): void
+    {
+        config(['simulation.practice_zone' => 'practice.dashcore.com']);
+        $this->shown['install_url'] = 'https://ceo.acme-care.practice.dashcore.com';
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'first-sign-in'])->assertSuccessful();
+
+        $walked = $this->walked();
+        $this->assertSame('https://ceo.acme-care.practice.dashcore.com', $walked['base_urls']['cockpit']);
+        $this->assertSame('https://login.acme-care.practice.dashcore.com', $walked['base_urls']['login']);
+        $this->assertSame("{$this->root}/ceo.acme-care.practice/storage/logs", $walked['mail_logs']['cockpit']);
+    }
+
+    public function test_first_briefing_has_ceo_write_it_against_the_stand_in_and_the_owner_finds_it(): void
+    {
+        $this->app->bind(AnthropicStandIn::class, fn ($app, array $parameters) => new class($parameters['replies']) extends AnthropicStandIn
+        {
+            public function start(): self
+            {
+                return $this;
+            }
+
+            public function url(): string
+            {
+                return 'http://127.0.0.1:9';
+            }
+
+            public function requests(): array
+            {
+                return [['messages' => []], ['messages' => []]];
+            }
+        });
+        app(OwnerSignIn::class)->keep('acme-care', OwnerSignIn::CEO, 'jane@acmecare.test', 'a-password-of-her-own');
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'first-briefing'])
+            ->expectsOutputToContain('wrote it against the Anthropic stand-in')
+            ->expectsOutputToContain('Its headline: Welcome to your cockpit, Jane')
+            ->expectsOutputToContain('First briefing passed')
+            ->assertSuccessful();
+
+        // ceo's own step, in its checkout, pointed at the stand-in.
+        Process::assertRan(fn (PendingProcess $p) => $p->path === "{$this->root}/ceo.acme-care.practice"
+            && (array) $p->command === ['php', 'artisan', 'assistant:brief', '--no-interaction']
+            && ($p->environment['ANTHROPIC_BASE_URL'] ?? null) === 'http://127.0.0.1:9'
+            && ($p->environment['ANTHROPIC_API_KEY'] ?? null) === 'stand-in');
+
+        $steps = collect($this->walked()['steps']);
+        $this->assertSame('/login', $steps->firstWhere('do', 'visit')['path']);
+        $this->assertSame('a-password-of-her-own', $steps->firstWhere('target', 'input[type="password"]')['value']);
+        $this->assertSame('Welcome to your cockpit, Jane', $steps->last(fn ($s) => $s['do'] === 'see')['text']);
+    }
+
+    public function test_first_briefing_waits_for_the_owners_first_sign_in(): void
+    {
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'first-briefing'])
+            ->expectsOutputToContain('Walk `tests:journey first-sign-in` first')
+            ->assertFailed();
+
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('assistant:brief', (array) $p->command, true));
     }
 }

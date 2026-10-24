@@ -148,7 +148,7 @@ class RunJourneyTest extends TestCase
     public function test_the_list_is_the_progress_bar_for_the_whole_customer_journey(): void
     {
         $this->artisan('tests:journey')
-            ->expectsOutputToContain('7 of 8 stages simulated')
+            ->expectsOutputToContain('8 of 8 stages simulated')
             ->expectsOutputToContain('enquiry')
             ->expectsOutputToContain('cancellation')
             ->assertSuccessful();
@@ -162,8 +162,9 @@ class RunJourneyTest extends TestCase
     public function test_a_pending_stage_says_so_and_does_not_pass(): void
     {
         Process::fake();
+        config(['simulation.customer_journeys.renewal' => ['name' => 'Renewal', 'what' => 'The customer renews for a second year.']]);
 
-        $this->artisan('tests:journey', ['journey' => 'first-briefing'])
+        $this->artisan('tests:journey', ['journey' => 'renewal'])
             ->expectsOutputToContain('pending')
             ->assertFailed();
 
