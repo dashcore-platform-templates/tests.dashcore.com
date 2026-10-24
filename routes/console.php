@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\FlyLaunch;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -41,3 +42,10 @@ Schedule::command('tests:prune')->dailyAt('05:00')->withoutOverlapping();
 // Browser-test workflows built on /workflows: each one due is walked here,
 // in the tick itself (seconds to a minute each), never in the background.
 Schedule::command('tests:workflows')->everyMinute()->withoutOverlapping(30);
+
+// A whole new client brought on across the practice fleet every night
+// (`tests:launch`), so the client journey map is never more than a day old.
+// On the builds queue: a launch builds a fleet and runs for many minutes.
+// Off with SIMULATION_LAUNCH_NIGHTLY=false.
+Schedule::job(new FlyLaunch)->dailyAt('02:30')
+    ->when(fn () => (bool) config('simulation.launch_nightly'));
