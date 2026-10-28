@@ -126,7 +126,7 @@ class FleetSync
                 $app->save();
             }
 
-            FleetApp::query()->whereNotIn('key', $seen)->get()->each(function (FleetApp $app) use (&$result) {
+            FleetApp::query()->real()->whereNotIn('key', $seen)->get()->each(function (FleetApp $app) use (&$result) {
                 $app->delete();
                 $result['removed'][] = $app->key;
             });

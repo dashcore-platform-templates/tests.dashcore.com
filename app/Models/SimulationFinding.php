@@ -23,6 +23,7 @@ class SimulationFinding extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'kind' => FindingKind::class,
             'status' => FindingStatus::class,
             'first_seen_at' => 'datetime',

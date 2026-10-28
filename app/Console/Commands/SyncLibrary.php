@@ -22,6 +22,7 @@ class SyncLibrary extends Command
     public function handle(Library $library): int
     {
         $apps = FleetApp::query()
+            ->real()
             ->when($this->argument('keys'), fn ($q, array $keys) => $q->whereIn('key', $keys))
             ->orderBy('key')
             ->get();

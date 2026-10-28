@@ -22,7 +22,7 @@ class PruneScans extends Command
         $keep = max(1, (int) $this->option('keep'));
         $pruned = 0;
 
-        foreach (FleetApp::withTrashed()->pluck('id') as $appId) {
+        foreach (FleetApp::withTrashed()->real()->pluck('id') as $appId) {
             // Main and pull request scans are kept separately, so a busy week
             // of PRs never prunes the main detail the ratchet compares with.
             $old = collect(['main', 'pull_request'])->flatMap(fn (string $kind) => DB::table('scans')

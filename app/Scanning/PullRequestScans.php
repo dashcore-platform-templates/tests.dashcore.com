@@ -28,7 +28,7 @@ class PullRequestScans
     {
         $report = [];
 
-        foreach (FleetApp::query()->orderBy('key')->get() as $app) {
+        foreach (FleetApp::query()->real()->orderBy('key')->get() as $app) {
             if (! $app->isScannable() || $app->repo === null) {
                 $report[$app->key] = ['queued' => [], 'skipped' => 'no checkout or repository'];
 

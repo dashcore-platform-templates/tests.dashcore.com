@@ -29,7 +29,7 @@ class BuildTests extends Command
             return self::FAILURE;
         }
 
-        $apps = FleetApp::query()->when($keys !== [], fn ($q) => $q->whereIn('key', $keys))->orderBy('key')->get();
+        $apps = FleetApp::query()->real()->when($keys !== [], fn ($q) => $q->whereIn('key', $keys))->orderBy('key')->get();
 
         if ($keys !== [] && $apps->count() !== count($keys)) {
             $this->components->error('Not in the fleet: '.implode(', ', array_diff($keys, $apps->pluck('key')->all())));
