@@ -7,6 +7,7 @@ use App\Building\BuildRequester;
 use App\Models\Build;
 use App\Models\FleetApp;
 use App\Models\Surface;
+use App\Services\Install;
 use Illuminate\Console\Command;
 
 class BuildTests extends Command
@@ -20,6 +21,12 @@ class BuildTests extends Command
 
     public function handle(BuildRequester $requester, Builder $builder): int
     {
+        if (! BuildRequester::allowed()) {
+            $this->components->error('Only Dashcore\'s own tests builds tests and opens PRs; this install is the '.Install::fleet().' fleet\'s.');
+
+            return self::FAILURE;
+        }
+
         $keys = (array) $this->argument('app');
         $surface = $this->option('surface') ? Surface::find((int) $this->option('surface')) : null;
 

@@ -3,6 +3,7 @@
 namespace App\Workflows;
 
 use App\Models\Setting;
+use App\Services\Install;
 use App\Simulation\Simulation;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\Process;
 use Throwable;
 
 /**
- * Says, every tick, that the workflow schedule is alive — to the page (the
+ * Says, every tick, that this install's schedule is alive — to the page (the
  * last tick, kept here) and to a Healthchecks.io-style service off this
  * machine, which texts when the pings stop or arrive at /fail. Its silence
  * alert is the point: it is what catches the Mac being asleep, off or
@@ -23,7 +24,11 @@ use Throwable;
  */
 class Heartbeat
 {
-    public const LAST_TICK = 'workflows.last_tick';
+    /** The schedule's last tick (tests:heartbeat), which pages and reports read. */
+    public const LAST_TICK = 'schedule.last_tick';
+
+    /** What the last beat said: {healthy, note}, for Console's report. */
+    public const LAST_BEAT = 'schedule.last_beat';
 
     private const URL_CACHE = 'workflows.heartbeat_url';
 
@@ -34,6 +39,7 @@ class Heartbeat
     public function beat(bool $healthy, string $note): void
     {
         Setting::set(self::LAST_TICK, now()->toIso8601String());
+        Setting::set(self::LAST_BEAT, ['healthy' => $healthy, 'note' => $note]);
 
         $url = $this->url();
 
@@ -86,7 +92,8 @@ class Heartbeat
     }
 
     /**
-     * tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local, read by keys in its
+     * <this install's host>__WORKFLOWS_HEARTBEAT_URL__local
+     * (tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local), read by keys in its
      * own checkout with a clean environment, so this app's .env never
      * reaches it. Null when keys is missing, cannot reach Bitwarden, or does
      * not hold it yet.
@@ -99,7 +106,8 @@ class Heartbeat
             return null;
         }
 
-        $app = (string) config('workflows.keys_app');
+        // Each install's check is its own, filed under its own host.
+        $app = (string) (config('workflows.keys_app') ?: Install::host());
         $name = "{$app}__WORKFLOWS_HEARTBEAT_URL__local";
 
         try {

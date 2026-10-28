@@ -2,6 +2,7 @@
 
 namespace App\Simulation;
 
+use App\Services\FleetExport;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 use Throwable;
@@ -52,9 +53,11 @@ class StandInGuard
     }
 
     /**
-     * Why a checkout may not be driven, or null when it may.
+     * Why a checkout may not be driven, or null when it may. Unless it is a
+     * client fleet this install's own journey has just built ($own false),
+     * a stand-in fleets lists under any other fleet is refused too.
      */
-    public function checkoutRefusal(?string $checkout): ?string
+    public function checkoutRefusal(?string $checkout, bool $own = true): ?string
     {
         if (! is_string($checkout) || ! is_dir($checkout)) {
             return 'there is no checkout at '.var_export($checkout, true).'.';
@@ -64,7 +67,7 @@ class StandInGuard
             return "{$checkout} is not a stand-in app; only *.fakecompany.com and *.practice checkouts are driven.";
         }
 
-        return null;
+        return $own ? OwnFleet::refusal($checkout, app(FleetExport::class)) : null;
     }
 
     /**

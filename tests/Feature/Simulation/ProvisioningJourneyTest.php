@@ -4,6 +4,7 @@ namespace Tests\Feature\Simulation;
 
 use App\Simulation\Provisioning\OwnerSignIn;
 use App\Simulation\StandIns\AnthropicStandIn;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -18,6 +19,8 @@ use Tests\TestCase;
  */
 class ProvisioningJourneyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const UUID = '0199b7a2-8f0e-7c1a-9d3e-4b5a6c7d8e9f';
 
     private string $root;

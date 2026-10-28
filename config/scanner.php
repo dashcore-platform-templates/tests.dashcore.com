@@ -81,6 +81,40 @@ return [
     // and they would all start at once the day the workers came back.
     'nightly' => (bool) env('SCANNER_NIGHTLY', true),
 
+    // When the nightly scan starts. Every fleet's tests shares the Mac, so
+    // they are staggered: Dashcore's at 01:00, each other fleet's twenty
+    // minutes after the last (fleets sets it when it builds the site).
+    'nightly_at' => env('SCANNER_NIGHTLY_AT', '01:00'),
+
+    // The heartbeat fails when scans have waited this long with none running
+    // and no worker has taken a scan job (are the launchd workers up?).
+    'stalled_after_minutes' => (int) env('SCANNER_STALLED_AFTER_MINUTES', 45),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Scan slots, host-wide
+    |--------------------------------------------------------------------------
+    |
+    | A suite under Xdebug is heavy, and every install's workers run on the
+    | same Mac. A scan (or a build, which runs suites too) only starts once it
+    | holds one of `scans` slots — a Postgres advisory lock on the
+    | `connection`, whose database every install shares — and otherwise waits
+    | a minute in the queue. Pull request scans take one of their own
+    | `pull_requests` slots, so a busy night never holds a PR's status back.
+    |
+    */
+
+    'slots' => [
+        'connection' => env('SCANNER_SLOTS_CONNECTION', 'scan_slots'),
+        'scans' => (int) env('SCANNER_HOST_SLOTS', 2),
+        'pull_requests' => (int) env('SCANNER_HOST_PR_SLOTS', 1),
+        'retry_after' => (int) env('SCANNER_SLOT_RETRY', 60),
+    ],
+
+    // Long-lived launchd workers this install runs for its scans and builds
+    // (tests:host-runtime lists them, with the PR worker when PR scans are on).
+    'workers' => (int) env('SCANNER_WORKERS', 2),
+
     /*
     |--------------------------------------------------------------------------
     | The test database

@@ -1,6 +1,8 @@
 <?php
 
+use App\Building\BuildRequester;
 use App\Jobs\FlyLaunch;
+use App\Scanning\PullRequestScans;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -12,9 +14,10 @@ Artisan::command('inspire', function () {
 // The roster first, so the nightly scan covers the fleet as it is today.
 Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 
-// Every scannable app, every night, from its default branch.
+// Every scannable app, every night, from its default branch. Every fleet's
+// tests shares the Mac, so each starts at its own SCANNER_NIGHTLY_AT.
 // Off with SCANNER_NIGHTLY=false where the scan workers are paused.
-Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping()
+Schedule::command('tests:scan')->dailyAt((string) config('scanner.nightly_at'))->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.nightly'));
 
 // Scans and builds run on their own long-lived worker, the launchd agent
@@ -28,16 +31,22 @@ Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping()
 // and a reviewed PR is followed by the next one within the hour. Off unless
 // SCANNER_BUILD_NIGHTLY is set.
 Schedule::command('tests:build')->hourlyAt(20)->withoutOverlapping()
-    ->when(fn () => (bool) config('scanner.build.nightly'));
+    ->when(fn () => (bool) config('scanner.build.nightly') && BuildRequester::allowed());
 
 // Every new push to an open PR is scanned and reported as a commit status.
+// Only Dashcore's own tests: another fleet runs releases, not branches.
 Schedule::command('tests:scan-prs')->everyTenMinutes()->withoutOverlapping()
-    ->when(fn () => (bool) config('scanner.pull_requests.enabled'));
+    ->when(fn () => PullRequestScans::allowed());
 
 // Follow the PRs builds opened: merged, closed, or still waiting.
 Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();
 
 Schedule::command('tests:prune')->dailyAt('05:00')->withoutOverlapping();
+
+// This install's heartbeat: every tick, the schedule is alive and its scans
+// and workflows machinery works (ScheduleHealth). First, so a long walk
+// below never holds it back.
+Schedule::command('tests:heartbeat')->everyMinute()->withoutOverlapping(5);
 
 // Browser-test workflows built on /workflows: each one due is walked here,
 // in the tick itself (seconds to a minute each), never in the background.

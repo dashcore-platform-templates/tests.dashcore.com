@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Building\BuildRequester;
 use App\Building\TestkitInstaller;
 use App\Models\FleetApp;
+use App\Services\Install;
 use Illuminate\Console\Command;
 
 class InstallTestkit extends Command
@@ -17,6 +18,12 @@ class InstallTestkit extends Command
 
     public function handle(BuildRequester $requester, TestkitInstaller $installer): int
     {
+        if (! BuildRequester::allowed()) {
+            $this->components->error('Only Dashcore\'s own tests builds tests and opens PRs; this install is the '.Install::fleet().' fleet\'s.');
+
+            return self::FAILURE;
+        }
+
         $keys = (array) $this->argument('app');
         $apps = FleetApp::query()->real()->when($keys !== [], fn ($q) => $q->whereIn('key', $keys))->orderBy('key')->get();
 
