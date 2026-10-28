@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Scanning\PullRequestScans;
+use App\Services\Install;
 use Illuminate\Console\Command;
 
 class ScanPullRequests extends Command
@@ -13,6 +14,12 @@ class ScanPullRequests extends Command
 
     public function handle(PullRequestScans $scans): int
     {
+        if (! Install::isHome()) {
+            $this->components->info('Only Dashcore\'s own tests scans pull requests; this install is the '.Install::fleet().' fleet\'s.');
+
+            return self::SUCCESS;
+        }
+
         foreach ($scans->discover() as $key => $result) {
             $this->components->twoColumnDetail($key, match (true) {
                 $result['skipped'] !== null => '<fg=gray>'.$result['skipped'].'</>',

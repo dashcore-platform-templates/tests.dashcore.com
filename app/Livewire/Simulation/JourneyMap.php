@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Simulation;
 
+use App\Models\JourneyRun;
 use App\Models\Launch;
 use App\Simulation\JourneyMap as Map;
 use Illuminate\Support\Collection;
@@ -59,6 +60,23 @@ class JourneyMap extends Component
         return $stages->firstWhere('key', $this->stageKey)
             ?? $stages->firstWhere('status', 'failed')
             ?? $stages->firstWhere('status', 'passed');
+    }
+
+    /**
+     * The latest walk of each customer journey (`tests:journey`), drifted
+     * ones marked: a walk on a stand-in off its live release proves the
+     * stand-in, not what clients use.
+     *
+     * @return Collection<int, JourneyRun>
+     */
+    #[Computed]
+    public function walks(): Collection
+    {
+        return JourneyRun::query()
+            ->whereIn('id', JourneyRun::query()->selectRaw('max(id)')->groupBy('journey', 'fleet'))
+            ->latest('id')
+            ->limit(20)
+            ->get();
     }
 
     public function openStage(string $key): void

@@ -129,6 +129,24 @@ surfaces (routes, Livewire components/actions, and every public method under
   round trip, debug/env calls, Livewire loading feedback — ratchets recorded in
   `config/testkit.php`. `TestkitInstaller` rolls it out, one verified PR per app:
   `tests:install-testkit [keys] [--now]`. Scans record each app's version.
+- **Installs** — every fleet has its own tests site, all on the Mac under
+  Herd (none on Cloud): tests.dashcore.com for Dashcore's (the home fleet,
+  `config/install.php`), `tests.<slug>.<zone>` on the tailnet for the rest.
+  `App\Services\Install` names what an install makes on the host: scratch
+  DBs `tests_scan_{fleet}__{app}` and launchd labels
+  `com.dashcore.queue-tests.{fleet}` — the home install keeps its old names.
+  Suites wait for a host-wide slot (`ScanSlots`: Postgres advisory locks in
+  the shared `postgres` DB, `SCANNER_HOST_SLOTS`=2, PR scans their own
+  `SCANNER_HOST_PR_SLOTS`=1); a job with no slot re-queues itself a minute
+  later. The nightly scan starts at `SCANNER_NIGHTLY_AT` (Dashcore 01:00,
+  each other fleet 20 min after the last). `tests:host-runtime --json` lists
+  the workers and schedule an install needs, for fleets to install.
+  Another fleet's install scans each checkout at the release it runs live
+  (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
+  else `running_release`, else pinned `release`; tags fetched, never
+  pushed) — never origin's default branch, and an app whose release fleets
+  doesn't know is not scanned. It never scans PRs (`PullRequestScans::allowed`)
+  or builds tests (`BuildRequester::allowed`; `Publisher` refuses to push).
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old
@@ -228,7 +246,23 @@ surfaces (routes, Livewire components/actions, and every public method under
   `base_url`, `checkout`, personas). A `CustomerJourney` script switches app
   with `Script::on()`; a visit opens on that app (run.mjs `base_urls`), and
   values cross apps by `remember()` → `{name}`. `JourneyWalker` drives
-  run.mjs and reports to the console only — no run records or findings.
+  run.mjs and reports to the console. Each walk is kept as a `JourneyRun`
+  (passed/failed/refused) with its stand-ins' drift: `StandInPins` compares
+  each stand-in checkout with what the fleet it stands in for runs live
+  (`stands_in_for`, default this install's fleet; fleets' `fleet:export`),
+  a drifted one is a `FindingKind::Drift` finding on the stand-in fleet
+  (settled by the next walk that finds it back), and the client-journey
+  page lists each journey's latest walk, drifted ones marked.
+  `tests:pin-stand-ins [fleet]` moves each stand-in checkout (clean ones
+  only) to that release or commit, then installs, migrates and builds
+  what the move changed. This install's stand-in fleet is `SIMULATION_FLEET`
+  (the `--target` default of `tests:journey`/`tests:launch`). Each install
+  walks only its own fleet's stand-ins (`OwnFleet`, at boot): targets keep
+  their `fleet` (default the home fleet — the fake company is Dashcore's),
+  stand-in fleets their `stands_in_for` (`SIMULATION_STANDS_IN_FOR`,
+  default dashcore); the rest are dropped from config, and `StandInGuard`
+  refuses a checkout fleets' export lists under any other fleet (not for
+  the client fleet a journey just built — `providesApps`).
   `StandInGuard` refuses before anything runs: a checkout must be
   `*fakecompany*` or `*.practice*` (also `tests:prepare-target`'s check), and
   every app must show `mail.default` = `log` (plus its `mail_guard`, e.g. the
@@ -313,13 +347,27 @@ surfaces (routes, Livewire components/actions, and every public method under
   `next_run_at` passed; each is claimed under a lock before it walks.
   `WorkflowRunner` records `workflow_runs`/`workflow_run_steps`, screenshots
   in `storage/workflows.noindex`; `Alerts` mails `notify` once after
-  `alert_after` failures in a row and once on recovery. `Heartbeat` pings a
-  Healthchecks.io-style URL every scheduled tick (`/fail` only when the
-  machinery is broken — the browser never ran a step, or the command threw;
-  never for a site failing), read from keys as
-  `tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local` at most hourly
-  (cached encrypted; `WORKFLOWS_HEARTBEAT_URL` overrides), and records
-  `workflows.last_tick` for the pages' "schedule is not running" warning. Workflows travel as JSON
+  `alert_after` failures in a row and once on recovery. The install's
+  heartbeat is `tests:heartbeat`, first in the schedule every minute:
+  `Heartbeat` pings a Healthchecks.io-style URL (`/fail` only when the
+  machinery is broken — `ScheduleHealth`: tests:workflows' last tick says
+  the browser never ran a step or it threw, or has not finished a tick for
+  30 min; or scans have waited `SCANNER_STALLED_AFTER_MINUTES` with none
+  running and no worker taking a scan job — never for a site or suite
+  failing), read from keys under this install's own host
+  (`<install host>__WORKFLOWS_HEARTBEAT_URL__local`, e.g.
+  `tests.dashcore.com__…`) at most hourly (cached encrypted;
+  `WORKFLOWS_HEARTBEAT_URL` overrides), and records `schedule.last_tick`
+  for the pages' "schedule is not running" warning and Console's report.
+  tests:workflows keeps its own `workflows.last_tick` for its gap notice.
+
+- **Console** — `console:report --json` (`App\Reporting\ConsoleReport`)
+  prints Console's report contract (console.dashcore.com docs/PLAN.md;
+  Console's `TestsSource` files it as `tests-<fleet>`): findings for each
+  app's latest scan failing (`tests:scan-failed:{app}`), its latest
+  completed scan's regressions, each journey's latest walk failing, refused
+  or drifted, and a silent (10 min) or failing heartbeat. All well, no
+  findings; a part it cannot read makes `complete` false. Workflows travel as JSON
   (`Transfer`, format `dashcore-workflows` v1): "Export all" on the list,
   "Export" on one (`workflows.export`, `workflows.export-one`), "Import" on
   the list (managers only) — the definition only, never runs or state; an

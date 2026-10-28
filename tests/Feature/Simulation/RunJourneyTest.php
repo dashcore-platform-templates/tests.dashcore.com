@@ -2,20 +2,32 @@
 
 namespace Tests\Feature\Simulation;
 
+use App\Enums\FindingKind;
+use App\Enums\FindingStatus;
+use App\Livewire\Simulation\JourneyMap;
+use App\Models\JourneyRun;
+use App\Models\SimulationFinding;
+use App\Models\User;
 use App\Simulation\CustomerJourneys\Enquiry;
 use App\Simulation\CustomerJourneys\Payment;
 use App\Simulation\CustomerJourneys\Subscription;
 use App\Simulation\Persona;
 use App\Simulation\Simulation;
+use App\Simulation\StandInPins;
 use App\Simulation\StripeForwarder;
 use Illuminate\Contracts\Process\InvokedProcess;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
+use Livewire\Livewire;
+use Mockery;
 use Tests\TestCase;
 
 class RunJourneyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private string $root;
 
     /** @var array<string, string> what each checkout's config says, by checkout folder */
@@ -262,6 +274,67 @@ class RunJourneyTest extends TestCase
         $password = $steps->firstWhere('target', '#password')['value'];
         $this->assertSame(24, strlen($password));
         Process::assertRan(fn (PendingProcess $p) => in_array("--password={$password}", (array) $p->command, true));
+    }
+
+    /** What StandInPins finds: sales off its live release unless $drifted is false. */
+    private function standIns(bool $drifted): void
+    {
+        $sales = ['app' => 'sales', 'checkout' => "{$this->root}/sales.travischapman.practice", 'live' => 'v1.4.0', 'live_sha' => str_repeat('a', 40), 'actual_sha' => str_repeat($drifted ? 'b' : 'a', 40)];
+        $website = ['app' => 'website', 'checkout' => "{$this->root}/travischapman.practice", 'live' => 'c0ffee1', 'live_sha' => str_repeat('c', 40), 'actual_sha' => str_repeat('c', 40)];
+
+        $pins = Mockery::mock(StandInPins::class);
+        $pins->shouldReceive('survey')->with('practice', Mockery::on(fn ($apps) => in_array('sales', $apps, true)))->andReturn([$website, $sales]);
+        $this->app->instance(StandInPins::class, $pins);
+    }
+
+    public function test_a_walk_on_a_drifted_stand_in_is_recorded_and_shown_as_drifted_with_a_finding(): void
+    {
+        $this->events = $this->aWalk($this->enquirySteps(), 'journey+abc@example.com');
+        $this->fakeProcesses();
+        $this->standIns(drifted: true);
+
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])
+            ->expectsOutputToContain('Drifted: the sales stand-in is not on v1.4.0')
+            ->assertSuccessful();
+
+        $run = JourneyRun::sole();
+        $this->assertSame(['enquiry', 'practice', JourneyRun::PASSED], [$run->journey, $run->fleet, $run->outcome]);
+        $this->assertTrue($run->drifted());
+        $this->assertSame(['sales'], array_column($run->drift, 'app'));
+
+        $finding = SimulationFinding::sole();
+        $this->assertSame(FindingKind::Drift, $finding->kind);
+        $this->assertSame(FindingStatus::Open, $finding->status);
+        $this->assertSame('practice', $finding->target);
+        $this->assertStringContainsString('sales stand-in is not on v1.4.0', $finding->title);
+        $this->assertStringContainsString('tests:pin-stand-ins practice', $finding->detail);
+
+        $this->actingAs(User::factory()->create());
+        Livewire::test(JourneyMap::class)
+            ->assertSeeHtml('data-drifted="yes"')
+            ->assertSee('Drifted')
+            ->assertSee('sales (live v1.4.0)');
+
+        // The next walk finds it back on the live release: the finding settles.
+        $this->standIns(drifted: false);
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])->assertSuccessful();
+
+        $this->assertFalse(JourneyRun::latest('id')->first()->drifted());
+        $this->assertSame(FindingStatus::Resolved, $finding->fresh()->status);
+    }
+
+    public function test_a_failed_or_refused_walk_is_recorded_too(): void
+    {
+        $this->standIns(drifted: false);
+        $this->events = $this->aWalk($this->enquirySteps(), 'journey+x@example.com', failAt: 3);
+        $this->fakeProcesses();
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])->assertFailed();
+
+        $this->mail['sales.travischapman.practice'] = json_encode(['mail.default' => 'resend']);
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])->assertFailed();
+
+        $this->assertSame([JourneyRun::FAILED, JourneyRun::REFUSED], JourneyRun::orderBy('id')->pluck('outcome')->all());
+        $this->assertStringContainsString('resend', (string) JourneyRun::latest('id')->first()->error);
     }
 
     public function test_every_prospect_is_new_and_on_example_com(): void

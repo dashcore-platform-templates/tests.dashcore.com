@@ -12,6 +12,7 @@ enum FindingKind: string
     case ServerError = 'server_error';
     case LogError = 'log_error';
     case FailedJob = 'failed_job';
+    case Drift = 'drift';
     case ConsoleError = 'console_error';
     case DeadSpace = 'dead_space';
     case Slow = 'slow';
@@ -23,6 +24,7 @@ enum FindingKind: string
             self::ServerError => 'Server error',
             self::LogError => 'Logged error',
             self::FailedJob => 'Failed job',
+            self::Drift => 'Stand-in drifted',
             self::ConsoleError => 'Browser error',
             self::DeadSpace => 'No loading feedback',
             self::Slow => 'Slow step',

@@ -20,8 +20,9 @@ class FlyLaunch implements ShouldQueue
 
     public int $timeout;
 
-    public function __construct(public string $target = 'practice')
+    public function __construct(public ?string $target = null)
     {
+        $this->target ??= (string) config('simulation.fleet');
         $this->timeout = (int) config("simulation.fleets.{$target}.provisioning_timeout", 3600) + 3600;
         $this->onConnection(config('scanner.queue.connection'));
         $this->onQueue('builds');

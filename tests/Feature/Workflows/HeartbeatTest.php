@@ -3,9 +3,12 @@
 namespace Tests\Feature\Workflows;
 
 use App\Enums\SimulationStatus;
+use App\Models\Scan;
 use App\Models\User;
 use App\Models\Workflow;
+use App\Services\ScheduleHealth;
 use App\Workflows\Heartbeat;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Process\PendingProcess;
@@ -104,8 +107,9 @@ class HeartbeatTest extends TestCase
         config(['workflows.heartbeat_url' => 'https://hc.example.test/ping/abc']);
 
         $this->artisan('tests:workflows')->assertSuccessful();
+        $this->artisan('tests:heartbeat')->assertSuccessful();
 
-        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && $request->body() === 'Tick: nothing due.');
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && $request->body() === "Workflows: nothing due.\nScans: 0 queued, 0 running.");
     }
 
     public function test_a_site_failing_its_workflow_is_not_a_broken_heartbeat(): void
@@ -118,8 +122,9 @@ class HeartbeatTest extends TestCase
         Workflow::factory()->active()->create();
 
         $this->artisan('tests:workflows')->assertSuccessful();
+        $this->artisan('tests:heartbeat')->assertSuccessful();
 
-        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && $request->body() === 'Tick: walked 1 workflow(s).');
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && str_starts_with($request->body(), 'Workflows: walked 1.'));
     }
 
     public function test_a_browser_that_never_starts_is_a_broken_heartbeat(): void
@@ -129,11 +134,69 @@ class HeartbeatTest extends TestCase
         $workflow = Workflow::factory()->active()->create();
 
         $this->artisan('tests:workflows')->assertSuccessful();
+        $this->artisan('tests:heartbeat')->assertSuccessful();
 
         $this->assertSame(SimulationStatus::Failed, $workflow->runs()->first()->status);
         Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc/fail'
             && str_contains($request->body(), 'the browser never ran a step')
             && str_contains($request->body(), "Executable doesn't exist"));
+    }
+
+    public function test_each_install_reads_its_own_check_from_keys_under_its_own_host(): void
+    {
+        config(['install.host' => 'tests.acme.practice.dashcore.com', 'install.fleet' => 'acme']);
+        File::ensureDirectoryExists($this->keys);
+        File::put($this->keys.'/artisan', '<?php');
+        Process::fake(['*keys:fleet*' => Process::result(output: json_encode([
+            'tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local' => 'https://hc.example.test/ping/dashcore',
+            'tests.acme.practice.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local' => 'https://hc.example.test/ping/acme',
+        ]))]);
+
+        $this->artisan('tests:heartbeat')->assertSuccessful();
+
+        Process::assertRan(fn (PendingProcess $process) => json_decode($process->input, true) === [['app' => 'tests.acme.practice.dashcore.com', 'environment' => 'local', 'variable' => 'WORKFLOWS_HEARTBEAT_URL']]);
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/acme');
+        Http::assertNotSent(fn (Request $request) => str_contains($request->url(), 'dashcore'));
+    }
+
+    public function test_the_heartbeat_beats_on_every_tick_and_records_the_last_one(): void
+    {
+        config(['workflows.heartbeat_url' => 'https://hc.example.test/ping/abc']);
+
+        $event = collect(app(Schedule::class)->events())->first(fn ($e) => str_contains((string) $e->command, 'tests:heartbeat'));
+        $this->assertNotNull($event, 'tests:heartbeat is scheduled');
+        $this->assertSame('* * * * *', $event->expression);
+
+        $this->artisan('tests:heartbeat')->assertSuccessful();
+
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && $request->body() === 'Scans: 0 queued, 0 running.');
+        $this->assertTrue(Heartbeat::lastTick()->gt(now()->subMinute()));
+    }
+
+    public function test_scans_nobody_takes_fail_the_heartbeat_and_a_live_worker_does_not(): void
+    {
+        config(['workflows.heartbeat_url' => 'https://hc.example.test/ping/abc', 'scanner.stalled_after_minutes' => 45]);
+        Scan::factory()->create(['created_at' => now()->subHour()]);
+
+        $this->artisan('tests:heartbeat')->assertSuccessful();
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc/fail' && str_contains($request->body(), 'nothing has taken one for 45 minutes'));
+
+        // A worker that took a scan job — even one waiting for a host-wide slot — is alive.
+        ScheduleHealth::scanWorkerSeen();
+        Http::fake();
+        $this->artisan('tests:heartbeat')->assertSuccessful();
+        Http::assertSent(fn (Request $request) => $request->url() === 'https://hc.example.test/ping/abc' && $request->body() === 'Scans: 1 queued, 0 running.');
+    }
+
+    public function test_a_workflows_tick_that_stopped_finishing_fails_the_heartbeat(): void
+    {
+        config(['workflows.heartbeat_url' => 'https://hc.example.test/ping/abc']);
+        $this->artisan('tests:workflows')->assertSuccessful();
+        $this->travel(31)->minutes();
+
+        $this->artisan('tests:heartbeat')->assertSuccessful();
+
+        Http::assertSent(fn (Request $request) => str_ends_with($request->url(), '/fail') && str_contains($request->body(), 'tests:workflows has not finished a tick'));
     }
 
     public function test_running_one_workflow_by_hand_is_not_a_tick(): void
