@@ -43,6 +43,11 @@ Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();
 
 Schedule::command('tests:prune')->dailyAt('05:00')->withoutOverlapping();
 
+// This install's heartbeat: every tick, the schedule is alive and its scans
+// and workflows machinery works (ScheduleHealth). First, so a long walk
+// below never holds it back.
+Schedule::command('tests:heartbeat')->everyMinute()->withoutOverlapping(5);
+
 // Browser-test workflows built on /workflows: each one due is walked here,
 // in the tick itself (seconds to a minute each), never in the background.
 Schedule::command('tests:workflows')->everyMinute()->withoutOverlapping(30);

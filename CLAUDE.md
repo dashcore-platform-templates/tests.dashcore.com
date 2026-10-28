@@ -347,13 +347,19 @@ surfaces (routes, Livewire components/actions, and every public method under
   `next_run_at` passed; each is claimed under a lock before it walks.
   `WorkflowRunner` records `workflow_runs`/`workflow_run_steps`, screenshots
   in `storage/workflows.noindex`; `Alerts` mails `notify` once after
-  `alert_after` failures in a row and once on recovery. `Heartbeat` pings a
-  Healthchecks.io-style URL every scheduled tick (`/fail` only when the
-  machinery is broken — the browser never ran a step, or the command threw;
-  never for a site failing), read from keys as
-  `tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local` at most hourly
-  (cached encrypted; `WORKFLOWS_HEARTBEAT_URL` overrides), and records
-  `workflows.last_tick` for the pages' "schedule is not running" warning. Workflows travel as JSON
+  `alert_after` failures in a row and once on recovery. The install's
+  heartbeat is `tests:heartbeat`, first in the schedule every minute:
+  `Heartbeat` pings a Healthchecks.io-style URL (`/fail` only when the
+  machinery is broken — `ScheduleHealth`: tests:workflows' last tick says
+  the browser never ran a step or it threw, or has not finished a tick for
+  30 min; or scans have waited `SCANNER_STALLED_AFTER_MINUTES` with none
+  running and no worker taking a scan job — never for a site or suite
+  failing), read from keys under this install's own host
+  (`<install host>__WORKFLOWS_HEARTBEAT_URL__local`, e.g.
+  `tests.dashcore.com__…`) at most hourly (cached encrypted;
+  `WORKFLOWS_HEARTBEAT_URL` overrides), and records `schedule.last_tick`
+  for the pages' "schedule is not running" warning and Console's report.
+  tests:workflows keeps its own `workflows.last_tick` for its gap notice. Workflows travel as JSON
   (`Transfer`, format `dashcore-workflows` v1): "Export all" on the list,
   "Export" on one (`workflows.export`, `workflows.export-one`), "Import" on
   the list (managers only) — the definition only, never runs or state; an

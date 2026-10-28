@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Workflows;
 
+use App\Console\Commands\RunWorkflows;
 use App\Enums\SimulationStatus;
 use App\Enums\WorkflowEventType;
 use App\Enums\WorkflowFrequency;
@@ -13,7 +14,6 @@ use App\Models\User;
 use App\Models\Workflow;
 use App\Models\WorkflowEvent;
 use App\Models\WorkflowRun;
-use App\Workflows\Heartbeat;
 use App\Workflows\Transfer;
 use App\Workflows\WorkflowRunner;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -207,7 +207,7 @@ class WorkflowEventLogTest extends TestCase
         Process::fake();
         $this->freezeSecond();
         Workflow::factory()->create(['active' => true, 'next_run_at' => now()->addHour()]);
-        Setting::set(Heartbeat::LAST_TICK, now()->subHours(3)->subMinutes(10)->toIso8601String());
+        Setting::set(RunWorkflows::LAST_TICK, now()->subHours(3)->subMinutes(10)->toIso8601String());
 
         $this->artisan('tests:workflows')->assertSuccessful();
         $this->artisan('tests:workflows')->assertSuccessful();
@@ -222,7 +222,7 @@ class WorkflowEventLogTest extends TestCase
     {
         Process::fake();
         Workflow::factory()->create(['active' => false]);
-        Setting::set(Heartbeat::LAST_TICK, now()->subDay()->toIso8601String());
+        Setting::set(RunWorkflows::LAST_TICK, now()->subDay()->toIso8601String());
 
         $this->artisan('tests:workflows')->assertSuccessful();
 

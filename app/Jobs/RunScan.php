@@ -7,6 +7,7 @@ use App\Models\Scan;
 use App\Scanning\PullRequestStatus;
 use App\Scanning\Scanner;
 use App\Scanning\ScanSlots;
+use App\Services\ScheduleHealth;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -39,6 +40,9 @@ class RunScan implements ShouldQueue
         if ($this->scan->status !== ScanStatus::Queued) {
             return;
         }
+
+        // A worker is alive and taking scans, slot or no slot (ScheduleHealth).
+        ScheduleHealth::scanWorkerSeen();
 
         // Every install on the Mac shares its scan slots: with none free, the
         // scan waits its turn in the queue rather than holding a worker.

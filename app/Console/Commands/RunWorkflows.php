@@ -4,14 +4,16 @@ namespace App\Console\Commands;
 
 use App\Enums\SimulationStatus;
 use App\Enums\WorkflowEventType;
+use App\Models\Setting;
 use App\Models\Workflow;
 use App\Models\WorkflowEvent;
 use App\Models\WorkflowRun;
+use App\Services\ScheduleHealth;
 use App\Workflows\EventLog;
-use App\Workflows\Heartbeat;
 use App\Workflows\WorkflowRunner;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Throwable;
@@ -28,7 +30,10 @@ class RunWorkflows extends Command
 
     protected $description = 'Walk the browser-test workflows that are due (or one, now)';
 
-    public function handle(WorkflowRunner $runner, Heartbeat $heartbeat): int
+    /** When this command's last scheduled tick ran, for its gap notice. */
+    public const LAST_TICK = 'workflows.last_tick';
+
+    public function handle(WorkflowRunner $runner): int
     {
         $this->settleAbandonedRuns();
 
@@ -83,9 +88,15 @@ class RunWorkflows extends Command
             $broken[] = 'tests:workflows failed: '.$e->getMessage();
         }
 
-        $heartbeat->beat($broken === [], $broken === []
-            ? ($walked === 0 ? 'Tick: nothing due.' : "Tick: walked {$walked} workflow(s).")
-            : implode("\n", $broken));
+        // The install's heartbeat (tests:heartbeat) reports this with the scans.
+        Setting::set(self::LAST_TICK, now()->toIso8601String());
+        Setting::set(ScheduleHealth::WORKFLOWS_RESULT, [
+            'at' => now()->toIso8601String(),
+            'healthy' => $broken === [],
+            'note' => $broken === []
+                ? ($walked === 0 ? 'Workflows: nothing due.' : "Workflows: walked {$walked}.")
+                : implode("\n", $broken),
+        ]);
 
         return self::SUCCESS;
     }
@@ -165,7 +176,8 @@ class RunWorkflows extends Command
      */
     private function noticeScheduleGap(): void
     {
-        $last = Heartbeat::lastTick();
+        $at = Setting::get(self::LAST_TICK);
+        $last = is_string($at) ? Carbon::parse($at) : null;
 
         if ($last === null || $last->gte(now()->subMinutes((int) config('workflows.stale_after_minutes')))) {
             return;

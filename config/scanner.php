@@ -86,6 +86,10 @@ return [
     // minutes after the last (fleets sets it when it builds the site).
     'nightly_at' => env('SCANNER_NIGHTLY_AT', '01:00'),
 
+    // The heartbeat fails when scans have waited this long with none running
+    // and no worker has taken a scan job (are the launchd workers up?).
+    'stalled_after_minutes' => (int) env('SCANNER_STALLED_AFTER_MINUTES', 45),
+
     /*
     |--------------------------------------------------------------------------
     | Scan slots, host-wide

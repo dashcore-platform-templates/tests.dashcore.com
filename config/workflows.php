@@ -38,8 +38,8 @@ return [
 
     'run_timeout' => (int) env('WORKFLOWS_RUN_TIMEOUT', 180),
 
-    // A Healthchecks.io-style ping URL: pinged every tick of tests:workflows,
-    // at /fail when the machinery is broken. The service texts when pings
+    // A Healthchecks.io-style ping URL: pinged every tick (tests:heartbeat),
+    // at /fail when the scans' or workflows' machinery is broken. The service texts when pings
     // fail or stop — so it also catches this machine being off. Normally
     // unset: the URL is read from Bitwarden through keys
     // (tests.dashcore.com__WORKFLOWS_HEARTBEAT_URL__local). This overrides it.
@@ -48,11 +48,17 @@ return [
     // The keys.dashcore.com checkout that reads it.
     'keys_checkout' => env('WORKFLOWS_KEYS_CHECKOUT', rtrim((string) (env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/').'/keys.dashcore.com'),
 
-    // This app's name in keys.dashcore.com, which files its secrets under
-    // Dashcore's production hostname whatever environment reads them.
-    'keys_app' => env('WORKFLOWS_KEYS_APP', 'tests.dashcore.com'),
+    // This install's name in keys.dashcore.com, which files its secrets
+    // under the production hostname whatever environment reads them. Unset
+    // means this install's own host (install.host): every fleet's tests has
+    // its own check, tests.<slug>.<zone>__WORKFLOWS_HEARTBEAT_URL__local.
+    'keys_app' => env('WORKFLOWS_KEYS_APP'),
 
     // The page warns when the schedule has not ticked for this long.
     'stale_after_minutes' => (int) env('WORKFLOWS_STALE_AFTER_MINUTES', 5),
+
+    // The heartbeat fails when tests:workflows has not finished a tick for
+    // this long (a walk takes up to run_timeout; several can queue up).
+    'tick_stale_after_minutes' => (int) env('WORKFLOWS_TICK_STALE_AFTER_MINUTES', 30),
 
 ];
