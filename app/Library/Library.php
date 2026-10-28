@@ -53,6 +53,18 @@ class Library
         $committed = Process::path($repo)->run(['git', 'show', '-s', '--format=%cI', $commit]);
         $at = $committed->successful() && trim($committed->output()) !== '' ? Carbon::parse(trim($committed->output())) : now();
 
+        return $this->store($app, $commit, $files, $at, $scan);
+    }
+
+    /**
+     * Keep test files already read — from git, or from `tests:demo`'s
+     * fixtures — and the tests a scan ran against them.
+     *
+     * @param  array<string, string>  $files  path => content
+     * @return array{files: int, changed: int, tests: int}
+     */
+    public function store(FleetApp $app, string $commit, array $files, Carbon $at, ?Scan $scan = null): array
+    {
         return DB::transaction(function () use ($app, $commit, $scan, $files, $at) {
             $changed = $this->storeFiles($app, $commit, $files, $at);
             $tests = $this->storeTests($app, $scan);

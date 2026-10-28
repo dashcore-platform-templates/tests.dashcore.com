@@ -75,6 +75,7 @@ class Demo
 
         return DB::transaction(fn () => [
             'fleet apps' => (new DemoFleet)->seed(),
+            'library tests' => app(DemoLibrary::class)->seed(),
         ]);
     }
 
