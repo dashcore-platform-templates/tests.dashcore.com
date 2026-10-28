@@ -13,12 +13,13 @@ use App\Scanning\FleetSync;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\UsesDemoScratch;
 use Tests\Concerns\UsesFleetFixtures;
 use Tests\TestCase;
 
 class DemoCommandTest extends TestCase
 {
-    use RefreshDatabase, UsesFleetFixtures;
+    use RefreshDatabase, UsesDemoScratch, UsesFleetFixtures;
 
     public function test_it_refuses_in_production_and_changes_nothing(): void
     {

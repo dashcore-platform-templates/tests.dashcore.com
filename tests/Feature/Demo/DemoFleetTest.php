@@ -7,11 +7,12 @@ use App\Models\Build;
 use App\Models\FleetApp;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\UsesDemoScratch;
 use Tests\TestCase;
 
 class DemoFleetTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDemoScratch;
 
     private User $owner;
 

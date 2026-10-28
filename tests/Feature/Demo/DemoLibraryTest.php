@@ -7,11 +7,12 @@ use App\Models\LibraryTest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Process;
+use Tests\Concerns\UsesDemoScratch;
 use Tests\TestCase;
 
 class DemoLibraryTest extends TestCase
 {
-    use RefreshDatabase;
+    use RefreshDatabase, UsesDemoScratch;
 
     public function test_the_library_shows_demo_files_with_revisions_outcome_history_and_proofs_without_git(): void
     {
