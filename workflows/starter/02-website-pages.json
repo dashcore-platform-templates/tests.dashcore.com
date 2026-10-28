@@ -1,0 +1,47 @@
+{
+    "format": "dashcore-workflows",
+    "version": 1,
+    "exported_at": "2026-10-28T12:00:00-07:00",
+    "workflows": [
+        {
+            "name": "Website: main pages answer",
+            "description": "dashcore.com's home, privacy and terms pages load and show what they should. Reads only; types and sends nothing.",
+            "base_url": "https://dashcore.com",
+            "steps": [
+                {
+                    "do": "visit",
+                    "label": "Open the home page",
+                    "path": "/"
+                },
+                {
+                    "do": "see",
+                    "label": "See Dashcore on it",
+                    "text": "Dashcore"
+                },
+                {
+                    "do": "visit",
+                    "label": "Open the privacy policy",
+                    "path": "/privacy"
+                },
+                {
+                    "do": "see",
+                    "label": "See the privacy policy",
+                    "text": "Privacy Policy"
+                },
+                {
+                    "do": "visit",
+                    "label": "Open the terms",
+                    "path": "/terms"
+                },
+                {
+                    "do": "see",
+                    "label": "See the terms of service",
+                    "text": "Terms of Service"
+                }
+            ],
+            "frequency": "1h",
+            "notify": [],
+            "alert_after": 2
+        }
+    ]
+}
