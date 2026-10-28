@@ -55,7 +55,9 @@
              on PATH); tests assert on the bare command. -->
         <env name="SCANNER_GH" value="gh" force="true"/>
         <server name="SCANNER_GH" value="gh" force="true"/>
-        <!-- No test reaches the real keys checkout or a real heartbeat. -->
+        <!-- No test reaches the real fleets checkout, keys checkout or heartbeat. -->
+        <env name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
+        <server name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
         <env name="WORKFLOWS_HEARTBEAT_URL" value="" force="true"/>
         <server name="WORKFLOWS_HEARTBEAT_URL" value="" force="true"/>
         <env name="WORKFLOWS_KEYS_CHECKOUT" value="" force="true"/>

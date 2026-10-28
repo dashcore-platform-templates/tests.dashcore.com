@@ -1,6 +1,8 @@
 <?php
 
+use App\Building\BuildRequester;
 use App\Jobs\FlyLaunch;
+use App\Scanning\PullRequestScans;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -29,11 +31,12 @@ Schedule::command('tests:scan')->dailyAt((string) config('scanner.nightly_at'))-
 // and a reviewed PR is followed by the next one within the hour. Off unless
 // SCANNER_BUILD_NIGHTLY is set.
 Schedule::command('tests:build')->hourlyAt(20)->withoutOverlapping()
-    ->when(fn () => (bool) config('scanner.build.nightly'));
+    ->when(fn () => (bool) config('scanner.build.nightly') && BuildRequester::allowed());
 
 // Every new push to an open PR is scanned and reported as a commit status.
+// Only Dashcore's own tests: another fleet runs releases, not branches.
 Schedule::command('tests:scan-prs')->everyTenMinutes()->withoutOverlapping()
-    ->when(fn () => (bool) config('scanner.pull_requests.enabled'));
+    ->when(fn () => PullRequestScans::allowed());
 
 // Follow the PRs builds opened: merged, closed, or still waiting.
 Schedule::command('tests:sync-builds')->hourly()->withoutOverlapping();

@@ -2,6 +2,7 @@
 
 namespace App\Scanning;
 
+use App\Building\BuildRequester;
 use App\Services\Install;
 
 /**
@@ -67,7 +68,7 @@ class HostRuntime
                 'nightly_scan' => (bool) config('scanner.nightly'),
                 'nightly_scan_at' => (string) config('scanner.nightly_at'),
                 'pull_request_scans' => $this->pullRequestScans(),
-                'test_builds' => (bool) config('scanner.build.nightly'),
+                'test_builds' => (bool) config('scanner.build.nightly') && BuildRequester::allowed(),
             ],
             'scratch' => [
                 'database_prefix' => (string) config('scanner.database.prefix').Install::scoped(''),
@@ -84,7 +85,7 @@ class HostRuntime
 
     public function pullRequestScans(): bool
     {
-        return (bool) config('scanner.pull_requests.enabled');
+        return PullRequestScans::allowed();
     }
 
     /**

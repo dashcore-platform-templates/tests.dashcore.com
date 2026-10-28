@@ -94,7 +94,8 @@ class InstallsOnOneHostTest extends TestCase
         $acme = collect(app(HostRuntime::class)->describe()['workers'])->pluck('label')->all();
 
         $this->assertSame(['com.dashcore.queue-tests', 'com.dashcore.queue-tests-2', 'com.dashcore.queue-tests-prs', 'com.dashcore.simulation-tests'], $home);
-        $this->assertSame(['com.dashcore.queue-tests.acme', 'com.dashcore.queue-tests.acme-2', 'com.dashcore.queue-tests.acme-prs', 'com.dashcore.simulation-tests.acme'], $acme);
+        // Another fleet never scans pull requests, so it has no PR worker.
+        $this->assertSame(['com.dashcore.queue-tests.acme', 'com.dashcore.queue-tests.acme-2', 'com.dashcore.simulation-tests.acme'], $acme);
     }
 
     public function test_installs_share_the_hosts_scan_slots_and_pr_scans_keep_their_own(): void

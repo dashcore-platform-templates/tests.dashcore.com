@@ -9,6 +9,7 @@ use App\Models\Build;
 use App\Models\FleetApp;
 use App\Models\Surface;
 use App\Models\User;
+use App\Services\Install;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -19,9 +20,19 @@ class BuildRequester
 {
     public function __construct(private readonly BuildPlanner $planner) {}
 
+    /**
+     * Only Dashcore's own tests builds tests. Another fleet's apps run
+     * releases from Templates, and a branch pushed there would land in
+     * every client's next release.
+     */
+    public static function allowed(): bool
+    {
+        return Install::isHome();
+    }
+
     public function request(FleetApp $app, ?User $user = null, ?Surface $lead = null, bool $queue = true): ?Build
     {
-        if (! $app->isScannable()) {
+        if (! self::allowed() || ! $app->isScannable()) {
             return null;
         }
 
@@ -61,7 +72,7 @@ class BuildRequester
      */
     public function requestTestkit(FleetApp $app, ?User $user = null, bool $queue = true): ?Build
     {
-        if (! $app->isScannable()) {
+        if (! self::allowed() || ! $app->isScannable()) {
             return null;
         }
 

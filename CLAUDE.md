@@ -141,6 +141,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   later. The nightly scan starts at `SCANNER_NIGHTLY_AT` (Dashcore 01:00,
   each other fleet 20 min after the last). `tests:host-runtime --json` lists
   the workers and schedule an install needs, for fleets to install.
+  Another fleet's install scans each checkout at the release it runs live
+  (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
+  else `running_release`, else pinned `release`; tags fetched, never
+  pushed) — never origin's default branch, and an app whose release fleets
+  doesn't know is not scanned. It never scans PRs (`PullRequestScans::allowed`)
+  or builds tests (`BuildRequester::allowed`; `Publisher` refuses to push).
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old

@@ -7,6 +7,7 @@ use App\Models\FleetApp;
 use App\Models\Scan;
 use App\Scanning\Exceptions\GitHubUnreachable;
 use App\Scanning\Exceptions\PullRequestUnmergeable;
+use App\Services\FleetExport;
 use App\Services\Install;
 use DOMDocument;
 use DOMElement;
@@ -83,6 +84,10 @@ class Workspace
      */
     public function resolveRevision(): array
     {
+        if (! Install::isHome()) {
+            return $this->resolveLiveRelease();
+        }
+
         $repo = (string) $this->app->local_path;
 
         $fetch = Process::path($repo)->timeout(120)->run(['git', 'fetch', '--quiet', $this->remote(), '+refs/heads/*:refs/remotes/origin/*']);
@@ -103,6 +108,48 @@ class Workspace
         }
 
         throw new RuntimeException('No default branch could be resolved in '.$repo.'.');
+    }
+
+    /**
+     * A client or practice fleet is scanned at the release it runs, never at
+     * origin's default branch: its coverage is the coverage of what its
+     * people use. fleets says which release that is; tags come from the
+     * app's repository (fetched, never pushed to).
+     *
+     * @return array{ref: string, sha: string, subject: string}
+     */
+    private function resolveLiveRelease(): array
+    {
+        $repo = (string) $this->app->local_path;
+        $live = app(FleetExport::class)->live(Install::fleet(), $this->app->key);
+
+        if ($live === null || ($live['release'] === null && $live['commit'] === null)) {
+            throw new RuntimeException("fleets does not say which release {$this->app->key} runs in the ".Install::fleet().' fleet, so it was not scanned: a fleet other than Dashcore\'s is scanned at the release it runs, never at its default branch.');
+        }
+
+        $fetch = Process::path($repo)->timeout(120)->run(['git', 'fetch', '--quiet', $this->remote(), '+refs/tags/*:refs/tags/*']);
+
+        if ($fetch->failed()) {
+            $this->notes[] = 'git fetch failed, so the scan used the tags already in the checkout: '.trim($fetch->errorOutput());
+        }
+
+        $candidates = array_filter([
+            $live['commit'],
+            $live['release'] === null ? null : 'refs/tags/'.$live['release'],
+        ]);
+
+        foreach ($candidates as $ref) {
+            $sha = Process::path($repo)->run(['git', 'rev-parse', '--verify', '--quiet', $ref.'^{commit}']);
+
+            if ($sha->successful() && trim($sha->output()) !== '') {
+                $sha = trim($sha->output());
+                $subject = trim(Process::path($repo)->run(['git', 'log', '-1', '--format=%s', $sha])->output());
+
+                return ['ref' => $live['release'] ?? $sha, 'sha' => $sha, 'subject' => $subject];
+            }
+        }
+
+        throw new RuntimeException("{$this->app->key} runs ".($live['release'] ?? $live['commit']).' in the '.Install::fleet().' fleet, and neither that release nor its commit is in '.$repo.'.');
     }
 
     /**

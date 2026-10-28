@@ -7,6 +7,7 @@ use App\Enums\ScanStatus;
 use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Services\Install;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Process;
 
@@ -22,10 +23,23 @@ class PullRequestScans
     public function __construct(private readonly PullRequestStatus $status) {}
 
     /**
+     * Whether PR scans run here: switched on, and only on Dashcore's own
+     * tests. Another fleet runs releases, not branches — nothing to merge.
+     */
+    public static function allowed(): bool
+    {
+        return (bool) config('scanner.pull_requests.enabled') && Install::isHome();
+    }
+
+    /**
      * @return array<string, array{queued: list<int>, skipped: string|null}>
      */
     public function discover(): array
     {
+        if (! Install::isHome()) {
+            return [];
+        }
+
         $report = [];
 
         foreach (FleetApp::query()->orderBy('key')->get() as $app) {

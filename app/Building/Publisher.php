@@ -4,6 +4,7 @@ namespace App\Building;
 
 use App\Models\Build;
 use App\Scanning\Workspace;
+use App\Services\Install;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -42,6 +43,10 @@ class Publisher
      */
     public function ship(Build $build, Workspace $workspace, array $files, string $title, string $message, string $body): array
     {
+        if (! BuildRequester::allowed()) {
+            throw new RuntimeException('Only Dashcore\'s own tests builds tests: nothing is committed or pushed for the '.Install::fleet().' fleet.');
+        }
+
         $git = fn (array $args, int $timeout = 120) => Process::path($workspace->path)->timeout($timeout)->run(['git', ...$args]);
 
         $add = $git(['add', '--', ...$files]);

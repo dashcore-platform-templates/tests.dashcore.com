@@ -31,4 +31,8 @@ return [
 
     'home_fleet' => env('TESTS_HOME_FLEET', 'dashcore'),
 
+    // fleets.dashcore.com's checkout: `fleet:export --json` there says which
+    // release every app of every fleet runs live (App\Services\FleetExport).
+    'fleets_checkout' => env('TESTS_FLEETS_CHECKOUT', rtrim((string) (env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/').'/fleets.dashcore.com'),
+
 ];
