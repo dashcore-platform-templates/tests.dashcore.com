@@ -3,6 +3,7 @@
 namespace Tests\Feature\Simulation;
 
 use App\Simulation\CustomerJourneys\Cancellation;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\File;
@@ -18,6 +19,8 @@ use Tests\TestCase;
  */
 class CancellationJourneyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private const UUID = '0199b7a2-8f0e-7c1a-9d3e-4b5a6c7d8e9f';
 
     private const CLI_SECRET = 'whsec_cli_signing_secret_for_tests';

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Simulation;
 
 use App\Simulation\StandIns\AnthropicStandIn;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Process\PendingProcess;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Process;
@@ -17,6 +18,8 @@ use Tests\TestCase;
  */
 class OnboardingCallJourneyTest extends TestCase
 {
+    use RefreshDatabase;
+
     private string $root;
 
     private bool $held = false;

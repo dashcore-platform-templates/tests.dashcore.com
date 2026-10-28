@@ -212,4 +212,25 @@
             </div>
         @endif
     @endif
+
+    @if ($this->walks->isNotEmpty())
+        <section class="card-os mt-8" data-test="walks">
+            <div class="border-b border-(--ds-border) px-4 py-3">
+                <h2 class="text-xs font-medium uppercase tracking-wider text-(--ds-text-muted)">Latest walk of each journey</h2>
+            </div>
+            <ul class="divide-y divide-(--ds-border)">
+                @foreach ($this->walks as $walk)
+                    <li class="flex flex-wrap items-center gap-3 px-4 py-3" wire:key="walk-{{ $walk->id }}" data-test="walk" data-drifted="{{ $walk->drifted() ? 'yes' : 'no' }}">
+                        <span class="text-sm font-medium text-(--ds-text-strong)">{{ config("simulation.customer_journeys.{$walk->journey}.name", $walk->journey) }}</span>
+                        <span class="text-xs text-(--ds-text-muted)">on {{ config("simulation.fleets.{$walk->fleet}.name", $walk->fleet) }} · {{ $walk->started_at->diffForHumans() }}</span>
+                        <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset {{ $badge($walk->outcome) }}">{{ ucfirst($walk->outcome) }}</span>
+                        @if ($walk->drifted())
+                            <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset bg-(--ds-warning-soft) text-(--ds-warning) ring-(--ds-warning)">Drifted</span>
+                            <span class="w-full text-xs text-(--ds-text-muted)">Not on the live release: {{ collect($walk->drift)->map(fn ($app) => "{$app['app']} (live {$app['live']})")->implode(', ') }}. Run <code class="font-mono">php artisan tests:pin-stand-ins {{ $walk->fleet }}</code>.</span>
+                        @endif
+                    </li>
+                @endforeach
+            </ul>
+        </section>
+    @endif
 </div>

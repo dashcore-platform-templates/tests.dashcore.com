@@ -2,13 +2,16 @@
 
 namespace App\Console\Commands;
 
+use App\Models\JourneyRun;
 use App\Simulation\CustomerJourney;
 use App\Simulation\JourneyResult;
+use App\Simulation\JourneyRuns;
 use App\Simulation\JourneyWalker;
 use App\Simulation\Persona;
 use App\Simulation\Script;
 use App\Simulation\Simulation;
 use App\Simulation\StandInGuard;
+use App\Simulation\StandInPins;
 use App\Simulation\StripeForwarder;
 use Faker\Factory as Faker;
 use Faker\Generator;
@@ -47,12 +50,40 @@ class RunJourney extends Command
      */
     private array $record = ['said' => [], 'walks' => [], 'errors' => [], 'apps' => []];
 
+    /** @var array{journey: string, fleet: string}|null the journey and fleet once both are known */
+    private ?array $walked = null;
+
+    /** @var list<array{app: string, checkout: string, live: ?string, live_sha: ?string, actual_sha: ?string}> */
+    private array $drift = [];
+
+    /** @var list<string> the stand-ins whose release was compared with live */
+    private array $surveyed = [];
+
+    private bool $reachedWalk = false;
+
     public function handle(Simulation $simulation, StandInGuard $guard, JourneyWalker $walker, StripeForwarder $stripe): int
     {
         // tests:launch calls this once per stage on the same instance.
         $this->record = ['said' => [], 'walks' => [], 'errors' => [], 'apps' => []];
+        [$this->walked, $this->drift, $this->surveyed, $this->reachedWalk] = [null, [], [], false];
         $started = now();
         $code = $this->stage($simulation, $guard, $walker, $stripe);
+
+        if ($this->walked !== null) {
+            app(JourneyRuns::class)->record(
+                $this->walked['journey'],
+                $this->walked['fleet'],
+                match (true) {
+                    $code === self::SUCCESS => JourneyRun::PASSED,
+                    $this->reachedWalk => JourneyRun::FAILED,
+                    default => JourneyRun::REFUSED,
+                },
+                $this->drift,
+                $this->surveyed,
+                $this->record['errors'][0] ?? null,
+                $started,
+            );
+        }
 
         if (filled($path = $this->option('record'))) {
             $key = (string) $this->argument('journey');
@@ -119,6 +150,18 @@ class RunJourney extends Command
         ));
 
         $this->components->info("{$stage['name']}: {$journey->name()} — on {$fleet['name']}");
+
+        // A walk on a stand-in that is not on its fleet's live release still
+        // runs, but is recorded as drifted (tests:pin-stand-ins moves it).
+        $this->walked = ['journey' => (string) $key, 'fleet' => $target];
+        $survey = app(StandInPins::class)->survey($target, $apps);
+        $this->surveyed = array_column($survey, 'app');
+        $this->drift = StandInPins::drifted($survey);
+
+        foreach ($this->drift as $drifted) {
+            $this->components->warn("Drifted: the {$drifted['app']} stand-in is not on {$drifted['live']}, the release its fleet runs live.");
+            $this->record['said'][] = "Drifted: the {$drifted['app']} stand-in is not on {$drifted['live']}.";
+        }
 
         if (! $this->guardApps($guard, $key, $fleet, $apps, $journey->requires())) {
             return self::FAILURE;
@@ -226,6 +269,7 @@ class RunJourney extends Command
      */
     private function walk(Simulation $simulation, JourneyWalker $walker, string $key, array $stage, array $fleet, CustomerJourney $journey, Generator $faker, array $guarded): int
     {
+        $this->reachedWalk = true;
         $people = [];
 
         foreach ($journey->signsIn() as $app => $role) {

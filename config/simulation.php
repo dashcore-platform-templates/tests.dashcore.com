@@ -314,6 +314,13 @@ return [
     // <app>.<company>.practice.
     'practice_zone' => env('SIMULATION_PRACTICE_ZONE', 'practice.dashcore.com'),
 
+    // This install's own stand-in fleet: the one its customer journeys walk
+    // and `tests:pin-stand-ins` keeps on the live releases.
+    'fleet' => env('SIMULATION_FLEET', 'practice'),
+
+    // Each stand-in fleet stands in for a real one (`stands_in_for`, default
+    // this install's fleet); its apps are kept on the release (or commit)
+    // that fleet runs live, an app on its `live_app` (default its own key).
     'fleets' => [
         'practice' => [
             'name' => "Practice fleet ({$practiceWho})",

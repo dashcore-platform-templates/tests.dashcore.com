@@ -365,6 +365,7 @@
             'server_error' => 'bg-red-500/15 text-(--ds-danger)',
             'log_error' => 'bg-red-500/15 text-(--ds-danger)',
             'failed_job' => 'bg-red-500/15 text-(--ds-danger)',
+            'drift' => 'bg-(--ds-warning-soft) text-(--ds-warning)',
             'console_error' => 'bg-(--ds-warning-soft) text-(--ds-warning)',
             'dead_space' => 'bg-(--ds-warning-soft) text-(--ds-warning)',
             'slow' => 'bg-(--ds-sunken) text-(--ds-text)',

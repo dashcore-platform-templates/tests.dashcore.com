@@ -182,6 +182,8 @@ class Findings
             ->get()
             ->reject(fn (SimulationFinding $finding) => in_array($finding->kind->value.'|'.$finding->fingerprint, $hitKeys, true))
             ->filter(fn (SimulationFinding $finding) => match (true) {
+                // Only a journey walk that finds the stand-in back on its release settles drift (JourneyRuns).
+                $finding->kind === FindingKind::Drift => false,
                 $finding->kind->isStepScoped() => $finding->journey === $run->journey && in_array($finding->position, $passedPositions, true),
                 $finding->kind->isElementScoped() => in_array($finding->fingerprint, $passedElements, true),
                 default => $run->status === SimulationStatus::Passed,
