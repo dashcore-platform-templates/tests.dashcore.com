@@ -31,6 +31,8 @@
         <livewire:layout.navigation />
         @endpersist
 
+        <x-demo-banner />
+
         <!-- Page Content -->
         <main>
             {{ $slot }}

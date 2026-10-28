@@ -20,6 +20,7 @@ class ScanFleet extends Command
         $keys = (array) $this->argument('app');
 
         $apps = FleetApp::query()
+            ->real()
             ->when($keys !== [], fn ($q) => $q->whereIn('key', $keys))
             ->orderBy('key')
             ->get();

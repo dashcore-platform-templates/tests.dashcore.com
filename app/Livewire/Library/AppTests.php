@@ -47,6 +47,8 @@ class AppTests extends Component
         return LibraryFile::query()
             ->where('fleet_app_id', $this->app->id)
             ->whereNull('removed_at')
+            // Columns first: a select() after withCount() drops the counts.
+            ->select(['id', 'fleet_app_id', 'path', 'lines', 'tests_count', 'changed_at'])
             ->withCount([
                 'tests as passed_count' => fn ($q) => $q->whereNull('removed_at')->where('last_outcome', 'passed'),
                 'tests as failing_count' => fn ($q) => $q->whereNull('removed_at')->whereIn('last_outcome', ['failed', 'errored']),
@@ -55,7 +57,6 @@ class AppTests extends Component
             ])
             ->when($term !== '', fn ($q) => $q->where(fn ($q) => $q->whereLike('path', "%{$term}%")
                 ->orWhereHas('tests', fn ($q) => $q->whereNull('removed_at')->whereLike('name', "%{$term}%"))))
-            ->select(['id', 'fleet_app_id', 'path', 'lines', 'tests_count', 'changed_at'])
             ->orderBy('path')
             ->get()
             ->filter(fn (LibraryFile $file) => match ($this->show) {

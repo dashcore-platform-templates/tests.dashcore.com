@@ -1,0 +1,44 @@
+{
+    "format": "dashcore-workflows",
+    "version": 1,
+    "exported_at": "2026-10-28T12:00:00-07:00",
+    "workflows": [
+        {
+            "name": "Sales stand-in: a rep signs in",
+            "description": "A rep signs in to the local sales stand-in (sales.fakecompany.com.test) and lands on the dashboard. Its seeders give every persona the password \"password\"; it is never a real app.",
+            "base_url": "http://sales.fakecompany.com.test",
+            "steps": [
+                {
+                    "do": "visit",
+                    "label": "Open the sign-in page",
+                    "path": "/login"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type Maya's email",
+                    "target": "#email",
+                    "value": "maya.okafor@example.com"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type her password",
+                    "target": "#password",
+                    "value": "password"
+                },
+                {
+                    "do": "click",
+                    "label": "Sign in",
+                    "target": "form[wire\\:submit=\"login\"] button[type=submit]"
+                },
+                {
+                    "do": "see",
+                    "label": "Land on the dashboard",
+                    "text": "Dashboard"
+                }
+            ],
+            "frequency": "6h",
+            "notify": [],
+            "alert_after": 2
+        }
+    ]
+}

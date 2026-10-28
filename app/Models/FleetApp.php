@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ScanKind;
 use App\Enums\ScanStatus;
 use Database\Factories\FleetAppFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -26,9 +27,21 @@ class FleetApp extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'is_enabled' => 'boolean',
             'synced_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Apps of the real fleet: `tests:demo`'s made-up apps are never synced,
+     * scanned, built, reported or pruned.
+     *
+     * @param  Builder<FleetApp>  $query
+     */
+    public function scopeReal(Builder $query): void
+    {
+        $query->where('is_demo', false);
     }
 
     public function scans(): HasMany

@@ -390,6 +390,20 @@ surfaces (routes, Livewire components/actions, and every public method under
   dashcore.com/lets-talk), so a workflow that must send such a form needs
   the site to recognise it first.
 
+- **Demo data** — `php artisan tests:demo` (local only: refuses in
+  production) fills every nav page with made-up data from `app/Demo`: three
+  demo apps (`demo-*`, three scans each, a surviving mutant, a regression, a
+  builder PR waiting), their library files, two Proving Ground runs with
+  findings, two client launches (broken at First sign-in, scrubbed), and the
+  starter workflows (`workflows/starter/`, imported for real, switched off)
+  with a passed and a failed run each. Placeholder screenshots are drawn by
+  `Demo\Placeholder`. Every row is marked `is_demo` at its root; a banner
+  shows on every page while one exists. `tests:demo --wipe` removes exactly
+  those rows and their screenshots and keeps the starters. Re-running
+  replaces the demo. `FleetApp::real()` keeps demo apps out of the roster
+  sync, scans, builds, PR scans, library sync, pruning and bridge status.
+  Tests that run it use `Tests\Concerns\UsesDemoScratch`.
+
 ### Running on the fleet host — gotchas that cost real time
 
 - **Resume point:** `.claude/PROGRESS.md` holds the current state and next action.

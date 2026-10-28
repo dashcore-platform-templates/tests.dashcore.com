@@ -78,6 +78,38 @@
             </div>
         </div>
 
+        @if ($this->regressions->isNotEmpty())
+            <div class="card-os mb-6">
+                <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold uppercase tracking-wider text-(--ds-danger)">Regressions against scan #{{ $scan->previous_scan_id }} ({{ $this->regressions->count() }})</h2>
+                <ul class="divide-y divide-(--ds-border)">
+                    @foreach ($this->regressions as $result)
+                        <li class="flex items-start gap-3 px-4 py-3" wire:key="regression-{{ $result->id }}">
+                            <span class="w-28 shrink-0 text-xs font-medium text-(--ds-danger)">{{ $result->change->label() }}</span>
+                            <div class="min-w-0">
+                                <p class="font-mono text-sm text-(--ds-text-strong) break-all">{{ $result->surface->label }}</p>
+                                <p class="text-xs text-(--ds-text-muted)">{{ $result->surface->kind->label() }} · now {{ $result->status->label() }}@if ($result->surface->file) · {{ $result->surface->file }}@endif</p>
+                            </div>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        @if ($this->survivors->isNotEmpty())
+            <div class="card-os mb-6">
+                <h2 class="border-b border-(--ds-border) p-4 text-sm font-semibold uppercase tracking-wider text-(--ds-warning)">Mutants that survived ({{ $this->survivors->count() }})</h2>
+                <p class="px-4 pt-3 text-xs text-(--ds-text-muted)">Each method's body was swapped for a trivial default and every test that reaches it still passed, so it could break unnoticed.</p>
+                <ul class="divide-y divide-(--ds-border)">
+                    @foreach ($this->survivors as $result)
+                        <li class="px-4 py-3" wire:key="survivor-{{ $result->id }}">
+                            <p class="font-mono text-sm text-(--ds-text-strong) break-all">{{ $result->surface->label }}</p>
+                            <p class="text-xs text-(--ds-text-muted)">{{ $result->surface->kind->label() }}@if ($result->surface->file) · {{ $result->surface->file }}@if ($result->surface->start_line):{{ $result->surface->start_line }}@endif @endif</p>
+                        </li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
         @foreach (['failing' => ['Failing tests', 'text-(--ds-danger)'], 'hollow' => ['Green but proving nothing', 'text-(--ds-warning)']] as $list => [$title, $tone])
             @if ($this->{$list}->isNotEmpty())
                 <div class="card-os mb-6">

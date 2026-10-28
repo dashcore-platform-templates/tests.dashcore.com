@@ -24,6 +24,7 @@ class Launch extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'countdown' => 'array',
             'stages' => 'array',
             'teardown' => 'array',

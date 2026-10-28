@@ -1,0 +1,64 @@
+{
+    "format": "dashcore-workflows",
+    "version": 1,
+    "exported_at": "2026-10-28T12:00:00-07:00",
+    "workflows": [
+        {
+            "name": "Sales stand-in: the leads list opens",
+            "description": "A rep signs in to the local sales stand-in and opens the lead board and the leads nobody owns yet. Reads only; changes no lead.",
+            "base_url": "http://sales.fakecompany.com.test",
+            "steps": [
+                {
+                    "do": "visit",
+                    "label": "Open the sign-in page",
+                    "path": "/login"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type Maya's email",
+                    "target": "#email",
+                    "value": "maya.okafor@example.com"
+                },
+                {
+                    "do": "fill",
+                    "label": "Type her password",
+                    "target": "#password",
+                    "value": "password"
+                },
+                {
+                    "do": "click",
+                    "label": "Sign in",
+                    "target": "form[wire\\:submit=\"login\"] button[type=submit]"
+                },
+                {
+                    "do": "see",
+                    "label": "Land on the dashboard",
+                    "text": "Dashboard"
+                },
+                {
+                    "do": "visit",
+                    "label": "Open the lead board",
+                    "path": "/leads/board"
+                },
+                {
+                    "do": "see",
+                    "label": "See the lead board",
+                    "text": "Lead board"
+                },
+                {
+                    "do": "visit",
+                    "label": "Open the leads nobody owns",
+                    "path": "/leads?view=unassigned"
+                },
+                {
+                    "do": "see",
+                    "label": "See the leads list",
+                    "text": "Leads"
+                }
+            ],
+            "frequency": "6h",
+            "notify": [],
+            "alert_after": 2
+        }
+    ]
+}

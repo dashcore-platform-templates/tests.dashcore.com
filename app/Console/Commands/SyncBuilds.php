@@ -20,7 +20,7 @@ class SyncBuilds extends Command
 
     public function handle(): int
     {
-        Build::query()->where('status', BuildStatus::Opened)->whereNotNull('pr_url')->each(function (Build $build) {
+        Build::query()->whereRelation('fleetApp', 'is_demo', false)->where('status', BuildStatus::Opened)->whereNotNull('pr_url')->each(function (Build $build) {
             $view = Process::timeout(60)->run([(string) config('scanner.gh'), 'pr', 'view', $build->pr_url, '--json', 'state']);
             $state = json_decode($view->output(), true)['state'] ?? null;
 
@@ -38,7 +38,7 @@ class SyncBuilds extends Command
 
         // A build kept on a local branch holds its targets until the branch is
         // merged by hand or deleted; once it is gone, they are free again.
-        Build::query()->with('fleetApp')->where('status', BuildStatus::Ready)->whereNotNull('branch')->each(function (Build $build) {
+        Build::query()->with('fleetApp')->whereRelation('fleetApp', 'is_demo', false)->where('status', BuildStatus::Ready)->whereNotNull('branch')->each(function (Build $build) {
             $repo = $build->fleetApp?->local_path;
 
             if ($repo === null || ! is_dir($repo)) {

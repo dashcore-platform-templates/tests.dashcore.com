@@ -18,6 +18,7 @@ class StatusController extends Controller
     public function __invoke(): JsonResponse
     {
         $apps = FleetApp::query()
+            ->real()
             ->where('is_enabled', true)
             ->with(['latestScan', 'latestCompletedScan'])
             ->orderBy('key')

@@ -39,6 +39,31 @@ class WorkflowFilesTest extends TestCase
         $this->assertSame([], array_values(array_filter($workflow->steps, fn (array $step) => in_array($step['do'], ['click', 'press', 'filled'], true))), 'It must not click, press or wait for a captcha token: a live send reaches real people.');
     }
 
+    public function test_the_starter_workflows_import_switched_off_and_never_send_anything(): void
+    {
+        $files = collect(File::files(base_path('workflows/starter')))->filter(fn ($file) => $file->getExtension() === 'json')->sortBy(fn ($file) => $file->getFilename())->values();
+
+        $this->assertCount(4, $files);
+
+        $workflows = $files->map(fn ($file) => Transfer::import($file->getContents(), source: $file->getFilename())->sole())->keyBy(fn (Workflow $workflow) => $workflow->name);
+
+        foreach ($workflows as $name => $workflow) {
+            $this->assertFalse($workflow->active, $name);
+            $this->assertContains($workflow->base_url, ['https://dashcore.com', 'http://sales.fakecompany.com.test'], "{$name} must point at live dashcore.com or the local sales stand-in");
+        }
+
+        $letsTalk = $workflows['Website: lets-talk form takes an enquiry'];
+        $this->assertSame('/lets-talk', $letsTalk->steps[0]['path']);
+        $this->assertSame([], array_values(array_filter($letsTalk->steps, fn (array $step) => in_array($step['do'], ['click', 'press', 'filled'], true))), 'It must stop before Turnstile and send.');
+
+        $this->assertSame([], array_values(array_filter($workflows['Website: main pages answer']->steps, fn (array $step) => ! in_array($step['do'], ['visit', 'see'], true))), 'The pages workflow only reads.');
+
+        foreach (['Sales stand-in: a rep signs in', 'Sales stand-in: the leads list opens'] as $name) {
+            $this->assertSame('/login', $workflows[$name]->steps[0]['path']);
+            $this->assertSame('Dashboard', $workflows[$name]->steps[4]['text']);
+        }
+    }
+
     public function test_the_command_imports_files_switched_off(): void
     {
         $this->artisan('tests:import-workflows', ['files' => [base_path('workflows/customer-journey/01-lets-talk.json')]])

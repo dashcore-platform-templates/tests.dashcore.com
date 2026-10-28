@@ -19,6 +19,7 @@ class WorkflowEvent extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'type' => WorkflowEventType::class,
             'created_at' => 'datetime',
         ];

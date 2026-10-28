@@ -26,6 +26,7 @@ class WorkflowRun extends Model
     protected function casts(): array
     {
         return [
+            'is_demo' => 'boolean',
             'status' => SimulationStatus::class,
             'screenshots_pruned' => 'boolean',
             'started_at' => 'datetime',

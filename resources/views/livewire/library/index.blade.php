@@ -83,6 +83,11 @@
                 </ul>
             </div>
         </div>
+    @elseif ($this->apps->isEmpty())
+        <div class="card-os p-8 text-center">
+            <p class="text-sm text-(--ds-text)">No apps in the library yet.</p>
+            <p class="mt-1 text-xs text-(--ds-text-muted)">Each app's tests are kept here after its first scan.</p>
+        </div>
     @else
         <div class="card-os overflow-x-auto">
             <table class="min-w-full divide-y divide-(--ds-border)">
