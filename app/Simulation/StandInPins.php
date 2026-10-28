@@ -3,7 +3,6 @@
 namespace App\Simulation;
 
 use App\Services\FleetExport;
-use App\Services\Install;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use Throwable;
@@ -15,8 +14,8 @@ use Throwable;
  * live — fleets says which (`fleet:export`). `pin()` moves each checkout
  * there; `drift()` says which are not, for a journey run to record.
  *
- * A stand-in fleet stands in for its `stands_in_for` fleet, else this
- * install's own; an app for its `live_app`, else the app of the same key.
+ * A stand-in fleet stands in for its `stands_in_for` fleet, else the home
+ * fleet (Dashcore's); an app for its `live_app`, else the app of the same key.
  */
 class StandInPins
 {
@@ -122,7 +121,7 @@ class StandInPins
     /** @param  array<string, mixed>  $fleet */
     public function standsInFor(array $fleet): string
     {
-        return (string) ($fleet['stands_in_for'] ?? Install::fleet());
+        return (string) ($fleet['stands_in_for'] ?? config('install.home_fleet'));
     }
 
     /**

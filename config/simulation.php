@@ -326,6 +326,8 @@ return [
             'name' => "Practice fleet ({$practiceWho})",
             // The fleet's install slug in fleets.dashcore.com.
             'install' => "practice-{$practiceWho}",
+            // The real fleet whose releases it runs, and whose tests walks it.
+            'stands_in_for' => env('SIMULATION_STANDS_IN_FOR', 'dashcore'),
             // Where the fleets a customer pays for are built from: the
             // fleets checkout whose `fleet:intake` builds them, how long a
             // whole fleet may take, and the Herd folder each client app's

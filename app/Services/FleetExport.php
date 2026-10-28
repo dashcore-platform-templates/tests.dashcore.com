@@ -17,8 +17,13 @@ use Throwable;
  */
 class FleetExport
 {
+    /** Long-lived workers ask again after this long. */
+    private const FRESH_FOR_SECONDS = 300;
+
     /** @var array<string, array<string, mixed>>|null */
     private ?array $fleets = null;
+
+    private ?int $readAt = null;
 
     public function __construct(private readonly Simulation $simulation) {}
 
@@ -64,7 +69,12 @@ class FleetExport
      */
     public function fleets(): array
     {
-        return $this->fleets ??= $this->read();
+        if ($this->fleets === null || $this->readAt < time() - self::FRESH_FOR_SECONDS) {
+            $this->fleets = $this->read();
+            $this->readAt = time();
+        }
+
+        return $this->fleets;
     }
 
     /**

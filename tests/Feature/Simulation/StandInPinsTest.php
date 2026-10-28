@@ -87,6 +87,7 @@ class StandInPinsTest extends TestCase
     private function fleetsSays(array $apps): void
     {
         $export = Mockery::mock(FleetExport::class);
+        $export->shouldReceive('fleets')->andReturn([]);
 
         foreach ($apps as $key => $live) {
             $export->shouldReceive('live')->with('dashcore', $key)->andReturn($live);

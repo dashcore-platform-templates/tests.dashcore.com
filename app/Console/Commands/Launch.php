@@ -28,13 +28,13 @@ use Throwable;
 class Launch extends Command
 {
     protected $signature = 'tests:launch
-        {--target=practice : The stand-in fleet to fly it against (simulation.fleets)}';
+        {--target= : The stand-in fleet to fly it against (simulation.fleets; default simulation.fleet)}';
 
     protected $description = "Fly a client's whole signup — enquiry to the onboarding call — across a stand-in fleet";
 
     public function handle(StripeForwarder $stripe): int
     {
-        $target = (string) $this->option('target');
+        $target = (string) ($this->option('target') ?? config('simulation.fleet'));
         $fleet = config("simulation.fleets.{$target}");
         $stages = array_values((array) config('simulation.launch'));
 

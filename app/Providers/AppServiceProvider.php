@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Services\FleetExport;
 use App\Services\NavigationRegistry;
 use App\Services\PermissionService;
+use App\Simulation\OwnFleet;
 use App\Simulation\Simulation;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,10 +16,14 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(NavigationRegistry::class);
         $this->app->singleton(PermissionService::class);
         $this->app->singleton(Simulation::class);
+        $this->app->singleton(FleetExport::class);
     }
 
     public function boot(): void
     {
+        // Every fleet's tests walks only its own fleet's stand-ins.
+        OwnFleet::apply();
+
         $this->registerNavigation();
     }
 

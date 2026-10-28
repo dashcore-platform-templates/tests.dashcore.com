@@ -36,7 +36,7 @@ class RunJourney extends Command
 {
     protected $signature = 'tests:journey
         {journey? : The customer journey to walk (e.g. enquiry); omit to list them}
-        {--target=practice : The stand-in fleet to walk it against (simulation.fleets)}
+        {--target= : The stand-in fleet to walk it against (simulation.fleets; default simulation.fleet)}
         {--list : List the customer journeys and which are pending}
         {--record= : Write what the walk did, step by step, to this JSON file (tests:launch reads it)}';
 
@@ -125,7 +125,7 @@ class RunJourney extends Command
             return self::FAILURE;
         }
 
-        $target = (string) $this->option('target');
+        $target = (string) ($this->option('target') ?? config('simulation.fleet'));
         $fleet = config("simulation.fleets.{$target}");
 
         if (! is_array($fleet)) {
@@ -198,7 +198,7 @@ class RunJourney extends Command
      * @param  list<string>  $apps
      * @param  array<string, array<string, mixed>>  $requires  config each app must hold (CustomerJourney::requires)
      */
-    private function guardApps(StandInGuard $guard, string $key, array $fleet, array $apps, array $requires = []): bool
+    private function guardApps(StandInGuard $guard, string $key, array $fleet, array $apps, array $requires = [], bool $own = true): bool
     {
         foreach ($apps as $app) {
             $config = $fleet['apps'][$app] ?? null;
@@ -211,7 +211,7 @@ class RunJourney extends Command
 
             $testMode = (array) ($config['test_mode'] ?? []);
 
-            $refusal = $guard->checkoutRefusal($config['checkout'] ?? null)
+            $refusal = $guard->checkoutRefusal($config['checkout'] ?? null, $own)
                 ?? $guard->mailRefusal($config['checkout'], (array) ($config['mail_guard'] ?? []))
                 ?? ($testMode === [] ? null : $guard->testModeRefusal($config['checkout'], $testMode))
                 ?? $guard->settingRefusal($config['checkout'], (array) ($requires[$app] ?? []));
@@ -256,7 +256,8 @@ class RunJourney extends Command
 
         $fleet['apps'] = [...$fleet['apps'], ...$provided];
 
-        return $this->guardApps($guard, $key, $fleet, array_keys($provided), $journey->requires()) ? $fleet : null;
+        // Built by this walk for its made-up client, so a fleet of its own.
+        return $this->guardApps($guard, $key, $fleet, array_keys($provided), $journey->requires(), own: false) ? $fleet : null;
     }
 
     /**

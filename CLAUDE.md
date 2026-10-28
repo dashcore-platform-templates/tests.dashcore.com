@@ -255,7 +255,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   page lists each journey's latest walk, drifted ones marked.
   `tests:pin-stand-ins [fleet]` moves each stand-in checkout (clean ones
   only) to that release or commit, then installs, migrates and builds
-  what the move changed. This install's stand-in fleet is `SIMULATION_FLEET`.
+  what the move changed. This install's stand-in fleet is `SIMULATION_FLEET`
+  (the `--target` default of `tests:journey`/`tests:launch`). Each install
+  walks only its own fleet's stand-ins (`OwnFleet`, at boot): targets keep
+  their `fleet` (default the home fleet — the fake company is Dashcore's),
+  stand-in fleets their `stands_in_for` (`SIMULATION_STANDS_IN_FOR`,
+  default dashcore); the rest are dropped from config, and `StandInGuard`
+  refuses a checkout fleets' export lists under any other fleet (not for
+  the client fleet a journey just built — `providesApps`).
   `StandInGuard` refuses before anything runs: a checkout must be
   `*fakecompany*` or `*.practice*` (also `tests:prepare-target`'s check), and
   every app must show `mail.default` = `log` (plus its `mail_guard`, e.g. the
