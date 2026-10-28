@@ -12,9 +12,10 @@ Artisan::command('inspire', function () {
 // The roster first, so the nightly scan covers the fleet as it is today.
 Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 
-// Every scannable app, every night, from its default branch.
+// Every scannable app, every night, from its default branch. Every fleet's
+// tests shares the Mac, so each starts at its own SCANNER_NIGHTLY_AT.
 // Off with SCANNER_NIGHTLY=false where the scan workers are paused.
-Schedule::command('tests:scan')->dailyAt('01:00')->withoutOverlapping()
+Schedule::command('tests:scan')->dailyAt((string) config('scanner.nightly_at'))->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.nightly'));
 
 // Scans and builds run on their own long-lived worker, the launchd agent

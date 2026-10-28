@@ -7,6 +7,7 @@ use App\Models\FleetApp;
 use App\Models\Scan;
 use App\Scanning\Exceptions\GitHubUnreachable;
 use App\Scanning\Exceptions\PullRequestUnmergeable;
+use App\Services\Install;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
@@ -51,14 +52,15 @@ class Workspace
 
     /**
      * A scan and a build of the same app can run at once, so each gets its own
-     * worktree directory and its own database.
+     * worktree directory and its own database — and every fleet's tests runs
+     * on the same Mac, so both carry this install's name too (Install::scoped).
      */
     public function __construct(
         private readonly FleetApp $app,
         Scan|Build $for,
     ) {
         $kind = $for instanceof Build ? 'build' : 'scan';
-        $base = rtrim((string) config('scanner.workspace'), '/').'/'.$app->key;
+        $base = rtrim((string) config('scanner.workspace'), '/').'/'.Install::scoped($app->key);
 
         $this->path = $base.'/worktrees/'.$kind.'-'.$for->id;
         $this->runDir = $base.'/'.($kind === 'build' ? 'builds' : 'runs').'/'.$for->id;
@@ -69,7 +71,7 @@ class Workspace
         };
 
         $this->database = Str::of((string) config('scanner.database.prefix'))
-            ->append($app->key, $suffix)
+            ->append(Install::scoped($app->key), $suffix)
             ->lower()
             ->replaceMatches('/[^a-z0-9_]/', '_')
             ->limit(63, '')

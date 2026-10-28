@@ -129,6 +129,18 @@ surfaces (routes, Livewire components/actions, and every public method under
   round trip, debug/env calls, Livewire loading feedback — ratchets recorded in
   `config/testkit.php`. `TestkitInstaller` rolls it out, one verified PR per app:
   `tests:install-testkit [keys] [--now]`. Scans record each app's version.
+- **Installs** — every fleet has its own tests site, all on the Mac under
+  Herd (none on Cloud): tests.dashcore.com for Dashcore's (the home fleet,
+  `config/install.php`), `tests.<slug>.<zone>` on the tailnet for the rest.
+  `App\Services\Install` names what an install makes on the host: scratch
+  DBs `tests_scan_{fleet}__{app}` and launchd labels
+  `com.dashcore.queue-tests.{fleet}` — the home install keeps its old names.
+  Suites wait for a host-wide slot (`ScanSlots`: Postgres advisory locks in
+  the shared `postgres` DB, `SCANNER_HOST_SLOTS`=2, PR scans their own
+  `SCANNER_HOST_PR_SLOTS`=1); a job with no slot re-queues itself a minute
+  later. The nightly scan starts at `SCANNER_NIGHTLY_AT` (Dashcore 01:00,
+  each other fleet 20 min after the last). `tests:host-runtime --json` lists
+  the workers and schedule an install needs, for fleets to install.
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
   connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old

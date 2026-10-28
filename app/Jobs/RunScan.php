@@ -6,6 +6,7 @@ use App\Enums\ScanStatus;
 use App\Models\Scan;
 use App\Scanning\PullRequestStatus;
 use App\Scanning\Scanner;
+use App\Scanning\ScanSlots;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -31,13 +32,27 @@ class RunScan implements ShouldQueue
         $this->onQueue($scan->isPullRequest() ? config('scanner.pull_requests.queue') : config('scanner.queue.queue'));
     }
 
-    public function handle(Scanner $scanner, PullRequestStatus $status): void
+    public function handle(Scanner $scanner, PullRequestStatus $status, ?ScanSlots $slots = null): void
     {
+        $slots ??= app(ScanSlots::class);
+
         if ($this->scan->status !== ScanStatus::Queued) {
             return;
         }
 
-        $scan = $scanner->run($this->scan);
+        // Every install on the Mac shares its scan slots: with none free, the
+        // scan waits its turn in the queue rather than holding a worker.
+        if ($slots->acquire($this->scan->isPullRequest()) === null) {
+            self::dispatch($this->scan)->delay(now()->addSeconds((int) config('scanner.slots.retry_after')));
+
+            return;
+        }
+
+        try {
+            $scan = $scanner->run($this->scan);
+        } finally {
+            $slots->release();
+        }
 
         if (! $scan->isPullRequest()) {
             return;

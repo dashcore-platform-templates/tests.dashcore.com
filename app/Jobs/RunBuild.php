@@ -7,6 +7,7 @@ use App\Building\TestkitInstaller;
 use App\Enums\BuildKind;
 use App\Enums\BuildStatus;
 use App\Models\Build;
+use App\Scanning\ScanSlots;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -30,15 +31,28 @@ class RunBuild implements ShouldQueue
         $this->onQueue('builds');
     }
 
-    public function handle(Builder $builder, TestkitInstaller $installer): void
+    public function handle(Builder $builder, TestkitInstaller $installer, ?ScanSlots $slots = null): void
     {
+        $slots ??= app(ScanSlots::class);
+
         if ($this->build->status !== BuildStatus::Queued) {
             return;
         }
 
-        $this->build->kind === BuildKind::Testkit
-            ? $installer->run($this->build)
-            : $builder->run($this->build);
+        // A build runs suites too, so it takes a scan slot like a scan does.
+        if ($slots->acquire() === null) {
+            self::dispatch($this->build)->delay(now()->addSeconds((int) config('scanner.slots.retry_after')));
+
+            return;
+        }
+
+        try {
+            $this->build->kind === BuildKind::Testkit
+                ? $installer->run($this->build)
+                : $builder->run($this->build);
+        } finally {
+            $slots->release();
+        }
     }
 
     public function failed(?Throwable $e): void

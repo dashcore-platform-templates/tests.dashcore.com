@@ -39,6 +39,16 @@
         <server name="DB_DATABASE" value="tests_dashcore_testing" force="true"/>
         <env name="DB_URL" value="" force="true"/>
         <server name="DB_URL" value="" force="true"/>
+        <!-- Scan slots are advisory locks in the test database itself (each
+             worktree's own), so two suites on one host never take each
+             other's slots. -->
+        <env name="SCANNER_SLOTS_CONNECTION" value="pgsql" force="true"/>
+        <server name="SCANNER_SLOTS_CONNECTION" value="pgsql" force="true"/>
+        <!-- Tests run as the home install, whatever the checkout's APP_URL. -->
+        <env name="TESTS_FLEET" value="dashcore" force="true"/>
+        <server name="TESTS_FLEET" value="dashcore" force="true"/>
+        <env name="TESTS_HOST" value="tests.dashcore.com" force="true"/>
+        <server name="TESTS_HOST" value="tests.dashcore.com" force="true"/>
         <env name="SCANNER_ROOT" value="" force="true"/>
         <server name="SCANNER_ROOT" value="" force="true"/>
         <!-- The host's .env names gh by absolute path (launchd has no Homebrew
