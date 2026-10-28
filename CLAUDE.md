@@ -359,7 +359,15 @@ surfaces (routes, Livewire components/actions, and every public method under
   `tests.dashcore.com__…`) at most hourly (cached encrypted;
   `WORKFLOWS_HEARTBEAT_URL` overrides), and records `schedule.last_tick`
   for the pages' "schedule is not running" warning and Console's report.
-  tests:workflows keeps its own `workflows.last_tick` for its gap notice. Workflows travel as JSON
+  tests:workflows keeps its own `workflows.last_tick` for its gap notice.
+
+- **Console** — `console:report --json` (`App\Reporting\ConsoleReport`)
+  prints Console's report contract (console.dashcore.com docs/PLAN.md;
+  Console's `TestsSource` files it as `tests-<fleet>`): findings for each
+  app's latest scan failing (`tests:scan-failed:{app}`), its latest
+  completed scan's regressions, each journey's latest walk failing, refused
+  or drifted, and a silent (10 min) or failing heartbeat. All well, no
+  findings; a part it cannot read makes `complete` false. Workflows travel as JSON
   (`Transfer`, format `dashcore-workflows` v1): "Export all" on the list,
   "Export" on one (`workflows.export`, `workflows.export-one`), "Import" on
   the list (managers only) — the definition only, never runs or state; an

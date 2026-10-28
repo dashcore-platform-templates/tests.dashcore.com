@@ -27,6 +27,9 @@ class Heartbeat
     /** The schedule's last tick (tests:heartbeat), which pages and reports read. */
     public const LAST_TICK = 'schedule.last_tick';
 
+    /** What the last beat said: {healthy, note}, for Console's report. */
+    public const LAST_BEAT = 'schedule.last_beat';
+
     private const URL_CACHE = 'workflows.heartbeat_url';
 
     private const NONE = '-';
@@ -36,6 +39,7 @@ class Heartbeat
     public function beat(bool $healthy, string $note): void
     {
         Setting::set(self::LAST_TICK, now()->toIso8601String());
+        Setting::set(self::LAST_BEAT, ['healthy' => $healthy, 'note' => $note]);
 
         $url = $this->url();
 
