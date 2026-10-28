@@ -78,6 +78,7 @@ class Demo
             'library tests' => app(DemoLibrary::class)->seed(),
             'proving ground runs' => app(DemoProvingGround::class)->seed(),
             'client launches' => (new DemoLaunches)->seed(),
+            'starter workflows with demo runs' => (new DemoWorkflows)->seed(),
         ]);
     }
 
@@ -106,7 +107,15 @@ class Demo
                 }
 
                 if ($model === WorkflowRun::class) {
-                    $query->clone()->get()->each(fn (WorkflowRun $run) => File::deleteDirectory(WorkflowRunner::screenshotDirectory($run)));
+                    $runs = $query->clone()->get();
+                    $runs->each(fn (WorkflowRun $run) => File::deleteDirectory(WorkflowRunner::screenshotDirectory($run)));
+                    $removed[$table] = $query->delete();
+
+                    // The starter workflows stay; only what the demo said
+                    // about them goes.
+                    DemoWorkflows::settle($runs->pluck('workflow_id')->unique()->values()->all());
+
+                    continue;
                 }
 
                 $removed[$table] = $query->delete();
