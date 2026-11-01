@@ -92,6 +92,10 @@ surfaces (routes, Livewire components/actions, and every public method under
   list is kept here. `php artisan tests:sync-fleet`.
 - **Checkouts** — `SCANNER_ROOT` (e.g. `~/Herd`) holds one checkout per app,
   named by production host. `CheckoutLocator` refuses anything outside it.
+  On any install but the home one, an app with no folder by its roster host
+  (a practice fleet's tailnet name) falls back to the folder fleets'
+  `fleet:export` names as its `local` (`api.req145.practice`), with the same
+  checks (`CheckoutLocator::forApp`, REQ-395).
 - **Workspace** — each scan runs in a throwaway `git worktree` of the app's
   default branch (origin first), with a fresh `.env` from `.env.example` and
   phpunit.xml rewritten to force a scratch Postgres DB `tests_scan_{key}`. The
