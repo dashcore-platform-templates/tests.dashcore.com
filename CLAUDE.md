@@ -155,6 +155,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   advisory locks) and reads `workers` as a name => artisan arguments map
   (`scans`, `scans-2`, `prs`, `simulation`); the launchd detail is under
   `launchd` (REQ-683).
+  `tests:host-runtime --verify [--nightly=on|off] [--nightly-at=HH:MM]
+  [--pr-scans=on|off]` (`WorkerCheck`, REQ-371) is Console's machine check:
+  exit 0 only when every listed worker is loaded (`launchctl list`) — under
+  its own label or a loaded plist in `SCANNER_LAUNCH_AGENTS` running the same
+  artisan command and `--queue` in this checkout (fleets' labels,
+  `com.dashcore.tests-{fleet}-scans…`) — and each switch given matches
+  config; otherwise exit 1, one line per missing label or switch.
+  `--pr-scans` is `SCANNER_PR_SCANS` itself, not the pause.
   Another fleet's install scans each checkout at the release it runs live
   (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
   else `running_release`, else pinned `release`; tags fetched, never

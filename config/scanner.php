@@ -83,6 +83,16 @@ return [
 
     'npm' => env('SCANNER_NPM', 'npm'),
 
+    // Where `tests:host-runtime --verify` looks for this install's workers:
+    // launchctl (named absolutely, launchd's PATH is minimal) and the folder
+    // of launch agents. fleets writes the plists under its own labels
+    // (com.dashcore.tests-{fleet}-scans…), so a worker also counts as loaded
+    // when a loaded agent there runs the same command in this checkout.
+    'launchd' => [
+        'launchctl' => env('SCANNER_LAUNCHCTL', '/bin/launchctl'),
+        'agents' => env('SCANNER_LAUNCH_AGENTS', rtrim((string) ($_SERVER['HOME'] ?? getenv('HOME') ?: ''), '/').'/Library/LaunchAgents'),
+    ],
+
     'timeout' => (int) env('SCANNER_TIMEOUT', 14400),
 
     // The nightly scan of every app (01:00). Off on a host whose scan
