@@ -150,7 +150,7 @@ class FleetSync
             'name' => $this->name($key),
             'group' => $known ? Catalogue::app($key)['group'] : null,
             'repo' => $known ? Catalogue::app($key)['repo'] : null,
-            'local_path' => $this->checkouts->find($host),
+            'local_path' => $this->checkouts->forApp($key, $host),
         ];
     }
 

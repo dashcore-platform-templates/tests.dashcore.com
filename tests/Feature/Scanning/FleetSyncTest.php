@@ -4,9 +4,11 @@ namespace Tests\Feature\Scanning;
 
 use App\Models\FleetApp;
 use App\Scanning\FleetSync;
+use App\Services\FleetExport;
 use Dashcore\Bridge\Keys\ConfigKeysetResolver;
 use Dashcore\Bridge\Keys\KeysetResolver;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Mockery;
 use RuntimeException;
 use Tests\Concerns\UsesFleetFixtures;
 use Tests\TestCase;
@@ -126,5 +128,87 @@ class FleetSyncTest extends TestCase
 
         $this->fakeManifest(new RuntimeException('hub down'));
         $this->artisan('tests:sync-fleet')->expectsOutputToContain('hub down')->assertFailed();
+    }
+
+    /** fleets' export for the practice fleet req145: each app's local folder. */
+    private function practiceFleet(array $locals): void
+    {
+        config(['install.fleet' => 'practice-req145', 'install.home_fleet' => 'dashcore']);
+
+        $export = Mockery::mock(FleetExport::class);
+        $export->shouldReceive('live')->andReturnUsing(
+            fn (string $slug, string $app) => $slug === 'practice-req145' && array_key_exists($app, $locals)
+                ? ['release' => 'v1.0.0', 'commit' => null, 'local' => $locals[$app]]
+                : null,
+        );
+        $this->app->instance(FleetExport::class, $export);
+    }
+
+    public function test_a_practice_fleet_finds_its_checkouts_under_the_fleets_local_folder(): void
+    {
+        $root = $this->scannerRootWith(['api.req145.practice', 'finance.req145.practice']);
+        $this->practiceFleet(['api' => 'api.req145.practice', 'finance' => 'finance.req145.practice', 'hr' => null]);
+        $this->fakeInstall([
+            'api' => 'api.practice-req145.practice.dashcore.com',
+            'finance' => 'finance.practice-req145.practice.dashcore.com',
+            'hr' => 'hr.practice-req145.practice.dashcore.com',
+        ], 'practice-req145.practice.dashcore.com');
+
+        $this->assertNull(app(FleetSync::class)->sync()['error']);
+
+        $api = FleetApp::where('key', 'api')->sole();
+        $this->assertSame('api.practice-req145.practice.dashcore.com', $api->host, 'the roster host is kept');
+        $this->assertSame($root.'/api.req145.practice', $api->local_path);
+        $this->assertSame($root.'/finance.req145.practice', FleetApp::where('key', 'finance')->sole()->local_path);
+        $this->assertNull(FleetApp::where('key', 'hr')->sole()->local_path, 'fleets names no folder for hr');
+    }
+
+    public function test_the_fleets_local_folder_gets_the_same_checks_as_a_host(): void
+    {
+        $root = $this->scannerRootWith(['api.req145.practice']);
+        mkdir($root.'/notes.req145.practice');
+        $outside = $this->scannerRoot.'-outside';
+        mkdir($outside);
+        file_put_contents($outside.'/artisan', '<?php');
+        symlink($outside, $root.'/evil.req145.practice');
+
+        try {
+            $this->practiceFleet([
+                'api' => $root.'/api.req145.practice',
+                'finance' => '../'.basename($outside),
+                'hr' => 'notes.req145.practice',
+                'ceo' => 'evil.req145.practice',
+            ]);
+            $this->fakeInstall([
+                'api' => 'api.practice-req145.practice.dashcore.com',
+                'finance' => 'finance.practice-req145.practice.dashcore.com',
+                'hr' => 'hr.practice-req145.practice.dashcore.com',
+                'ceo' => 'ceo.practice-req145.practice.dashcore.com',
+            ], 'practice-req145.practice.dashcore.com');
+
+            app(FleetSync::class)->sync();
+
+            $this->assertNull(FleetApp::where('key', 'api')->sole()->local_path, 'a path with / is refused');
+            $this->assertNull(FleetApp::where('key', 'finance')->sole()->local_path, 'a path with .. is refused');
+            $this->assertNull(FleetApp::where('key', 'hr')->sole()->local_path, 'a folder without artisan is refused');
+            $this->assertNull(FleetApp::where('key', 'ceo')->sole()->local_path, 'a folder leading out of the root is refused');
+        } finally {
+            unlink($outside.'/artisan');
+            rmdir($outside);
+        }
+    }
+
+    public function test_the_home_install_finds_checkouts_by_host_alone(): void
+    {
+        $root = $this->scannerRootWith(['finance.dashcore.com', 'api.req145.practice']);
+        $export = Mockery::mock(FleetExport::class);
+        $export->shouldNotReceive('live');
+        $this->app->instance(FleetExport::class, $export);
+        $this->fakeInstall(['finance' => 'finance.dashcore.com.test', 'api' => 'api']);
+
+        app(FleetSync::class)->sync();
+
+        $this->assertSame($root.'/finance.dashcore.com', FleetApp::where('key', 'finance')->sole()->local_path);
+        $this->assertNull(FleetApp::where('key', 'api')->sole()->local_path, 'fleets is never asked at home');
     }
 }
