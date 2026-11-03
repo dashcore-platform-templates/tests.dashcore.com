@@ -8,6 +8,7 @@ use App\Models\FleetApp;
 use App\Models\JourneyRun;
 use App\Models\Setting;
 use App\Services\Install;
+use App\Services\ScheduleHealth;
 use App\Workflows\Heartbeat;
 use Illuminate\Support\Carbon;
 use Throwable;
@@ -64,6 +65,15 @@ class ConsoleReport
             $findings[] = $this->finding('tests:scan-queued-nothing', null, 'high',
                 'The tests scan queued nothing',
                 trim('tests:scan at '.(isset($request['at']) ? Carbon::parse($request['at'])->toDayDateTimeString() : 'its last run').': '.(string) ($request['note'] ?? '')),
+                route('fleet.index'));
+        }
+
+        $stale = app(ScheduleHealth::class)->scansStale();
+
+        if ($stale !== null) {
+            $findings[] = $this->finding('tests:scans-stale', null, 'high',
+                'No tests scan has completed in '.config('scanner.stale_after_hours').' hours',
+                $stale,
                 route('fleet.index'));
         }
 
@@ -135,7 +145,11 @@ class ConsoleReport
 
         $beat = Setting::get(Heartbeat::LAST_BEAT);
 
-        if (is_array($beat) && ($beat['healthy'] ?? true) === false) {
+        // Stale scans are their own finding (tests:scans-stale), never a second one here.
+        $others = array_diff((array) (is_array($beat) ? ($beat['problems'] ?? []) : []), [ScheduleHealth::SCANS_STALE]);
+        $onlyStale = is_array($beat) && ($beat['problems'] ?? []) !== [] && $others === [];
+
+        if (is_array($beat) && ($beat['healthy'] ?? true) === false && ! $onlyStale) {
             return [$this->finding('tests:heartbeat-failing', null, 'high',
                 'The tests schedule is ticking but its machinery is broken',
                 (string) ($beat['note'] ?? ''),

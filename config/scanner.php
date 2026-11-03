@@ -98,6 +98,11 @@ return [
     // and no worker has taken a scan job (are the launchd workers up?).
     'stalled_after_minutes' => (int) env('SCANNER_STALLED_AFTER_MINUTES', 45),
 
+    // With the nightly on and enabled apps on the roster, the heartbeat fails
+    // and Console's report files tests:scans-stale when no main scan has
+    // completed for this long: a night's scans that never ran (REQ-476).
+    'stale_after_hours' => (int) env('SCANNER_STALE_AFTER_HOURS', 26),
+
     /*
     |--------------------------------------------------------------------------
     | Scan slots, host-wide

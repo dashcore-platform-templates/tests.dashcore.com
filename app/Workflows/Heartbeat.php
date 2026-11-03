@@ -27,7 +27,7 @@ class Heartbeat
     /** The schedule's last tick (tests:heartbeat), which pages and reports read. */
     public const LAST_TICK = 'schedule.last_tick';
 
-    /** What the last beat said: {healthy, note}, for Console's report. */
+    /** What the last beat said: {healthy, note, problems}, for Console's report. */
     public const LAST_BEAT = 'schedule.last_beat';
 
     private const URL_CACHE = 'workflows.heartbeat_url';
@@ -36,10 +36,11 @@ class Heartbeat
 
     public function __construct(private Simulation $simulation) {}
 
-    public function beat(bool $healthy, string $note): void
+    /** @param  list<string>  $problems  ScheduleHealth's keys for what is wrong */
+    public function beat(bool $healthy, string $note, array $problems = []): void
     {
         Setting::set(self::LAST_TICK, now()->toIso8601String());
-        Setting::set(self::LAST_BEAT, ['healthy' => $healthy, 'note' => $note]);
+        Setting::set(self::LAST_BEAT, ['healthy' => $healthy, 'note' => $note, 'problems' => $problems]);
 
         $url = $this->url();
 
