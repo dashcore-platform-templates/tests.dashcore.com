@@ -13,9 +13,17 @@ return [
     | anything else. Unset means nothing is scannable: a root that guesses is
     | not an allowlist.
     |
+    | Except on the home install: there tests' own checkout sits beside every
+    | other app's (~/Herd/tests.dashcore.com), so an unset or empty root falls
+    | back to its parent folder (App\Scanning\ScannerRoot, at boot). The value
+    | reaches tests through its launchd environment, and once that was lost
+    | every nightly queued nothing without a word (REQ-476). A set root wins.
+    |
     */
 
     'root' => env('SCANNER_ROOT'),
+
+    'root_fallback' => (bool) env('SCANNER_ROOT_FALLBACK', true),
 
     /*
     |--------------------------------------------------------------------------

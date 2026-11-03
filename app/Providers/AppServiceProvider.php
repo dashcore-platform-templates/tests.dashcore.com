@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Scanning\ScannerRoot;
 use App\Services\FleetExport;
 use App\Services\NavigationRegistry;
 use App\Services\PermissionService;
@@ -23,6 +24,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Every fleet's tests walks only its own fleet's stand-ins.
         OwnFleet::apply();
+
+        // The home install never loses its scanner root with its environment.
+        ScannerRoot::apply();
 
         $this->registerNavigation();
     }
