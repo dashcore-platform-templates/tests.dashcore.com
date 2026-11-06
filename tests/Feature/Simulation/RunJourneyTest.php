@@ -276,11 +276,11 @@ class RunJourneyTest extends TestCase
         Process::assertRan(fn (PendingProcess $p) => in_array("--password={$password}", (array) $p->command, true));
     }
 
-    /** What StandInPins finds: sales off its live release unless $drifted is false. */
-    private function standIns(bool $drifted): void
+    /** What StandInPins finds: sales off its live release unless $drifted is false; the website on $websiteBranch (null: detached). */
+    private function standIns(bool $drifted, ?string $websiteBranch = StandInPins::BRANCH): void
     {
-        $sales = ['app' => 'sales', 'checkout' => "{$this->root}/sales.travischapman.practice", 'live' => 'v1.4.0', 'live_sha' => str_repeat('a', 40), 'actual_sha' => str_repeat($drifted ? 'b' : 'a', 40)];
-        $website = ['app' => 'website', 'checkout' => "{$this->root}/travischapman.practice", 'live' => 'c0ffee1', 'live_sha' => str_repeat('c', 40), 'actual_sha' => str_repeat('c', 40)];
+        $sales = ['app' => 'sales', 'checkout' => "{$this->root}/sales.travischapman.practice", 'live' => 'v1.4.0', 'live_sha' => str_repeat('a', 40), 'actual_sha' => str_repeat($drifted ? 'b' : 'a', 40), 'branch' => StandInPins::BRANCH];
+        $website = ['app' => 'website', 'checkout' => "{$this->root}/travischapman.practice", 'live' => 'c0ffee1', 'live_sha' => str_repeat('c', 40), 'actual_sha' => str_repeat('c', 40), 'branch' => $websiteBranch];
 
         $pins = Mockery::mock(StandInPins::class);
         $pins->shouldReceive('survey')->with('practice', Mockery::on(fn ($apps) => in_array('sales', $apps, true)))->andReturn([$website, $sales]);
@@ -460,6 +460,24 @@ class RunJourneyTest extends TestCase
 
         $this->assertFalse(JourneyRun::latest('id')->first()->drifted());
         $this->assertSame(FindingStatus::Resolved, $finding->fresh()->status);
+    }
+
+    public function test_a_walk_on_a_detached_stand_in_at_the_live_commit_is_drifted_too(): void
+    {
+        $this->events = $this->aWalk($this->enquirySteps(), 'journey+abc@example.com');
+        $this->fakeProcesses();
+        $this->standIns(drifted: false, websiteBranch: null);
+
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])
+            ->expectsOutputToContain('Drifted: the website stand-in is on c0ffee1 but not on its stand-in branch (detached HEAD)')
+            ->assertSuccessful();
+
+        $this->assertSame(['website'], array_column(JourneyRun::sole()->drift, 'app'));
+
+        $finding = SimulationFinding::sole();
+        $this->assertSame(FindingKind::Drift, $finding->kind);
+        $this->assertStringContainsString('website stand-in is not on its stand-in branch', $finding->title);
+        $this->assertStringContainsString('detached HEAD', $finding->detail);
     }
 
     public function test_a_failed_or_refused_walk_is_recorded_too(): void

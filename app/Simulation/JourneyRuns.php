@@ -22,7 +22,7 @@ class JourneyRuns
     public function __construct(private readonly Findings $findings) {}
 
     /**
-     * @param  list<array{app: string, checkout: string, live: ?string, live_sha: ?string, actual_sha: ?string}>  $drift
+     * @param  list<array{app: string, checkout: string, live: ?string, live_sha: ?string, actual_sha: ?string, branch?: ?string}>  $drift
      * @param  list<string>  $surveyed  the apps whose drift was looked at
      */
     public function record(string $journey, string $fleet, string $outcome, array $drift, array $surveyed, ?string $error, Carbon $started): ?JourneyRun
@@ -40,15 +40,21 @@ class JourneyRuns
                 ]);
 
                 foreach ($drift as $app) {
+                    $branch = $app['branch'] ?? null;
+                    $onCommit = $app['live_sha'] !== null && $app['live_sha'] === $app['actual_sha'];
+
                     $this->findings->recordMonitored(
                         $fleet,
                         FindingKind::Drift,
                         'drift|'.$app['app'],
-                        "The {$app['app']} stand-in is not on {$app['live']}, the release its fleet runs live",
+                        $onCommit
+                            ? "The {$app['app']} stand-in is not on its ".StandInPins::BRANCH.' branch'
+                            : "The {$app['app']} stand-in is not on {$app['live']}, the release its fleet runs live",
                         sprintf(
-                            '%s is at %s; live is %s (%s). Journeys walked on it prove the stand-in, not what clients use. Run php artisan tests:pin-stand-ins %s.',
+                            '%s is at %s (%s); live is %s (%s). Journeys walked on it prove the stand-in, not what clients use. Run php artisan tests:pin-stand-ins %s.',
                             basename($app['checkout']),
                             substr((string) $app['actual_sha'], 0, 7) ?: 'nothing',
+                            $branch === null ? 'detached HEAD' : "branch {$branch}",
                             $app['live'],
                             $app['live_sha'] === null ? 'not in the checkout' : substr($app['live_sha'], 0, 7),
                             $fleet,
