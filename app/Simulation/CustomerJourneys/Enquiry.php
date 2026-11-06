@@ -2,14 +2,17 @@
 
 namespace App\Simulation\CustomerJourneys;
 
+use App\Simulation\ContactForm;
 use App\Simulation\CustomerJourney;
 use App\Simulation\Persona;
 use App\Simulation\Script;
 use Faker\Generator;
 
 /**
- * Journey 1: a prospect fills in the website's contact form (/lets-talk),
- * and a rep finds them in sales as a lead.
+ * Journey 1: a prospect fills in the website's contact form, and a rep finds
+ * them in sales as a lead. The form is whichever the stand-in website serves
+ * (ContactForm): dashcore.com's /lets-talk, or the client website
+ * template's /contact.
  *
  * Between the two, the website posts the enquiry to sales over the bridge
  * (sales.capture) — the hop no single app's suite can see. The prospect's
@@ -22,6 +25,9 @@ use Faker\Generator;
  */
 class Enquiry extends CustomerJourney
 {
+    /** What the prospect asks for: plain words, so the website never withholds it as spam. */
+    private const NEED = 'Our quotes and follow-ups live in three spreadsheets and we keep losing track. (A simulated enquiry from tests.dashcore.com.)';
+
     public function name(): string
     {
         return 'A prospect enquires on the website and reaches sales';
@@ -48,8 +54,31 @@ class Enquiry extends CustomerJourney
     {
         $who = $rep->firstName();
 
+        $script->on('website');
+
+        if (ContactForm::of($this->fleet['apps']['website'] ?? null) === ContactForm::CONTACT) {
+            $this->contactForm($script, $prospect);
+        } else {
+            $this->letsTalkForm($script, $prospect);
+        }
+
+        $script->on('sales');
+
+        return $this->signIn($script, $rep)
+            ->visit('/leads', "{$who} opens the leads list")
+            ->fill('#leadSearch', '{email}', "{$who} searches for {email}")
+            ->see('{email}', "{$who} finds {email} in the list")
+            ->click('tbody tr:first-child a:has-text("Open")', "{$who} opens the lead")
+            ->see('{email}', "{$who} sees the lead is {email}")
+            ->see($prospect->name(), "{$who} sees it is {$prospect->name()}");
+    }
+
+    /**
+     * dashcore.com's /lets-talk form. Remembers the email it held as {email}.
+     */
+    private function letsTalkForm(Script $script, Prospect $prospect): void
+    {
         $script
-            ->on('website')
             ->visit('/lets-talk', 'The prospect opens the contact page')
             ->fill('#df-first', $prospect->first, "They type their first name, {$prospect->first}")
             ->fill('#df-last', $prospect->last, "They type their last name, {$prospect->last}")
@@ -61,20 +90,35 @@ class Enquiry extends CustomerJourney
             // Plain words: the website withholds anything that reads as spam
             // from sales, and a withheld lead would fail the journey for the
             // wrong reason.
-            ->fill('#df-need', 'Our quotes and follow-ups live in three spreadsheets and we keep losing track. (A simulated enquiry from tests.dashcore.com.)', 'They say what they need')
+            ->fill('#df-need', self::NEED, 'They say what they need')
             // The honeypot (#df-website) is never touched: filled, the site
             // shows a fake thank-you and sends nothing on.
             ->filled('#df-turnstile input[name="cf-turnstile-response"]', 'Turnstile lets them through (the practice keys always pass)')
             ->click('#df-submit', 'They send the form')
-            ->see('we got your details', 'The website thanks them')
-            ->on('sales');
+            ->see('we got your details', 'The website thanks them');
+    }
 
-        return $this->signIn($script, $rep)
-            ->visit('/leads', "{$who} opens the leads list")
-            ->fill('#leadSearch', '{email}', "{$who} searches for {email}")
-            ->see('{email}', "{$who} finds {email} in the list")
-            ->click('tbody tr:first-child a:has-text("Open")', "{$who} opens the lead")
-            ->see('{email}', "{$who} sees the lead is {email}")
-            ->see($prospect->name(), "{$who} sees it is {$prospect->name()}");
+    /**
+     * The client website template's /contact form (resources/site/contact.html,
+     * posting to /submit-contact). Remembers the email it held as {email}.
+     */
+    private function contactForm(Script $script, Prospect $prospect): void
+    {
+        $form = '#contact-form';
+
+        $script
+            ->visit('/contact', 'The prospect opens the contact page')
+            ->fill("{$form} input[name=\"first_name\"]", $prospect->first, "They type their first name, {$prospect->first}")
+            ->fill("{$form} input[name=\"last_name\"]", $prospect->last, "They type their last name, {$prospect->last}")
+            ->fill("{$form} input[name=\"email\"]", $prospect->email, "They type their email, {$prospect->email}")
+            // What sales must show is what the form held, read back off it.
+            ->remember("{$form} input[name=\"email\"]", 'email', 'The form holds their email')
+            ->fill("{$form} input[name=\"company\"]", $prospect->company, "They type their company, {$prospect->company}")
+            ->fill("{$form} textarea[name=\"message\"]", self::NEED, 'They say how the business can help')
+            // The honeypot (input[name="website"]) is never touched: filled,
+            // the site thanks them and sends nothing on.
+            ->filled('#contact-turnstile input[name="cf-turnstile-response"]', 'Turnstile lets them through (the practice keys always pass)')
+            ->click("{$form} button[type=\"submit\"]", 'They send the form')
+            ->see('Thanks — we have your message', 'The website thanks them');
     }
 }

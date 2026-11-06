@@ -38,6 +38,7 @@ class RunJourney extends Command
         {journey? : The customer journey to walk (e.g. enquiry); omit to list them}
         {--target= : The stand-in fleet to walk it against (simulation.fleets; default simulation.fleet)}
         {--list : List the customer journeys and which are pending}
+        {--last : Walk nothing: exit 0 only when the newest finished walk of the journey on the target fleet passed}
         {--record= : Write what the walk did, step by step, to this JSON file (tests:launch reads it)}';
 
     protected $description = 'Walk a customer journey across a stand-in fleet, step by step';
@@ -66,6 +67,11 @@ class RunJourney extends Command
         // tests:launch calls this once per stage on the same instance.
         $this->record = ['said' => [], 'walks' => [], 'errors' => [], 'apps' => []];
         [$this->walked, $this->drift, $this->surveyed, $this->reachedWalk] = [null, [], [], false];
+
+        if ($this->option('last')) {
+            return $this->last();
+        }
+
         $started = now();
         $code = $this->stage($simulation, $guard, $walker, $stripe);
 
@@ -135,7 +141,7 @@ class RunJourney extends Command
         }
 
         /** @var CustomerJourney $journey */
-        $journey = app($stage['journey']);
+        $journey = app($stage['journey'])->onFleet($fleet);
         $faker = Faker::create();
 
         // The apps are read off the script itself, so what is guarded is
@@ -461,6 +467,56 @@ class RunJourney extends Command
     {
         $this->record['errors'][] = $message;
         $this->components->error($message);
+    }
+
+    /**
+     * Console's check that the walk it asked for held, without walking: the
+     * newest finished run of the journey on the target fleet passed. A
+     * failed or refused run, or none at all, exits non-zero.
+     */
+    private function last(): int
+    {
+        $key = $this->argument('journey');
+
+        if ($key === null) {
+            $this->components->error('Name the journey whose last walk to read, e.g. tests:journey enquiry --last.');
+
+            return self::FAILURE;
+        }
+
+        if (! is_array(config("simulation.customer_journeys.{$key}"))) {
+            $this->components->error("No customer journey \"{$key}\". Known: ".implode(', ', array_keys(config('simulation.customer_journeys', []))).'.');
+
+            return self::FAILURE;
+        }
+
+        $target = (string) ($this->option('target') ?? config('simulation.fleet'));
+
+        $run = JourneyRun::query()
+            ->where('journey', $key)
+            ->where('fleet', $target)
+            ->whereNotNull('finished_at')
+            ->latest('finished_at')
+            ->latest('id')
+            ->first();
+
+        if ($run === null) {
+            $this->components->error("{$key} has never been walked on {$target}.");
+
+            return self::FAILURE;
+        }
+
+        $when = "#{$run->id}, ".$run->finished_at->diffForHumans();
+
+        if (! $run->passed()) {
+            $this->components->error("{$key}'s last walk on {$target} {$run->outcome} ({$when})".($run->error ? ": {$run->error}" : '.'));
+
+            return self::FAILURE;
+        }
+
+        $this->components->info("{$key}'s last walk on {$target} passed ({$when})".($run->drifted() ? ', on a drifted stand-in.' : '.'));
+
+        return self::SUCCESS;
     }
 
     private function list(): int

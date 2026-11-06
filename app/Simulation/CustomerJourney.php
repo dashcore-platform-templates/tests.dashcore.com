@@ -17,6 +17,22 @@ use Faker\Generator;
  */
 abstract class CustomerJourney
 {
+    /** @var array<string, mixed> the stand-in fleet it is walked on (onFleet), empty until told */
+    protected array $fleet = [];
+
+    /**
+     * The stand-in fleet the next script is for, so the script can match
+     * what that fleet's apps serve (which contact form its website has).
+     *
+     * @param  array<string, mixed>  $fleet  simulation.fleets.*
+     */
+    public function onFleet(array $fleet): static
+    {
+        $this->fleet = $fleet;
+
+        return $this;
+    }
+
     /** For people: "A prospect enquires on the website and reaches sales". */
     abstract public function name(): string;
 

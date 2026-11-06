@@ -152,7 +152,7 @@ class RunJourneyTest extends TestCase
     private function enquirySteps(): int
     {
         // Website steps, the sign-in, and the search in sales.
-        $script = app(Enquiry::class)->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake());
+        $script = app(Enquiry::class)->onFleet(config('simulation.fleets.practice'))->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake());
 
         return count($script->steps());
     }
@@ -287,6 +287,145 @@ class RunJourneyTest extends TestCase
         $this->app->instance(StandInPins::class, $pins);
     }
 
+    /** The website checkout serves the client template's contact page. */
+    private function clientWebsite(): void
+    {
+        File::ensureDirectoryExists("{$this->root}/travischapman.practice/resources/site");
+        File::put("{$this->root}/travischapman.practice/resources/site/contact.html", '<main><form class="contact" id="contact-form" novalidate><input name="first_name"></form></main>');
+    }
+
+    public function test_it_walks_the_client_websites_contact_form_when_the_stand_in_serves_it(): void
+    {
+        $this->clientWebsite();
+        $email = 'journey+abc123def456@example.com';
+        $this->events = $this->aWalk($this->enquirySteps(), $email);
+        $this->fakeProcesses();
+
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--target' => 'practice'])
+            ->expectsOutputToContain('The prospect opens the contact page')
+            ->expectsOutputToContain("searches for {$email}")
+            ->expectsOutputToContain('Enquiry passed')
+            ->assertSuccessful();
+
+        $walked = null;
+        Process::assertRan(function (PendingProcess $p) use (&$walked) {
+            if (((array) $p->command)[0] !== config('simulation.node')) {
+                return false;
+            }
+
+            $walked = json_decode((string) $p->input, true);
+
+            return true;
+        });
+
+        $steps = collect($walked['steps']);
+        $website = $steps->where('on', 'website');
+        $targets = $website->pluck('target')->filter()->values()->all();
+
+        $this->assertSame(['website', '/contact'], [$steps->first()['on'], $steps->first()['path']]);
+        $this->assertSame([
+            '#contact-form input[name="first_name"]',
+            '#contact-form input[name="last_name"]',
+            '#contact-form input[name="email"]',
+            '#contact-form input[name="email"]',
+            '#contact-form input[name="company"]',
+            '#contact-form textarea[name="message"]',
+            '#contact-turnstile input[name="cf-turnstile-response"]',
+            '#contact-form button[type="submit"]',
+        ], $targets);
+        $this->assertTrue($website->contains(fn ($s) => $s['do'] === 'remember' && $s['as'] === 'email'));
+        $this->assertTrue($website->contains(fn ($s) => $s['do'] === 'filled'));
+        $this->assertTrue($website->contains(fn ($s) => $s['do'] === 'see' && str_contains((string) $s['text'], 'Thanks — we have your message')));
+
+        // Nothing of /lets-talk, and the honeypot is never touched.
+        $this->assertFalse($steps->contains(fn ($s) => str_starts_with((string) ($s['target'] ?? ''), '#df-')));
+        $this->assertFalse($steps->contains(fn ($s) => str_contains((string) ($s['target'] ?? ''), 'name="website"')));
+
+        // Then the rep finds the lead in sales by the email the form held.
+        $this->assertSame('sales', $steps->last()['on']);
+        $this->assertTrue($steps->contains(fn ($s) => $s['do'] === 'fill' && $s['target'] === '#leadSearch' && $s['value'] === '{email}' && $s['on'] === 'sales'));
+    }
+
+    public function test_payment_and_subscription_reach_sales_through_the_client_contact_form_too(): void
+    {
+        $this->clientWebsite();
+        $rep = ['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')];
+
+        foreach ([Payment::class, Subscription::class] as $journey) {
+            $steps = collect(app($journey)->onFleet(config('simulation.fleets.practice'))->script($rep, fake())->steps());
+
+            $this->assertSame('/contact', $steps->first()['path'], $journey);
+            $this->assertFalse($steps->contains(fn ($s) => str_starts_with((string) ($s['target'] ?? ''), '#df-')), $journey);
+        }
+    }
+
+    public function test_the_fleets_contact_form_setting_overrides_what_the_checkout_serves(): void
+    {
+        $rep = ['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')];
+        $first = fn (array $fleet) => app(Enquiry::class)->onFleet($fleet)->script($rep, fake())->steps()[0]['path'];
+        $fleet = config('simulation.fleets.practice');
+
+        // Nothing at the checkout, and a journey told no fleet: dashcore.com's /lets-talk.
+        $this->assertSame('/lets-talk', $first($fleet));
+        $this->assertSame('/lets-talk', app(Enquiry::class)->script($rep, fake())->steps()[0]['path']);
+
+        // A contact.html without the client template's form is not it.
+        File::ensureDirectoryExists("{$this->root}/travischapman.practice/resources/site");
+        File::put("{$this->root}/travischapman.practice/resources/site/contact.html", '<p>Call us.</p>');
+        $this->assertSame('/lets-talk', $first($fleet));
+
+        $this->clientWebsite();
+        $this->assertSame('/contact', $first($fleet));
+
+        $fleet['apps']['website']['contact_form'] = 'lets-talk';
+        $this->assertSame('/lets-talk', $first($fleet));
+
+        File::deleteDirectory("{$this->root}/travischapman.practice/resources");
+        $fleet['apps']['website']['contact_form'] = 'contact';
+        $this->assertSame('/contact', $first($fleet));
+    }
+
+    public function test_last_passes_only_when_the_newest_finished_walk_on_the_target_fleet_passed(): void
+    {
+        $run = fn (string $outcome, string $fleet, ?string $finished, string $journey = 'enquiry') => JourneyRun::create([
+            'journey' => $journey, 'fleet' => $fleet, 'outcome' => $outcome,
+            'started_at' => now()->subMinutes(5), 'finished_at' => $finished === null ? null : now()->parse($finished),
+        ]);
+
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])
+            ->expectsOutputToContain('enquiry has never been walked on practice')
+            ->assertFailed();
+
+        $run(JourneyRun::PASSED, 'practice', '-2 hours');
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])
+            ->expectsOutputToContain("enquiry's last walk on practice passed")
+            ->assertSuccessful();
+
+        // A newer failed walk on the same fleet fails it; one elsewhere, or of another journey, does not count.
+        $run(JourneyRun::FAILED, 'other', '-1 minute');
+        $run(JourneyRun::FAILED, 'practice', '-1 minute', 'payment');
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])->assertSuccessful();
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true, '--target' => 'other'])->assertFailed();
+
+        $run(JourneyRun::REFUSED, 'practice', '-1 hour');
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])
+            ->expectsOutputToContain('refused')
+            ->assertFailed();
+
+        $run(JourneyRun::PASSED, 'practice', '-30 minutes');
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])->assertSuccessful();
+
+        // --last walks nothing and records nothing.
+        Process::fake();
+        $before = JourneyRun::count();
+        $this->artisan('tests:journey', ['journey' => 'enquiry', '--last' => true])->assertSuccessful();
+        $this->assertSame($before, JourneyRun::count());
+        Process::assertNothingRan();
+
+        $this->artisan('tests:journey', ['--last' => true])->assertFailed();
+        $this->artisan('tests:journey', ['journey' => 'nope', '--last' => true])->expectsOutputToContain('No customer journey "nope"')->assertFailed();
+    }
+
     public function test_a_walk_on_a_drifted_stand_in_is_recorded_and_shown_as_drifted_with_a_finding(): void
     {
         $this->events = $this->aWalk($this->enquirySteps(), 'journey+abc@example.com');
@@ -390,7 +529,7 @@ class RunJourneyTest extends TestCase
 
     private function paymentSteps(): int
     {
-        return count(app(Payment::class)->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
+        return count(app(Payment::class)->onFleet(config('simulation.fleets.practice'))->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
     }
 
     public function test_it_refuses_to_pay_on_a_delivery_app_with_live_stripe_keys(): void
@@ -514,7 +653,7 @@ class RunJourneyTest extends TestCase
 
     private function subscriptionSteps(): int
     {
-        return count(app(Subscription::class)->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
+        return count(app(Subscription::class)->onFleet(config('simulation.fleets.practice'))->script(['sales' => new Persona('Journey Rep', 'journey.rep@example.com', 'x', 'Sales rep')], fake())->steps());
     }
 
     /**
