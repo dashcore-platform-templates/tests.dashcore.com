@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Enums\ScanKind;
 use App\Enums\ScanStatus;
+use App\Models\FleetApp;
 use App\Models\Scan;
 use App\Models\Setting;
 use Illuminate\Support\Carbon;
@@ -22,12 +24,16 @@ class ScheduleHealth
     /** When a scan worker last took a scan job (RunScan), slot or no slot. */
     public const SCAN_WORKER_SEEN = 'scans.worker_seen_at';
 
+    /** The problem key for scans gone stale; Console's report files it as its own finding. */
+    public const SCANS_STALE = 'scans-stale';
+
     /**
-     * @return array{healthy: bool, note: string}
+     * @return array{healthy: bool, note: string, problems: list<string>}
      */
     public function check(): array
     {
         $problems = [];
+        $keys = [];
         $notes = [];
 
         $workflows = Setting::get(self::WORKFLOWS_RESULT);
@@ -37,8 +43,10 @@ class ScheduleHealth
 
             if ($at->lt(now()->subMinutes((int) config('workflows.tick_stale_after_minutes')))) {
                 $problems[] = 'tests:workflows has not finished a tick since '.$at->toDayDateTimeString().'.';
+                $keys[] = 'workflows-stalled';
             } elseif (! ($workflows['healthy'] ?? true)) {
                 $problems[] = (string) ($workflows['note'] ?? 'tests:workflows reported a problem.');
+                $keys[] = 'workflows-failing';
             } else {
                 $notes[] = (string) ($workflows['note'] ?? 'Workflows ticked.');
             }
@@ -53,11 +61,51 @@ class ScheduleHealth
 
         if ($running === 0 && ! $workerSeen && (clone $queued)->where('created_at', '<', $stalledSince)->exists()) {
             $problems[] = "{$waiting} scan(s) queued and nothing has taken one for ".config('scanner.stalled_after_minutes').' minutes: are this install\'s scan workers (tests:host-runtime) running?';
+            $keys[] = 'scans-stalled';
+        }
+
+        $stale = $this->scansStale();
+
+        if ($stale !== null) {
+            $problems[] = $stale;
+            $keys[] = self::SCANS_STALE;
         }
 
         $notes[] = "Scans: {$waiting} queued, {$running} running.";
 
-        return ['healthy' => $problems === [], 'note' => implode("\n", $problems === [] ? $notes : $problems)];
+        return ['healthy' => $problems === [], 'note' => implode("\n", $problems === [] ? $notes : $problems), 'problems' => $keys];
+    }
+
+    /**
+     * Why the scans are stale, or null when they are not: the nightly is on,
+     * the roster has enabled apps, and no main scan has completed for
+     * `stale_after_hours` — counted from the roster's first enabled app when
+     * none ever has. A nightly that queued nothing (the scanner root lost,
+     * REQ-476) looked healthy with "0 queued, 0 running"; this is what says so.
+     */
+    public function scansStale(): ?string
+    {
+        if (! config('scanner.nightly')) {
+            return null;
+        }
+
+        $apps = FleetApp::query()->real()->where('is_enabled', true);
+
+        if (! (clone $apps)->exists()) {
+            return null;
+        }
+
+        $hours = (int) config('scanner.stale_after_hours');
+        $last = Scan::query()->where('kind', ScanKind::Main)->where('status', ScanStatus::Completed)->max('finished_at');
+        $since = Carbon::parse($last ?? (clone $apps)->min('created_at'));
+
+        if ($since->gte(now()->subHours($hours))) {
+            return null;
+        }
+
+        return $last === null
+            ? "No main scan has ever completed here, and the roster has had enabled apps since {$since->toDayDateTimeString()}: is the nightly tests:scan queuing anything?"
+            : "No main scan has completed in {$hours} hours (the last finished {$since->toDayDateTimeString()}): is the nightly tests:scan queuing anything?";
     }
 
     public static function scanWorkerSeen(): void

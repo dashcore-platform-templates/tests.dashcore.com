@@ -27,7 +27,7 @@ class Heartbeat extends Command
             $state = ['healthy' => false, 'note' => 'tests:heartbeat could not check the schedule: '.$e->getMessage()];
         }
 
-        $beat->beat($state['healthy'], $state['note']);
+        $beat->beat($state['healthy'], $state['note'], $state['problems'] ?? []);
         $this->line($state['note']);
 
         return self::SUCCESS;

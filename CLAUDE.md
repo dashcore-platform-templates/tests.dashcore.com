@@ -92,6 +92,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   list is kept here. `php artisan tests:sync-fleet`.
 - **Checkouts** — `SCANNER_ROOT` (e.g. `~/Herd`) holds one checkout per app,
   named by production host. `CheckoutLocator` refuses anything outside it.
+  On every install an unset or empty `SCANNER_ROOT` falls back to the
+  parent folder of tests' own checkout (`ScannerRoot`, at boot; off with
+  `SCANNER_ROOT_FALLBACK=false`, as phpunit.xml does), and Proving Ground
+  targets with no checkout of their own get `checkout_folder` under it —
+  losing it from the launchd env once emptied every `local_path` and every
+  nightly (REQ-476, REQ-605).
   On any install but the home one, an app with no folder by its roster host
   (a practice fleet's tailnet name) falls back to the folder fleets'
   `fleet:export` names as its `local` (`api.req145.practice`), with the same
@@ -152,7 +158,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   doesn't know is not scanned. It never scans PRs (`PullRequestScans::allowed`)
   or builds tests (`BuildRequester::allowed`; `Publisher` refuses to push).
 - **Running** — `tests:scan [keys] [--now]` queues `RunScan` on the `scans`
-  connection (retry_after outlasts SCANNER_TIMEOUT). The schedule in
+  connection (retry_after outlasts SCANNER_TIMEOUT). It exits non-zero when
+  it queues nothing (none already scanning) with enabled apps on the roster,
+  or no enabled app has a checkout; a whole-roster run records that
+  (`ScanFleet::LAST_REQUEST`) and `console:report` files it as
+  `tests:scan-queued-nothing`. `tests:scan --last` queues nothing and exits 0
+  only when the newest main scan of every scannable app completed. With the
+  nightly on, no completed main scan for `SCANNER_STALE_AFTER_HOURS` (26)
+  makes the heartbeat beat /fail and the report file `tests:scans-stale`. The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old
   per-test detail, and (with `SCANNER_BUILD_NIGHTLY=true`) hourly queues a build
   for each app with gaps and no build running or PR waiting on review. Two workers (queues `scans,builds`) are the launchd agents

@@ -51,6 +51,9 @@
         <server name="TESTS_HOST" value="tests.dashcore.com" force="true"/>
         <env name="SCANNER_ROOT" value="" force="true"/>
         <server name="SCANNER_ROOT" value="" force="true"/>
+        <!-- Never fall back to the real ~/Herd: tests that want it switch it on. -->
+        <env name="SCANNER_ROOT_FALLBACK" value="false" force="true"/>
+        <server name="SCANNER_ROOT_FALLBACK" value="false" force="true"/>
         <!-- The host's .env names gh by absolute path (launchd has no Homebrew
              on PATH); tests assert on the bare command. -->
         <env name="SCANNER_GH" value="gh" force="true"/>

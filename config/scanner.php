@@ -10,12 +10,21 @@ return [
     | The directory holding one checkout per app, named by its production host
     | (`finance.dashcore.com`). An app is only scanned if its checkout is found
     | inside this root after realpath(), so a symlink cannot point a scan at
-    | anything else. Unset means nothing is scannable: a root that guesses is
-    | not an allowlist.
+    | anything else.
+    |
+    | Every install's own checkout sits beside the apps it scans (~/Herd), so
+    | an unset or empty root falls back to its parent folder
+    | (App\Scanning\ScannerRoot, at boot; SCANNER_ROOT_FALLBACK=false turns it
+    | off). The value reaches tests through its launchd environment, and once
+    | that was lost every nightly queued nothing without a word (REQ-476,
+    | REQ-605). A set root wins. The Proving Ground targets' checkouts follow
+    | the resolved root (their `checkout_folder`).
     |
     */
 
     'root' => env('SCANNER_ROOT'),
+
+    'root_fallback' => (bool) env('SCANNER_ROOT_FALLBACK', true),
 
     /*
     |--------------------------------------------------------------------------
@@ -89,6 +98,11 @@ return [
     // The heartbeat fails when scans have waited this long with none running
     // and no worker has taken a scan job (are the launchd workers up?).
     'stalled_after_minutes' => (int) env('SCANNER_STALLED_AFTER_MINUTES', 45),
+
+    // With the nightly on and enabled apps on the roster, the heartbeat fails
+    // and Console's report files tests:scans-stale when no main scan has
+    // completed for this long: a night's scans that never ran (REQ-476).
+    'stale_after_hours' => (int) env('SCANNER_STALE_AFTER_HOURS', 26),
 
     /*
     |--------------------------------------------------------------------------
