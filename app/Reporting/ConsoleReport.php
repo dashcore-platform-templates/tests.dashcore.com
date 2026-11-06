@@ -2,12 +2,14 @@
 
 namespace App\Reporting;
 
+use App\Console\Commands\ScanFleet;
 use App\Enums\ScanStatus;
 use App\Models\FleetApp;
 use App\Models\JourneyRun;
 use App\Models\Setting;
 use App\Services\Install;
 use App\Workflows\Heartbeat;
+use Illuminate\Support\Carbon;
 use Throwable;
 
 /**
@@ -56,6 +58,14 @@ class ConsoleReport
     private function scans(): array
     {
         $findings = [];
+        $request = Setting::get(ScanFleet::LAST_REQUEST);
+
+        if (is_array($request) && ($request['failed'] ?? false)) {
+            $findings[] = $this->finding('tests:scan-queued-nothing', null, 'high',
+                'The tests scan queued nothing',
+                trim('tests:scan at '.(isset($request['at']) ? Carbon::parse($request['at'])->toDayDateTimeString() : 'its last run').': '.(string) ($request['note'] ?? '')),
+                route('fleet.index'));
+        }
 
         foreach (FleetApp::query()->with(['latestScan', 'latestCompletedScan'])->orderBy('key')->get() as $app) {
             $latest = $app->latestScan;

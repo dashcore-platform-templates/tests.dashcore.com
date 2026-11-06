@@ -2,14 +2,17 @@
 
 namespace Tests\Feature\Scanning;
 
+use App\Console\Commands\ScanFleet;
 use App\Enums\ScanStatus;
 use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use App\Models\Setting;
 use App\Scanning\PullRequestStatus;
 use App\Scanning\Scanner;
 use App\Scanning\ScanRequester;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Queue;
 use Mockery;
 use RuntimeException;
@@ -110,6 +113,84 @@ class ScanRequestTest extends TestCase
             ->assertSuccessful();
 
         Queue::assertPushed(RunScan::class, 1);
+    }
+
+    public function test_the_scan_command_fails_loudly_when_no_enabled_app_has_a_checkout(): void
+    {
+        Queue::fake();
+        FleetApp::factory()->create(['key' => 'finance']);
+        FleetApp::factory()->create(['key' => 'hr']);
+        FleetApp::factory()->create(['key' => 'old', 'is_enabled' => false]);
+
+        $this->artisan('tests:scan')
+            ->expectsOutputToContain('None of the 2 enabled app(s) has a checkout')
+            ->assertFailed();
+
+        Queue::assertNothingPushed();
+        $this->assertTrue(Setting::get(ScanFleet::LAST_REQUEST)['failed']);
+
+        $finding = $this->reportFinding('tests:scan-queued-nothing');
+        $this->assertNotNull($finding, 'Console sees the nightly that queued nothing');
+        $this->assertSame('high', $finding['severity']);
+        $this->assertStringContainsString('None of the 2 enabled app(s)', $finding['detail']);
+
+        // Once the roster has its checkouts again, the next run queues and the finding goes.
+        FleetApp::query()->where('key', 'finance')->forceDelete();
+        $this->scannableApp('finance');
+        $this->artisan('tests:scan')->assertSuccessful();
+        $this->assertFalse(Setting::get(ScanFleet::LAST_REQUEST)['failed']);
+        $this->assertNull($this->reportFinding('tests:scan-queued-nothing'));
+    }
+
+    public function test_the_scan_command_fails_when_it_queues_nothing_but_not_when_scans_are_under_way(): void
+    {
+        Queue::fake();
+        $app = $this->scannableApp('finance');
+        $app->scans()->create(['status' => ScanStatus::Running]);
+
+        $this->artisan('tests:scan')->expectsOutputToContain('already scanning')->assertSuccessful();
+
+        // The only scannable app is switched off, the rest have no checkout: nothing queued.
+        $app->update(['is_enabled' => false]);
+        FleetApp::factory()->create(['key' => 'hr']);
+        $this->artisan('tests:scan')->assertFailed();
+        $this->assertTrue(Setting::get(ScanFleet::LAST_REQUEST)['failed']);
+    }
+
+    public function test_an_empty_roster_is_not_a_scan_failure(): void
+    {
+        $this->artisan('tests:scan')->assertSuccessful();
+    }
+
+    public function test_last_passes_only_when_the_newest_main_scan_of_every_scannable_app_completed(): void
+    {
+        $this->artisan('tests:scan', ['--last' => true])->expectsOutputToContain('No app on the roster is scannable')->assertFailed();
+
+        $finance = $this->scannableApp('finance');
+        $hr = $this->scannableApp('hr');
+        FleetApp::factory()->create(['key' => 'nocheckout']);
+
+        $this->artisan('tests:scan', ['--last' => true])->expectsOutputToContain('never scanned')->assertFailed();
+
+        Scan::factory()->for($finance)->completed()->create();
+        Scan::factory()->for($hr)->completed()->create();
+        $queued = $hr->scans()->create(['status' => ScanStatus::Queued]);
+
+        $this->artisan('tests:scan', ['--last' => true])->expectsOutputToContain('Queued')->assertFailed();
+
+        $queued->update(['status' => ScanStatus::Completed, 'finished_at' => now()]);
+        $this->artisan('tests:scan', ['--last' => true])->assertSuccessful();
+
+        // --last only reads: it queues nothing.
+        $this->assertSame(0, Scan::query()->where('status', ScanStatus::Queued)->count());
+    }
+
+    /** @return array<string, mixed>|null */
+    private function reportFinding(string $fingerprint): ?array
+    {
+        Artisan::call('console:report', ['--json' => true]);
+
+        return collect(json_decode(Artisan::output(), true)['findings'])->firstWhere('fingerprint', $fingerprint);
     }
 
     public function test_the_scan_command_refuses_apps_not_in_the_fleet(): void
