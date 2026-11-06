@@ -86,7 +86,7 @@ class Subscription extends CustomerJourney
         // Pacific the two disagree on what "today" is.
         $nextCharge = now(config('simulation.company_clock'))->addMonthNoOverflow()->format('M j, Y');
 
-        return $this->enquiry->reachSales(new Script, $rep, $prospect)
+        return $this->enquiry->onFleet($this->fleet)->reachSales(new Script, $rep, $prospect)
             // ── Sales: a plan deal, handed to delivery for its pay link ──
             ->click('button:has-text("Create one")', "{$who} starts a deal for them")
             ->fill('#convertTitle', self::TITLE, "{$who} calls it ".self::TITLE)

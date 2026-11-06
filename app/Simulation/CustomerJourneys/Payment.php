@@ -65,7 +65,7 @@ class Payment extends CustomerJourney
         // For their portal, typed twice and never shown.
         $password = Str::password(20, symbols: false);
 
-        return $this->enquiry->reachSales(new Script, $rep, $prospect)
+        return $this->enquiry->onFleet($this->fleet)->reachSales(new Script, $rep, $prospect)
             // ── Sales: a deal, handed to delivery for its pay link ──
             ->click('button:has-text("Create one")', "{$who} starts a deal for them")
             ->fill('#convertTitle', self::TITLE, "{$who} calls it ".self::TITLE)

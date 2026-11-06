@@ -355,6 +355,9 @@ return [
                     // setting reaches; it holds every message only while it
                     // runs as local and nobody has asked it to really send.
                     'mail_guard' => ['app.env' => 'local', 'mail.local_really_send' => false],
+                    // Which contact form it serves is read off its checkout
+                    // (ContactForm: the client template's /contact, else
+                    // /lets-talk); 'contact_form' => 'contact'|'lets-talk' overrides.
                 ],
                 'sales' => [
                     'name' => 'Sales',

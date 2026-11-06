@@ -257,6 +257,13 @@ surfaces (routes, Livewire components/actions, and every public method under
   a drifted one is a `FindingKind::Drift` finding on the stand-in fleet
   (settled by the next walk that finds it back), and the client-journey
   page lists each journey's latest walk, drifted ones marked.
+  `tests:journey <journey> --last` walks nothing: it exits 0 only when
+  that journey's newest finished run on `--target` passed (Console's
+  check). The enquiry walks whichever contact form the stand-in website
+  serves (`ContactForm`): its checkout's `resources/site/contact.html`
+  with `#contact-form` is the client template's `/contact`, else
+  dashcore.com's `/lets-talk`; `contact_form` on the website entry
+  overrides. `tests:scan --last` likewise reads, never queues.
   `tests:pin-stand-ins [fleet]` moves each stand-in checkout (clean ones
   only) to that release or commit, then installs, migrates and builds
   what the move changed. This install's stand-in fleet is `SIMULATION_FLEET`
