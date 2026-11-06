@@ -83,6 +83,22 @@ class StandInPinsTest extends TestCase
         return trim(Process::path("{$this->root}/{$checkout}")->run(['git', 'rev-parse', 'HEAD'])->output());
     }
 
+    /** The branch the checkout is on; '' when its HEAD is detached. */
+    private function branchOf(string $checkout): string
+    {
+        return trim(Process::path("{$this->root}/{$checkout}")->run(['git', 'symbolic-ref', '--quiet', '--short', 'HEAD'])->output());
+    }
+
+    private function revOf(string $checkout, string $ref): string
+    {
+        return trim(Process::path("{$this->root}/{$checkout}")->run(['git', 'rev-parse', $ref])->output());
+    }
+
+    private function git(string $checkout, string ...$args): void
+    {
+        Process::path("{$this->root}/{$checkout}")->run(['git', ...$args])->throw();
+    }
+
     /** @param  array<string, array{release: ?string, commit: ?string, local: ?string}|null>  $apps */
     private function fleetsSays(array $apps): void
     {
@@ -107,6 +123,13 @@ class StandInPinsTest extends TestCase
         // Nothing known about delivery: left where it was.
         $this->assertSame($this->commits['dcos.acme.practice']['main'], $this->headOf('dcos.acme.practice'));
 
+        // Pinned onto the stand-in branch, never a detached HEAD; main is never moved.
+        foreach (['sales.acme.practice', 'acme.practice'] as $checkout) {
+            $this->assertSame(StandInPins::BRANCH, $this->branchOf($checkout));
+            $this->assertSame($this->commits[$checkout]['main'], $this->revOf($checkout, 'refs/heads/main'));
+        }
+        $this->assertSame('main', $this->branchOf('dcos.acme.practice'));
+
         $this->assertSame([], app(StandInPins::class)->drift('practice'));
 
         $again = collect(app(StandInPins::class)->pin('practice'))->keyBy('app');
@@ -125,6 +148,42 @@ class StandInPinsTest extends TestCase
         $this->assertSame($this->commits['sales.acme.practice']['main'], $drift[1]['actual_sha']);
 
         $this->assertSame(['sales'], array_column(app(StandInPins::class)->drift('practice', ['sales']), 'app'));
+    }
+
+    public function test_a_detached_checkout_at_the_live_commit_is_drift_and_is_put_back_on_the_branch(): void
+    {
+        $this->git('sales.acme.practice', 'checkout', '--quiet', '--detach', $this->commits['sales.acme.practice']['v1']);
+
+        $drift = collect(app(StandInPins::class)->drift('practice'))->keyBy('app');
+        $this->assertTrue($drift->has('sales'));
+        $this->assertNull($drift['sales']['branch']);
+        $this->assertSame($drift['sales']['live_sha'], $drift['sales']['actual_sha']);
+
+        $results = collect(app(StandInPins::class)->pin('practice'))->keyBy('app');
+
+        $this->assertSame('moved', $results['sales']['status']);
+        $this->assertStringContainsString('detached HEAD', $results['sales']['detail']);
+        $this->assertSame(StandInPins::BRANCH, $this->branchOf('sales.acme.practice'));
+        $this->assertSame($this->commits['sales.acme.practice']['v1'], $this->headOf('sales.acme.practice'));
+        $this->assertSame($this->commits['sales.acme.practice']['main'], $this->revOf('sales.acme.practice', 'refs/heads/main'));
+        $this->assertSame([], app(StandInPins::class)->drift('practice'));
+    }
+
+    public function test_a_checkout_on_another_branch_at_the_live_commit_is_drift(): void
+    {
+        $this->git('acme.practice', 'switch', '--quiet', '-c', 'hotfix', $this->commits['acme.practice']['v1']);
+        $this->git('sales.acme.practice', 'switch', '--quiet', '-C', StandInPins::BRANCH, 'v1.0.0');
+
+        $drift = collect(app(StandInPins::class)->drift('practice'))->keyBy('app');
+
+        $this->assertSame(['website'], $drift->keys()->all());
+        $this->assertSame('hotfix', $drift['website']['branch']);
+
+        $results = collect(app(StandInPins::class)->pin('practice'))->keyBy('app');
+        $this->assertSame('moved', $results['website']['status']);
+        $this->assertSame('current', $results['sales']['status']);
+        $this->assertSame(StandInPins::BRANCH, $this->branchOf('acme.practice'));
+        $this->assertSame([], app(StandInPins::class)->drift('practice'));
     }
 
     public function test_a_checkout_with_uncommitted_changes_or_that_is_no_stand_in_is_left_alone(): void
