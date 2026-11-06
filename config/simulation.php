@@ -159,6 +159,8 @@ return [
             'base_url' => env('SIMULATION_SALES_URL', 'http://sales.fakecompany.com.test'),
             // Its source, for the explorer to read.
             'checkout' => env('SIMULATION_SALES_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/sales.fakecompany.com' : null),
+            // Its folder under the scanner root, once ScannerRoot resolves it.
+            'checkout_folder' => 'sales.fakecompany.com',
             // Its database, on this app's own Postgres server, read by the
             // pulse panel — never written.
             'database' => env('SIMULATION_SALES_DATABASE', 'sales_fakecompany_com'),
@@ -178,6 +180,8 @@ return [
             'name' => 'Finance',
             'base_url' => env('SIMULATION_FINANCE_URL', 'http://finance.fakecompany.com.test'),
             'checkout' => env('SIMULATION_FINANCE_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/finance.fakecompany.com' : null),
+            // Its folder under the scanner root, once ScannerRoot resolves it.
+            'checkout_folder' => 'finance.fakecompany.com',
             // Finance runs on MySQL (Herd's, root with no password locally).
             'database' => env('SIMULATION_FINANCE_DATABASE', 'finance_fakecompany_com'),
             'connection' => [
@@ -211,6 +215,8 @@ return [
             'name' => 'HR',
             'base_url' => env('SIMULATION_HR_URL', 'http://hr.fakecompany.com.test'),
             'checkout' => env('SIMULATION_HR_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/hr.fakecompany.com' : null),
+            // Its folder under the scanner root, once ScannerRoot resolves it.
+            'checkout_folder' => 'hr.fakecompany.com',
             'database' => env('SIMULATION_HR_DATABASE', 'hr_fakecompany_com'),
             'timezone' => env('SIMULATION_HR_TIMEZONE', 'America/Los_Angeles'),
             'login' => ['email' => 'input[name="email"]', 'password' => 'input[name="password"]', 'submit' => 'button[data-test="login-button"]', 'landed' => 'Dashboard'],
@@ -252,6 +258,8 @@ return [
             'name' => 'Marketing',
             'base_url' => env('SIMULATION_MARKETING_URL', 'http://marketing.fakecompany.com.test'),
             'checkout' => env('SIMULATION_MARKETING_CHECKOUT', env('SCANNER_ROOT') ? rtrim(env('SCANNER_ROOT'), '/').'/marketing.fakecompany.com' : null),
+            // Its folder under the scanner root, once ScannerRoot resolves it.
+            'checkout_folder' => 'marketing.fakecompany.com',
             'database' => env('SIMULATION_MARKETING_DATABASE', 'marketing_fakecompany_com'),
             'timezone' => env('SIMULATION_MARKETING_TIMEZONE', 'America/Los_Angeles'),
             // Plain Blade forms, no Livewire.

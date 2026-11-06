@@ -10,14 +10,15 @@ return [
     | The directory holding one checkout per app, named by its production host
     | (`finance.dashcore.com`). An app is only scanned if its checkout is found
     | inside this root after realpath(), so a symlink cannot point a scan at
-    | anything else. Unset means nothing is scannable: a root that guesses is
-    | not an allowlist.
+    | anything else.
     |
-    | Except on the home install: there tests' own checkout sits beside every
-    | other app's (~/Herd/tests.dashcore.com), so an unset or empty root falls
-    | back to its parent folder (App\Scanning\ScannerRoot, at boot). The value
-    | reaches tests through its launchd environment, and once that was lost
-    | every nightly queued nothing without a word (REQ-476). A set root wins.
+    | Every install's own checkout sits beside the apps it scans (~/Herd), so
+    | an unset or empty root falls back to its parent folder
+    | (App\Scanning\ScannerRoot, at boot; SCANNER_ROOT_FALLBACK=false turns it
+    | off). The value reaches tests through its launchd environment, and once
+    | that was lost every nightly queued nothing without a word (REQ-476,
+    | REQ-605). A set root wins. The Proving Ground targets' checkouts follow
+    | the resolved root (their `checkout_folder`).
     |
     */
 

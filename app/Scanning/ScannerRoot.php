@@ -2,13 +2,14 @@
 
 namespace App\Scanning;
 
-use App\Services\Install;
-
 /**
- * Where the fleet's checkouts live when SCANNER_ROOT says nothing. On the
- * home install tests' own checkout is one of them (~/Herd/tests.dashcore.com),
- * so its parent folder is the root; on any other install there is no safe
- * guess, and nothing is scannable until the root is set.
+ * Where the fleet's checkouts live when SCANNER_ROOT says nothing. Every
+ * install's own checkout sits beside the apps it scans (~/Herd/tests.<fleet>
+ * beside ~/Herd/<app>), so its parent folder is the root. CheckoutLocator and
+ * StandInGuard still refuse anything that does not belong.
+ *
+ * The Proving Ground targets' checkouts follow the resolved root: a target
+ * with no checkout of its own is its `checkout_folder` under it.
  */
 class ScannerRoot
 {
@@ -16,16 +17,27 @@ class ScannerRoot
     {
         $root = config('scanner.root');
 
-        if (is_string($root) && trim($root) !== '') {
+        if (! is_string($root) || trim($root) === '') {
+            $root = self::fallback();
+            config(['scanner.root' => $root]);
+        }
+
+        if (! is_string($root) || trim($root) === '') {
             return;
         }
 
-        config(['scanner.root' => self::fallback()]);
+        foreach ((array) config('simulation.targets', []) as $key => $target) {
+            $folder = $target['checkout_folder'] ?? null;
+
+            if (empty($target['checkout']) && is_string($folder) && $folder !== '') {
+                config(["simulation.targets.{$key}.checkout" => rtrim($root, '/').'/'.$folder]);
+            }
+        }
     }
 
     public static function fallback(): ?string
     {
-        if (! config('scanner.root_fallback') || ! Install::isHome()) {
+        if (! config('scanner.root_fallback')) {
             return null;
         }
 

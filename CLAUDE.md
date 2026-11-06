@@ -92,10 +92,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   list is kept here. `php artisan tests:sync-fleet`.
 - **Checkouts** — `SCANNER_ROOT` (e.g. `~/Herd`) holds one checkout per app,
   named by production host. `CheckoutLocator` refuses anything outside it.
-  On the home install an unset or empty `SCANNER_ROOT` falls back to the
+  On every install an unset or empty `SCANNER_ROOT` falls back to the
   parent folder of tests' own checkout (`ScannerRoot`, at boot; off with
-  `SCANNER_ROOT_FALLBACK=false`, as phpunit.xml does) — losing it from the
-  launchd env once emptied every `local_path` and every nightly (REQ-476).
+  `SCANNER_ROOT_FALLBACK=false`, as phpunit.xml does), and Proving Ground
+  targets with no checkout of their own get `checkout_folder` under it —
+  losing it from the launchd env once emptied every `local_path` and every
+  nightly (REQ-476, REQ-605).
   On any install but the home one, an app with no folder by its roster host
   (a practice fleet's tailnet name) falls back to the folder fleets'
   `fleet:export` names as its `local` (`api.req145.practice`), with the same
