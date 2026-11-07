@@ -278,8 +278,11 @@ surfaces (routes, Livewire components/actions, and every public method under
   dashcore.com's `/lets-talk`; `contact_form` on the website entry
   overrides. `tests:scan --last` likewise reads, never queues.
   `tests:pin-stand-ins [fleet]` moves each stand-in checkout (clean ones
-  only) to that release or commit, then installs, migrates and builds
-  what the move changed. This install's stand-in fleet is `SIMULATION_FLEET`
+  only) to that release or commit, on a local branch `stand-in`
+  (`git switch -C stand-in <sha>`: never a detached HEAD, main never
+  moved), then installs, migrates and builds what the move changed; a
+  checkout detached or on any other branch is drift even at the live
+  commit. This install's stand-in fleet is `SIMULATION_FLEET`
   (the `--target` default of `tests:journey`/`tests:launch`). Each install
   walks only its own fleet's stand-ins (`OwnFleet`, at boot): targets keep
   their `fleet` (default the home fleet — the fake company is Dashcore's),

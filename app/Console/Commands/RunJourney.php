@@ -54,7 +54,7 @@ class RunJourney extends Command
     /** @var array{journey: string, fleet: string}|null the journey and fleet once both are known */
     private ?array $walked = null;
 
-    /** @var list<array{app: string, checkout: string, live: ?string, live_sha: ?string, actual_sha: ?string}> */
+    /** @var list<array{app: string, checkout: string, live: ?string, live_sha: ?string, actual_sha: ?string, branch?: ?string}> */
     private array $drift = [];
 
     /** @var list<string> the stand-ins whose release was compared with live */
@@ -165,8 +165,12 @@ class RunJourney extends Command
         $this->drift = StandInPins::drifted($survey);
 
         foreach ($this->drift as $drifted) {
-            $this->components->warn("Drifted: the {$drifted['app']} stand-in is not on {$drifted['live']}, the release its fleet runs live.");
-            $this->record['said'][] = "Drifted: the {$drifted['app']} stand-in is not on {$drifted['live']}.";
+            $offBranch = $drifted['live_sha'] !== null && $drifted['live_sha'] === $drifted['actual_sha'];
+            $said = $offBranch
+                ? "Drifted: the {$drifted['app']} stand-in is on {$drifted['live']} but not on its ".StandInPins::BRANCH.' branch'
+                : "Drifted: the {$drifted['app']} stand-in is not on {$drifted['live']}";
+            $this->components->warn($said.($offBranch ? ' ('.(($drifted['branch'] ?? null) === null ? 'detached HEAD' : "branch {$drifted['branch']}").').' : ', the release its fleet runs live.'));
+            $this->record['said'][] = $said.'.';
         }
 
         if (! $this->guardApps($guard, $key, $fleet, $apps, $journey->requires())) {
