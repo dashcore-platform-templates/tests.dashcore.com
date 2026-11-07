@@ -56,6 +56,12 @@ class Payment extends CustomerJourney
         return 'delivery';
     }
 
+    /** It walks the enquiry first, so it needs what the enquiry needs. */
+    public function requires(): array
+    {
+        return $this->enquiry->onFleet($this->fleet)->requires();
+    }
+
     public function script(array $people, Generator $faker): Script
     {
         $prospect = Prospect::fake($faker);

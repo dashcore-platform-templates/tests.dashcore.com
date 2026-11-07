@@ -67,7 +67,8 @@ class RunJourneyTest extends TestCase
 
         $safe = ['mail.default' => 'log', 'app.env' => 'local', 'mail.local_really_send' => false];
         $this->mail = [
-            'travischapman.practice' => json_encode($safe),
+            // dashcore.com's site, with its coming-soon page switched off.
+            'travischapman.practice' => json_encode([...$safe, 'app.coming_soon' => false]),
             'sales.travischapman.practice' => json_encode($safe),
             'dcos.travischapman.practice' => json_encode($safe),
         ];
@@ -219,6 +220,21 @@ class RunJourneyTest extends TestCase
             ->expectsOutputToContain('mail.local_really_send is true')
             ->assertFailed();
 
+        Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
+    }
+
+    public function test_it_refuses_a_website_still_showing_its_coming_soon_page(): void
+    {
+        // dashcore.com's site defaults to "Coming soon", which hides
+        // /lets-talk: the 28 Oct walk failed at its first step on it (REQ-605).
+        $this->fakeProcesses();
+        $this->mail['travischapman.practice'] = json_encode(['mail.default' => 'log', 'app.env' => 'local', 'mail.local_really_send' => false, 'app.coming_soon' => true]);
+
+        $this->artisan('tests:journey', ['journey' => 'enquiry'])
+            ->expectsOutputToContain('travischapman.practice is not set up for this journey: app.coming_soon is true, and must be false.')
+            ->assertFailed();
+
+        Process::assertDidntRun(fn (PendingProcess $p) => in_array('dashcore:admin', (array) $p->command, true));
         Process::assertDidntRun(fn (PendingProcess $p) => ((array) $p->command)[0] === config('simulation.node'));
     }
 

@@ -66,7 +66,9 @@ class Subscription extends CustomerJourney
 
     public function requires(): array
     {
+        // It walks the enquiry first, so it needs what the enquiry needs too.
         return [
+            ...$this->enquiry->onFleet($this->fleet)->requires(),
             'sales' => ['dashcore.plans.api_ceo.enabled' => true],
             'delivery' => ['dashcore.api_ceo.enabled' => true],
         ];
