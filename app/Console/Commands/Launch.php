@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Launch as LaunchRecord;
+use App\Simulation\PracticeFleet;
 use App\Simulation\StripeForwarder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
@@ -34,12 +35,19 @@ class Launch extends Command
 
     public function handle(StripeForwarder $stripe): int
     {
+        PracticeFleet::ensure();
         $target = (string) ($this->option('target') ?? config('simulation.fleet'));
         $fleet = config("simulation.fleets.{$target}");
         $stages = array_values((array) config('simulation.launch'));
 
         if (! is_array($fleet)) {
             $this->components->error("No stand-in fleet \"{$target}\". Known: ".implode(', ', array_keys(config('simulation.fleets', []))).'.');
+
+            return self::FAILURE;
+        }
+
+        if (($why = PracticeFleet::refusal($fleet)) !== null) {
+            $this->components->error($why);
 
             return self::FAILURE;
         }

@@ -475,7 +475,7 @@ class Workspace
      */
     private function mustRun(PendingProcess $process, array $command, string $what): void
     {
-        $result = $process->run($command);
+        $result = $process->run($command, fn () => app(ScanHeartbeat::class)->beat());
 
         if ($result->failed()) {
             throw new RuntimeException($what.' failed: '.Str::limit(trim($result->errorOutput() ?: $result->output()), 2000));

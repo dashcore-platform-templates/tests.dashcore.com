@@ -43,6 +43,8 @@ class Scanner
 
         $scan->update(['status' => ScanStatus::Preparing, 'started_at' => now(), 'error' => null]);
 
+        $heartbeat = app(ScanHeartbeat::class);
+        $heartbeat->start($scan);
         $workspace = null;
 
         try {
@@ -132,6 +134,7 @@ class Scanner
                 'finished_at' => now(),
             ]);
         } finally {
+            $heartbeat->stop();
             $workspace?->cleanup();
 
             if ($workspace !== null) {

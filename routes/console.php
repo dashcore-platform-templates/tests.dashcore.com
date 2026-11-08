@@ -3,6 +3,7 @@
 use App\Building\BuildRequester;
 use App\Jobs\FlyLaunch;
 use App\Scanning\PullRequestScans;
+use App\Simulation\PracticeFleet;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -19,6 +20,11 @@ Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 // Off with SCANNER_NIGHTLY=false where the scan workers are paused.
 Schedule::command('tests:scan')->dailyAt((string) config('scanner.nightly_at'))->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.nightly'));
+
+// A scan whose worker died (launchd killed it, the Mac slept) is failed
+// with why, its job deleted and the app queued once more, instead of
+// reading "running" until retry_after runs out hours later (REQ-683).
+Schedule::command('tests:reap-scans')->everyFiveMinutes()->withoutOverlapping();
 
 // Scans and builds run on their own long-lived worker, the launchd agent
 // com.dashcore.queue-tests (KeepAlive) — not from here. The fleet host runs
@@ -51,6 +57,10 @@ Schedule::command('tests:heartbeat')->everyMinute()->withoutOverlapping(5);
 // Browser-test workflows built on /workflows: each one due is walked here,
 // in the tick itself (seconds to a minute each), never in the background.
 Schedule::command('tests:workflows')->everyMinute()->withoutOverlapping(30);
+
+// Which practice fleet the customer journeys walk, read again from
+// fleets' roster every hour (PracticeFleet; boot only reads the cache).
+Schedule::call(fn () => PracticeFleet::refresh())->name('simulation:practice-fleet')->hourlyAt(5)->withoutOverlapping();
 
 // A whole new client brought on across the practice fleet every night
 // (`tests:launch`), so the client journey map is never more than a day old.

@@ -26,6 +26,7 @@ class Scan extends Model
             'verdict_detail' => 'array',
             'score' => 'decimal:2',
             'started_at' => 'datetime',
+            'heartbeat_at' => 'datetime',
             'finished_at' => 'datetime',
             'notes' => 'array',
         ];

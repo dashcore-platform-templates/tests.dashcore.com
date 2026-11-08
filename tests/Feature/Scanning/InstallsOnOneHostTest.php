@@ -88,10 +88,10 @@ class InstallsOnOneHostTest extends TestCase
         config(['scanner.pull_requests.enabled' => true]);
 
         $this->asInstall('dashcore');
-        $home = collect(app(HostRuntime::class)->describe()['workers'])->pluck('label')->all();
+        $home = collect(app(HostRuntime::class)->describe()['launchd'])->pluck('label')->all();
 
         $this->asInstall('acme');
-        $acme = collect(app(HostRuntime::class)->describe()['workers'])->pluck('label')->all();
+        $acme = collect(app(HostRuntime::class)->describe()['launchd'])->pluck('label')->all();
 
         $this->assertSame(['com.dashcore.queue-tests', 'com.dashcore.queue-tests-2', 'com.dashcore.queue-tests-prs', 'com.dashcore.simulation-tests'], $home);
         // Another fleet never scans pull requests, so it has no PR worker.
@@ -169,14 +169,56 @@ class InstallsOnOneHostTest extends TestCase
         $runtime = json_decode(Artisan::output(), true);
 
         $this->assertSame(['fleet' => 'acme', 'host' => 'tests.acme.practice.dashcore.com', 'home' => false, 'path' => base_path()], $runtime['install']);
-        $this->assertSame(['com.dashcore.queue-tests.acme', 'com.dashcore.queue-tests.acme-2', 'com.dashcore.simulation-tests.acme'], array_column($runtime['workers'], 'label'));
-        $this->assertSame([config('scanner.php'), 'artisan', 'queue:work', 'scans', '--queue=scans,builds'], array_slice($runtime['workers'][0]['program_arguments'], 0, 5));
-        $this->assertSame(base_path(), $runtime['workers'][0]['working_directory']);
+        $this->assertSame(['com.dashcore.queue-tests.acme', 'com.dashcore.queue-tests.acme-2', 'com.dashcore.simulation-tests.acme'], array_column($runtime['launchd'], 'label'));
+        $this->assertSame([config('scanner.php'), 'artisan', 'queue:work', 'scans', '--queue=scans,builds'], array_slice($runtime['launchd'][0]['program_arguments'], 0, 5));
+        $this->assertSame(base_path(), $runtime['launchd'][0]['working_directory']);
         $this->assertSame('01:40', $runtime['schedule']['nightly_scan_at']);
         $this->assertTrue($runtime['schedule']['nightly_scan']);
         $this->assertSame([config('scanner.php'), 'artisan', 'schedule:run'], $runtime['schedule']['program_arguments']);
         $this->assertSame('tests_scan_acme__', $runtime['scratch']['database_prefix']);
         $this->assertSame(2, $runtime['slots']['scans']);
+    }
+
+    public function test_host_runtime_takes_the_options_console_starts_it_with(): void
+    {
+        $this->asInstall('dashcore');
+        config(['scanner.nightly_at' => '01:00', 'scanner.nightly' => true, 'scanner.pull_requests.enabled' => true, 'scanner.slots.scans' => 3]);
+
+        $exit = Artisan::call('tests:host-runtime', ['--json' => true, '--no-interaction' => true, '--nightly-at' => '01:20', '--slots' => '2', '--slots-dir' => '/tmp/ops/scan-slots']);
+        $runtime = json_decode(Artisan::output(), true);
+
+        $this->assertSame(0, $exit);
+        $this->assertSame('01:20', $runtime['schedule']['nightly_scan_at']);
+        $this->assertSame(2, $runtime['slots']['scans']);
+        $this->assertSame('/tmp/ops/scan-slots', $runtime['slots']['slots_dir']);
+
+        // Console's shape (FleetHost::hostRuntime): name => artisan arguments.
+        $this->assertSame(['scans', 'scans-2', 'prs', 'simulation'], array_keys($runtime['workers']));
+        foreach ($runtime['workers'] as $name => $command) {
+            $this->assertMatchesRegularExpression('/^[a-z0-9-]+$/', $name);
+            $this->assertIsList($command);
+            $this->assertNotEmpty($command);
+            $this->assertContainsOnlyString($command);
+        }
+        $this->assertSame(['queue:work', 'scans', '--queue=scans,builds'], array_slice($runtime['workers']['scans'], 0, 3));
+        $this->assertSame(['tests:simulate'], $runtime['workers']['simulation']);
+        $this->assertContains('--queue=prs', $runtime['workers']['prs']);
+        $this->assertContains('--timeout='.app(HostRuntime::class)->longestJob(), $runtime['workers']['scans']);
+    }
+
+    public function test_host_runtime_refuses_options_it_cannot_use(): void
+    {
+        $this->assertSame(1, Artisan::call('tests:host-runtime', ['--json' => true, '--nightly-at' => '25:00']));
+        $this->assertStringContainsString('--nightly-at must be a time as HH:MM', Artisan::output());
+
+        $this->assertSame(1, Artisan::call('tests:host-runtime', ['--json' => true, '--slots' => '0']));
+        $this->assertStringContainsString('--slots must be a whole number', Artisan::output());
+    }
+
+    public function test_a_scan_outlives_its_worker_timeout_and_retry_after_outlives_the_longest_job(): void
+    {
+        $this->assertSame(14400, (int) config('scanner.timeout'));
+        $this->assertGreaterThan(app(HostRuntime::class)->longestJob(), (int) config('queue.connections.scans.retry_after'));
     }
 
     /** The schedule as routes/console.php defines it under the current config. */

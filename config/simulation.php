@@ -25,13 +25,14 @@ use App\Simulation\Journeys\Sales\ReviewPipeline;
 use App\Simulation\Pulse\FinancePulse;
 use App\Simulation\Pulse\SalesPulse;
 use App\Simulation\Pulse\TablePulse;
-use Illuminate\Support\Str;
 
-// Whose practice fleet customer journeys walk: fleets.dashcore.com builds
-// one per person (`fleet:practice`), named for this machine's user, served
-// by Herd at <app>.<who>.practice.test and checked out under ~/Herd by host.
-$practiceWho = env('SIMULATION_PRACTICE_WHO') ?: Str::slug((string) ((function_exists('posix_getpwuid') ? (posix_getpwuid(posix_geteuid())['name'] ?? null) : null) ?: basename((string) env('HOME'))));
-$practiceDomain = "{$practiceWho}.practice";
+// The practice fleet customer journeys walk: the one practice fleet fleets'
+// roster (`fleet:export --json`) names practice-<x> (fleet:practice's
+// naming), served by Herd at <app>.<domain>.test and checked out under
+// ~/Herd by host. `{install}` and `{domain}` below are filled in from the
+// roster (App\Simulation\PracticeFleet, REQ-683) — never from the Mac's
+// user. SIMULATION_PRACTICE_INSTALL / SIMULATION_PRACTICE_DOMAIN override.
+$practiceDomain = '{domain}';
 $practiceRoot = rtrim((string) (env('SIMULATION_PRACTICE_ROOT') ?: env('SCANNER_ROOT') ?: env('HOME').'/Herd'), '/');
 
 return [
@@ -331,9 +332,12 @@ return [
     // that fleet runs live, an app on its `live_app` (default its own key).
     'fleets' => [
         'practice' => [
-            'name' => "Practice fleet ({$practiceWho})",
-            // The fleet's install slug in fleets.dashcore.com.
-            'install' => "practice-{$practiceWho}",
+            'name' => 'Practice fleet ({install})',
+            // The fleet's install slug in fleets.dashcore.com and its
+            // domain, from fleets' roster unless set (PracticeFleet).
+            'from_roster' => true,
+            'install' => env('SIMULATION_PRACTICE_INSTALL') ?: '{install}',
+            'domain' => env('SIMULATION_PRACTICE_DOMAIN') ?: '{domain}',
             // The real fleet whose releases it runs, and whose tests walks it.
             'stands_in_for' => env('SIMULATION_STANDS_IN_FOR', 'dashcore'),
             // Where the fleets a customer pays for are built from: the
