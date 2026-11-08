@@ -20,6 +20,11 @@ Schedule::command('tests:sync-fleet')->dailyAt('00:30')->withoutOverlapping();
 Schedule::command('tests:scan')->dailyAt((string) config('scanner.nightly_at'))->withoutOverlapping()
     ->when(fn () => (bool) config('scanner.nightly'));
 
+// A scan whose worker died (launchd killed it, the Mac slept) is failed
+// with why, its job deleted and the app queued once more, instead of
+// reading "running" until retry_after runs out hours later (REQ-683).
+Schedule::command('tests:reap-scans')->everyFiveMinutes()->withoutOverlapping();
+
 // Scans and builds run on their own long-lived worker, the launchd agent
 // com.dashcore.queue-tests (KeepAlive) — not from here. The fleet host runs
 // this schedule as a periodic launchd job, and launchd ends every process the

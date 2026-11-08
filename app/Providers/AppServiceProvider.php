@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Scanning\ScanHeartbeat;
 use App\Scanning\ScannerRoot;
 use App\Services\FleetExport;
 use App\Services\NavigationRegistry;
@@ -18,6 +19,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(PermissionService::class);
         $this->app->singleton(Simulation::class);
         $this->app->singleton(FleetExport::class);
+        $this->app->singleton(ScanHeartbeat::class);
     }
 
     public function boot(): void

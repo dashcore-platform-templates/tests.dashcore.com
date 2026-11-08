@@ -161,7 +161,7 @@ class SuiteRunner
                     '--colors=never',
                     '--do-not-cache-result',
                     ...$arguments,
-                ]);
+                ], fn () => app(ScanHeartbeat::class)->beat());
         } catch (ProcessTimedOutException $e) {
             $timedOut = true;
             $result = $e->result;

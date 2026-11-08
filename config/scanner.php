@@ -83,7 +83,7 @@ return [
 
     'npm' => env('SCANNER_NPM', 'npm'),
 
-    'timeout' => (int) env('SCANNER_TIMEOUT', 7200),
+    'timeout' => (int) env('SCANNER_TIMEOUT', 14400),
 
     // The nightly scan of every app (01:00). Off on a host whose scan
     // workers are paused: it would only queue a night's scans for nobody,
@@ -98,6 +98,11 @@ return [
     // The heartbeat fails when scans have waited this long with none running
     // and no worker has taken a scan job (are the launchd workers up?).
     'stalled_after_minutes' => (int) env('SCANNER_STALLED_AFTER_MINUTES', 45),
+
+    // A running scan stamps a heartbeat at least once a minute while its
+    // suite talks. tests:reap-scans fails one silent this long whose worker
+    // is gone, deletes its job and queues the app again (REQ-683).
+    'reap_after_minutes' => (int) env('SCANNER_REAP_AFTER_MINUTES', 15),
 
     // With the nightly on and enabled apps on the roster, the heartbeat fails
     // and Console's report files tests:scans-stale when no main scan has
