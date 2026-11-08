@@ -8,6 +8,7 @@ use App\Simulation\JourneyResult;
 use App\Simulation\JourneyRuns;
 use App\Simulation\JourneyWalker;
 use App\Simulation\Persona;
+use App\Simulation\PracticeFleet;
 use App\Simulation\Script;
 use App\Simulation\Simulation;
 use App\Simulation\StandInGuard;
@@ -136,6 +137,17 @@ class RunJourney extends Command
 
         if (! is_array($fleet)) {
             $this->fails("No stand-in fleet \"{$target}\". Known: ".implode(', ', array_keys(config('simulation.fleets', []))).'.');
+
+            return self::FAILURE;
+        }
+
+        // The practice fleet comes from fleets' roster, read now if not cached.
+        PracticeFleet::ensure();
+        $fleet = (array) config("simulation.fleets.{$target}");
+
+        if (($why = PracticeFleet::refusal($fleet)) !== null) {
+            $this->walked = ['journey' => (string) $key, 'fleet' => $target];
+            $this->fails($why);
 
             return self::FAILURE;
         }

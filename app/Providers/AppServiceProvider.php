@@ -8,6 +8,7 @@ use App\Services\FleetExport;
 use App\Services\NavigationRegistry;
 use App\Services\PermissionService;
 use App\Simulation\OwnFleet;
+use App\Simulation\PracticeFleet;
 use App\Simulation\Simulation;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Every fleet's tests walks only its own fleet's stand-ins.
         OwnFleet::apply();
+
+        // The practice fleet journeys walk, from fleets' roster as cached.
+        PracticeFleet::apply();
 
         // No install loses its scanner root with its environment.
         ScannerRoot::apply();

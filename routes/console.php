@@ -3,6 +3,7 @@
 use App\Building\BuildRequester;
 use App\Jobs\FlyLaunch;
 use App\Scanning\PullRequestScans;
+use App\Simulation\PracticeFleet;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -56,6 +57,10 @@ Schedule::command('tests:heartbeat')->everyMinute()->withoutOverlapping(5);
 // Browser-test workflows built on /workflows: each one due is walked here,
 // in the tick itself (seconds to a minute each), never in the background.
 Schedule::command('tests:workflows')->everyMinute()->withoutOverlapping(30);
+
+// Which practice fleet the customer journeys walk, read again from
+// fleets' roster every hour (PracticeFleet; boot only reads the cache).
+Schedule::call(fn () => PracticeFleet::refresh())->name('simulation:practice-fleet')->hourlyAt(5)->withoutOverlapping();
 
 // A whole new client brought on across the practice fleet every night
 // (`tests:launch`), so the client journey map is never more than a day old.

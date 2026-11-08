@@ -7,6 +7,7 @@ use App\Enums\ScanStatus;
 use App\Jobs\RunScan;
 use App\Models\FleetApp;
 use App\Models\Scan;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -174,7 +175,7 @@ class ScanReaper
         return preg_match('/s:\d+:"App\\\\Models\\\\Scan";s:2:"id";i:(\d+);/', (string) ($decoded['data']['command'] ?? ''), $m) === 1 ? (int) $m[1] : null;
     }
 
-    private function queue(): \Illuminate\Database\Query\Builder
+    private function queue(): Builder
     {
         $config = (array) config('queue.connections.'.config('scanner.queue.connection'));
 

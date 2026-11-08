@@ -150,7 +150,11 @@ surfaces (routes, Livewire components/actions, and every public method under
   `SCANNER_HOST_PR_SLOTS`=1); a job with no slot re-queues itself a minute
   later. The nightly scan starts at `SCANNER_NIGHTLY_AT` (Dashcore 01:00,
   each other fleet 20 min after the last). `tests:host-runtime --json` lists
-  the workers and schedule an install needs, for fleets to install.
+  the workers and schedule an install needs: Console starts it with
+  `--nightly-at`, `--slots` and `--slots-dir` (reported only — slots stay
+  advisory locks) and reads `workers` as a name => artisan arguments map
+  (`scans`, `scans-2`, `prs`, `simulation`); the launchd detail is under
+  `launchd` (REQ-683).
   Another fleet's install scans each checkout at the release it runs live
   (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
   else `running_release`, else pinned `release`; tags fetched, never
@@ -165,7 +169,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   `tests:scan-queued-nothing`. `tests:scan --last` queues nothing and exits 0
   only when the newest main scan of every scannable app completed. With the
   nightly on, no completed main scan for `SCANNER_STALE_AFTER_HOURS` (26)
-  makes the heartbeat beat /fail and the report file `tests:scans-stale`. The schedule in
+  makes the heartbeat beat /fail and the report file `tests:scans-stale`. A
+  running scan stamps `heartbeat_at` with its worker's pid/host
+  (`ScanHeartbeat`, from the suite's output); `tests:reap-scans` (every 5
+  min) fails one silent `SCANNER_REAP_AFTER_MINUTES` (15) whose worker is
+  gone, or a queued scan whose job vanished, deletes its job and queues the
+  app once more per day (`ScanReaper`). `SCANNER_TIMEOUT` defaults to 14400. The schedule in
   `routes/console.php` syncs, scans nightly, follows build PRs and prunes old
   per-test detail, and (with `SCANNER_BUILD_NIGHTLY=true`) hourly queues a build
   for each app with gaps and no build running or PR waiting on review. Two workers (queues `scans,builds`) are the launchd agents
@@ -277,6 +286,11 @@ surfaces (routes, Livewire components/actions, and every public method under
   with `#contact-form` is the client template's `/contact`, else
   dashcore.com's `/lets-talk`; `contact_form` on the website entry
   overrides. `tests:scan --last` likewise reads, never queues.
+  The practice stand-in fleet's install and domain come from fleets'
+  roster (`PracticeFleet`: the one `practice-*` practice fleet, its
+  `domain`; `SIMULATION_PRACTICE_INSTALL`/`_DOMAIN` override; none or
+  several refuses naming them) — boot reads only the cache, walking
+  commands read the roster, the schedule refreshes it hourly.
   `tests:pin-stand-ins [fleet]` moves each stand-in checkout (clean ones
   only) to that release or commit, on a local branch `stand-in`
   (`git switch -C stand-in <sha>`: never a detached HEAD, main never

@@ -61,6 +61,9 @@
         <!-- No test reaches the real fleets checkout, keys checkout or heartbeat. -->
         <env name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
         <server name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
+        <!-- With no fleets roster to read, tests name the practice fleet (PracticeFleet). -->
+        <env name="SIMULATION_PRACTICE_INSTALL" value="practice-phpunit" force="true"/>
+        <server name="SIMULATION_PRACTICE_INSTALL" value="practice-phpunit" force="true"/>
         <env name="WORKFLOWS_HEARTBEAT_URL" value="" force="true"/>
         <server name="WORKFLOWS_HEARTBEAT_URL" value="" force="true"/>
         <env name="WORKFLOWS_KEYS_CHECKOUT" value="" force="true"/>

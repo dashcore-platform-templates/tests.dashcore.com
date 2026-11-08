@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Simulation\PracticeFleet;
 use App\Simulation\StandInPins;
 use Illuminate\Console\Command;
 
@@ -15,10 +16,17 @@ class PinStandIns extends Command
 
     public function handle(StandInPins $pins): int
     {
+        PracticeFleet::ensure();
         $fleet = (string) ($this->argument('fleet') ?? config('simulation.fleet'));
 
         if (! is_array(config("simulation.fleets.{$fleet}"))) {
             $this->components->error("No stand-in fleet \"{$fleet}\". Known: ".implode(', ', array_keys((array) config('simulation.fleets'))).'.');
+
+            return self::FAILURE;
+        }
+
+        if (($why = PracticeFleet::refusal((array) config("simulation.fleets.{$fleet}"))) !== null) {
+            $this->components->error($why);
 
             return self::FAILURE;
         }
