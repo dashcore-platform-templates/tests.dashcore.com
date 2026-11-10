@@ -68,6 +68,15 @@ class ConsoleReport
                 route('fleet.index'));
         }
 
+        $off = app(ScheduleHealth::class)->nightlyOff();
+
+        if ($off !== null) {
+            $findings[] = $this->finding('tests:nightly-off', null, 'high',
+                'The nightly tests scan is switched off',
+                $off,
+                route('fleet.index'));
+        }
+
         $stale = app(ScheduleHealth::class)->scansStale();
 
         if ($stale !== null) {

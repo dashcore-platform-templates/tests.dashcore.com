@@ -41,14 +41,28 @@ class SubscriptionJourneyTest extends TestCase
 
     public function test_it_needs_the_plan_switched_on_in_both_apps_it_crosses(): void
     {
+        $comingSoonOff = ['website' => ['app.coming_soon' => false]];
+
         $this->assertSame([
+            ...$comingSoonOff,
             'sales' => ['dashcore.plans.api_ceo.enabled' => true],
             'delivery' => ['dashcore.api_ceo.enabled' => true],
         ], app(Subscription::class)->requires());
 
-        // The one-time journey asks nothing of the stand-in beyond the guard.
-        $this->assertSame([], app(Payment::class)->requires());
-        $this->assertSame([], app(Enquiry::class)->requires());
+        // The one-time journey asks only what the enquiry it walks first asks:
+        // dashcore.com's /lets-talk, which hides behind "Coming soon" unless
+        // it is switched off.
+        $this->assertSame($comingSoonOff, app(Payment::class)->requires());
+        $this->assertSame($comingSoonOff, app(Enquiry::class)->requires());
+    }
+
+    public function test_a_client_template_website_has_no_coming_soon_page_to_switch_off(): void
+    {
+        $fleet = ['apps' => ['website' => ['contact_form' => 'contact']]];
+
+        $this->assertSame([], app(Enquiry::class)->onFleet($fleet)->requires());
+        $this->assertSame([], app(Payment::class)->onFleet($fleet)->requires());
+        $this->assertArrayNotHasKey('website', app(Subscription::class)->onFleet($fleet)->requires());
     }
 
     public function test_it_walks_the_same_road_as_the_one_time_payment_with_a_plan_where_the_price_was(): void

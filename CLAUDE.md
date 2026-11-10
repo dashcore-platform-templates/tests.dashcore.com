@@ -155,6 +155,14 @@ surfaces (routes, Livewire components/actions, and every public method under
   advisory locks) and reads `workers` as a name => artisan arguments map
   (`scans`, `scans-2`, `prs`, `simulation`); the launchd detail is under
   `launchd` (REQ-683).
+  `tests:host-runtime --verify [--nightly=on|off] [--nightly-at=HH:MM]
+  [--pr-scans=on|off]` (`WorkerCheck`, REQ-371) is Console's machine check:
+  exit 0 only when every listed worker is loaded (`launchctl list`) — under
+  its own label or a loaded plist in `SCANNER_LAUNCH_AGENTS` running the same
+  artisan command and `--queue` in this checkout (fleets' labels,
+  `com.dashcore.tests-{fleet}-scans…`) — and each switch given matches
+  config; otherwise exit 1, one line per missing label or switch.
+  `--pr-scans` is `SCANNER_PR_SCANS` itself.
   Another fleet's install scans each checkout at the release it runs live
   (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
   else `running_release`, else pinned `release`; tags fetched, never
@@ -169,7 +177,12 @@ surfaces (routes, Livewire components/actions, and every public method under
   `tests:scan-queued-nothing`. `tests:scan --last` queues nothing and exits 0
   only when the newest main scan of every scannable app completed. With the
   nightly on, no completed main scan for `SCANNER_STALE_AFTER_HOURS` (26)
-  makes the heartbeat beat /fail and the report file `tests:scans-stale`. A
+  makes the heartbeat beat /fail and the report file `tests:scans-stale`.
+  With it off and enabled apps to scan, the report files `tests:nightly-off`
+  instead: the schedule reads `SCANNER_NIGHTLY` from this checkout's `.env`
+  only — the launchd environment Console writes for workers never reaches
+  `schedule:run` — and the 7–8 Nov 2026 nightlies queued nothing because the
+  anchor's `.env` had said false since 31 Oct (REQ-683). A
   running scan stamps `heartbeat_at` with its worker's pid/host
   (`ScanHeartbeat`, from the suite's output); `tests:reap-scans` (every 5
   min) fails one silent `SCANNER_REAP_AFTER_MINUTES` (15) whose worker is

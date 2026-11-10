@@ -83,6 +83,33 @@ class ScheduleHealth
      * none ever has. A nightly that queued nothing (the scanner root lost,
      * REQ-476) looked healthy with "0 queued, 0 running"; this is what says so.
      */
+    /**
+     * Why the nightly scan is not running here, when it is switched off on
+     * an install with enabled apps to scan; null when it is on (or there is
+     * nothing to scan). The schedule reads SCANNER_NIGHTLY from this
+     * checkout's .env: the launchd environment Console writes for the
+     * workers never reaches `schedule:run`, so a worker plist saying "true"
+     * does not switch it on. The 7 and 8 Nov 2026 nightlies queued nothing
+     * because the .env had said false since 31 Oct, and scansStale() — on
+     * only with the nightly — stayed quiet (REQ-683).
+     */
+    public function nightlyOff(): ?string
+    {
+        if (config('scanner.nightly')) {
+            return null;
+        }
+
+        if (! FleetApp::query()->real()->where('is_enabled', true)->exists()) {
+            return null;
+        }
+
+        $last = Scan::query()->where('kind', ScanKind::Main)->where('status', ScanStatus::Completed)->max('finished_at');
+
+        return 'SCANNER_NIGHTLY is false in '.base_path('.env').', so the schedule queues no nightly tests:scan'
+            .' (a worker\'s launchd environment does not reach schedule:run). '
+            .($last === null ? 'No main scan has ever completed here.' : 'The last main scan finished '.Carbon::parse($last)->toDayDateTimeString().'.');
+    }
+
     public function scansStale(): ?string
     {
         if (! config('scanner.nightly')) {

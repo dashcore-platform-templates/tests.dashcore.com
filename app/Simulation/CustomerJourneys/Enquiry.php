@@ -38,6 +38,21 @@ class Enquiry extends CustomerJourney
         return ['sales' => 'Sales rep'];
     }
 
+    /**
+     * dashcore.com's site hides /lets-talk behind its "Coming soon" page
+     * unless COMING_SOON=false (app.coming_soon defaults to true), so a
+     * website stand-in on that site must have it off — else the walk fails
+     * at its first step for a reason that is not the hop (REQ-605: the
+     * 28 Oct walk on practice opened the coming-soon page). The client
+     * website template has no such switch; its /contact is always there.
+     */
+    public function requires(): array
+    {
+        return ContactForm::of($this->fleet['apps']['website'] ?? null) === ContactForm::LETS_TALK
+            ? ['website' => ['app.coming_soon' => false]]
+            : [];
+    }
+
     public function script(array $people, Generator $faker): Script
     {
         $prospect = Prospect::fake($faker);

@@ -58,6 +58,9 @@
              on PATH); tests assert on the bare command. -->
         <env name="SCANNER_GH" value="gh" force="true"/>
         <server name="SCANNER_GH" value="gh" force="true"/>
+        <!-- The nightly is on by default; a checkout's .env switching it off must not change what tests see. -->
+        <env name="SCANNER_NIGHTLY" value="true" force="true"/>
+        <server name="SCANNER_NIGHTLY" value="true" force="true"/>
         <!-- No test reaches the real fleets checkout, keys checkout or heartbeat. -->
         <env name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
         <server name="TESTS_FLEETS_CHECKOUT" value="" force="true"/>
