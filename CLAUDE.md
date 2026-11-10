@@ -162,7 +162,7 @@ surfaces (routes, Livewire components/actions, and every public method under
   artisan command and `--queue` in this checkout (fleets' labels,
   `com.dashcore.tests-{fleet}-scans…`) — and each switch given matches
   config; otherwise exit 1, one line per missing label or switch.
-  `--pr-scans` is `SCANNER_PR_SCANS` itself, not the pause.
+  `--pr-scans` is `SCANNER_PR_SCANS` itself.
   Another fleet's install scans each checkout at the release it runs live
   (`FleetExport`: fleets' `fleet:export --json`, per app `running_commit`,
   else `running_release`, else pinned `release`; tags fetched, never

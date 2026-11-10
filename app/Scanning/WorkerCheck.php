@@ -61,8 +61,7 @@ class WorkerCheck
     /**
      * How the schedule's switches differ from what was expected, one line
      * each. Keys: nightly (bool), nightly_at (HH:MM), pull_request_scans
-     * (bool: the SCANNER_PR_SCANS switch itself, not whether the pause
-     * holds them off).
+     * (bool: the SCANNER_PR_SCANS switch itself).
      *
      * @param  array{nightly?: bool, nightly_at?: string, pull_request_scans?: bool}  $expected
      * @return list<string>

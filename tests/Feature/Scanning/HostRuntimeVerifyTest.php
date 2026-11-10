@@ -34,7 +34,6 @@ class HostRuntimeVerifyTest extends TestCase
             'scanner.nightly' => true,
             'scanner.nightly_at' => '01:00',
             'scanner.pull_requests.enabled' => true,
-            'scanner.pull_requests.paused' => false,
         ]);
     }
 
@@ -95,16 +94,6 @@ class HostRuntimeVerifyTest extends TestCase
         $this->assertStringContainsString('SCANNER_NIGHTLY is off, expected on', $output);
         $this->assertStringContainsString('SCANNER_NIGHTLY_AT is 01:20, expected 01:00', $output);
         $this->assertStringContainsString('SCANNER_PR_SCANS is off, expected on', $output);
-    }
-
-    public function test_pr_scans_switched_on_but_paused_lists_no_pr_worker_and_still_passes(): void
-    {
-        // The owner's call for REQ-145 slice 15: SCANNER_PR_SCANS=true, the
-        // pause left alone — no PR worker is needed while it holds.
-        config(['scanner.pull_requests.paused' => true]);
-        $this->launchd(['com.dashcore.queue-tests', 'com.dashcore.queue-tests-2', 'com.dashcore.simulation-tests']);
-
-        $this->assertSame(0, Artisan::call('tests:host-runtime', ['--verify' => true, '--pr-scans' => 'on']));
     }
 
     public function test_launchctl_failing_means_nothing_is_loaded(): void
